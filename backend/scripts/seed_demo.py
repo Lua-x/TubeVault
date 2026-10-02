@@ -16,14 +16,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.config import Settings  # noqa: E402
-from app.db import make_engine, make_session_factory  # noqa: E402
-from app.main import init_storage  # noqa: E402
-from app.migrate import run_migrations  # noqa: E402
-from app.models import Subtitle, Video, VideoStatus  # noqa: E402
-from app.services.downloader import VideoMetadata  # noqa: E402
-from app.services.library import relative_to_media, video_base_path  # noqa: E402
-from app.services.videos import upsert_video  # noqa: E402
+from app.config import Settings
+from app.db import make_engine, make_session_factory
+from app.main import init_storage
+from app.migrate import run_migrations
+from app.models import Subtitle, VideoStatus
+from app.services.downloader import VideoMetadata
+from app.services.library import relative_to_media, video_base_path
+from app.services.videos import upsert_video
 
 CHANNELS = [
     ("UCdemo-nature", "Stille Natur", "@stillenatur"),
@@ -98,11 +98,26 @@ def main() -> None:
             color = COLORS[index % len(COLORS)]
             if not mp4.exists():
                 ffmpeg(
-                    "-f", "lavfi", "-i",
+                    "-f",
+                    "lavfi",
+                    "-i",
                     f"gradients=s=1280x720:c0={color}:c1=0x101014:duration={duration}:speed=0.02",
-                    "-f", "lavfi", "-i", f"sine=frequency={220 + index * 40}:duration={duration}",
-                    "-vf", "format=yuv420p", "-c:v", "libx264", "-preset", "veryfast",
-                    "-c:a", "aac", "-shortest", "-movflags", "+faststart", str(mp4),
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    f"sine=frequency={220 + index * 40}:duration={duration}",
+                    "-vf",
+                    "format=yuv420p",
+                    "-c:v",
+                    "libx264",
+                    "-preset",
+                    "veryfast",
+                    "-c:a",
+                    "aac",
+                    "-shortest",
+                    "-movflags",
+                    "+faststart",
+                    str(mp4),
                 )
             if not thumb.exists():
                 ffmpeg("-ss", "2", "-i", str(mp4), "-frames:v", "1", "-q:v", "3", str(thumb))
@@ -122,8 +137,12 @@ def main() -> None:
             video.subtitles.clear()
             db.flush()
             video.subtitles.append(
-                Subtitle(lang="de", label="Deutsch", is_auto=False,
-                         file_path=relative_to_media(settings.media_dir, vtt))
+                Subtitle(
+                    lang="de",
+                    label="Deutsch",
+                    is_auto=False,
+                    file_path=relative_to_media(settings.media_dir, vtt),
+                )
             )
             db.commit()
             print(f"✓ {title}")

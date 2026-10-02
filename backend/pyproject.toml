@@ -43,6 +43,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S105", "S106"]
+"scripts/**" = ["S311"]  # demo data, not cryptography
 "app/migrations/**" = ["E501"]
 
 [tool.mypy]
