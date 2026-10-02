@@ -12,7 +12,9 @@ import {
   useUsers,
 } from "@/api/queries";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { LibraryGroup, LibraryTaskStatus } from "@/components/settings/LibraryGroup";
 import { TranscodeGroup } from "@/components/settings/TranscodeGroup";
+import { Dialog } from "@/components/ui/Dialog";
 import { Button, IconButton } from "@/components/ui/Button";
 import { Group, Row } from "@/components/ui/Group";
 import { TextField } from "@/components/ui/Input";
@@ -129,10 +131,15 @@ function DownloadForm({ initial }: { initial: AppSettings }) {
   const update = (patch: Partial<AppSettings["downloads"]>) =>
     setDraft({ ...draft, downloads: { ...downloads, ...patch } });
 
+  const [savedLayout, setSavedLayout] = useState(initial.library.layout);
+  const [confirmMove, setConfirmMove] = useState<AppSettings | null>(null);
+
   const persist = async (next: AppSettings) => {
+    setConfirmMove(null);
     try {
       const saved = await save.mutateAsync(next);
       setDraft(saved);
+      setSavedLayout(saved.library.layout);
       setLanguages(saved.downloads.subtitle_languages.join(", "));
       toast("Einstellungen gespeichert");
     } catch (err) {
@@ -142,7 +149,7 @@ function DownloadForm({ initial }: { initial: AppSettings }) {
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    void persist({
+    const next: AppSettings = {
       ...draft,
       downloads: {
         ...downloads,
@@ -151,7 +158,10 @@ function DownloadForm({ initial }: { initial: AppSettings }) {
           .map((l) => l.trim())
           .filter(Boolean),
       },
-    });
+    };
+    // Moving every file deserves a confirmation.
+    if (next.library.layout !== savedLayout) setConfirmMove(next);
+    else void persist(next);
   };
 
   return (
@@ -272,11 +282,43 @@ function DownloadForm({ initial }: { initial: AppSettings }) {
         }
       />
 
+      <div className="flex flex-col gap-3">
+        <LibraryGroup
+          value={draft.library}
+          onChange={(patch) => setDraft({ ...draft, library: { ...draft.library, ...patch } })}
+        />
+        <LibraryTaskStatus />
+      </div>
+
       <div className="flex justify-end">
         <Button type="submit" loading={save.isPending}>
           Speichern
         </Button>
       </div>
+
+      <Dialog
+        open={confirmMove != null}
+        onClose={() => setConfirmMove(null)}
+        title="Bibliothek umziehen?"
+      >
+        <p className="text-[15px] text-secondary">
+          Alle Videos samt Thumbnails, Untertiteln und NFO-Dateien werden in die neue Ordnerstruktur
+          verschoben. Bei großen Bibliotheken dauert das ein paar Minuten. Lass Jellyfin oder Plex
+          danach die Bibliothek neu scannen.
+        </p>
+        <div className="mt-6 flex justify-end gap-3">
+          <Button type="button" variant="secondary" onClick={() => setConfirmMove(null)}>
+            Abbrechen
+          </Button>
+          <Button
+            type="button"
+            loading={save.isPending}
+            onClick={() => confirmMove && void persist(confirmMove)}
+          >
+            Umziehen
+          </Button>
+        </div>
+      </Dialog>
     </form>
   );
 }

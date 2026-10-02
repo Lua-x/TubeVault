@@ -12,6 +12,7 @@ import type {
   HwAccel,
   HwTestResult,
   Job,
+  LibraryTask,
   MaxHeight,
   Page,
   PlaybackInfo,
@@ -40,6 +41,7 @@ export const keys = {
   playlist: (id: number) => ["playlists", "detail", id] as const,
   segments: (id: number) => ["videos", "segments", id] as const,
   playback: (id: number) => ["videos", "playback", id] as const,
+  libraryTask: ["library", "task"] as const,
   remux: (id: number) => ["videos", "remux", id] as const,
   videoList: (params: VideoListParams) => ["videos", "list", params] as const,
   video: (id: number) => ["videos", "detail", id] as const,
@@ -438,5 +440,14 @@ export function useTranscodeSessions(enabled: boolean) {
     queryFn: () => api.get<TranscodeSession[]>("transcoding/sessions"),
     enabled,
     refetchInterval: 5000,
+  });
+}
+
+/** The running (or last) library task; kept current by `library.task` live events. */
+export function useLibraryTask(enabled: boolean) {
+  return useQuery({
+    queryKey: keys.libraryTask,
+    queryFn: () => api.get<LibraryTask | null>("library/task"),
+    enabled,
   });
 }

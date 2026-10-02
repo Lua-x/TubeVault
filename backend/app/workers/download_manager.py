@@ -34,7 +34,7 @@ from app.models import (
 )
 from app.schemas.jobs import JobOut
 from app.schemas.videos import VideoSummary
-from app.services import sponsorblock
+from app.services import nfo, sponsorblock
 from app.services.app_settings import DownloadOptions, load_app_settings, queue_paused
 from app.services.downloader import (
     DownloadCancelledError,
@@ -266,9 +266,11 @@ class DownloadManager:
             url = job.url
             requested_by = job.requested_by_id
             manual = job.subscription_id is None
+            app_settings = load_app_settings(db)
             options = DownloadOptions.model_validate(
-                load_app_settings(db).downloads.model_dump() | (job.options or {})
+                app_settings.downloads.model_dump() | (job.options or {})
             )
+            library = app_settings.library
             sub = db.get(Subscription, job.subscription_id) if job.subscription_id else None
             rules = FilterRules.of(sub) if sub else None
         temp_dir = self._settings.temp_dir / f"job-{job_id}"
@@ -301,7 +303,7 @@ class DownloadManager:
                 self._publish_job(db, job_id)
 
             relative_base = video_base_path(
-                channel_folder, meta.upload_date, meta.title, meta.youtube_id
+                channel_folder, meta.upload_date, meta.title, meta.youtube_id, library.layout
             )
             result = self._downloader.download(
                 meta,
@@ -323,6 +325,12 @@ class DownloadManager:
                 self._store_result(db, stored, result)
                 if options.sponsorblock_mode == "skip" and options.sponsorblock_categories:
                     sponsorblock.refresh(db, stored, list(options.sponsorblock_categories))
+                if library.write_nfo:
+                    try:
+                        db.flush()
+                        nfo.write_day_siblings(db, self._settings.media_dir, stored, library.layout)
+                    except OSError:
+                        log.warning("NFO für %s fehlt", stored.youtube_id, exc_info=True)
                 self._finish(db, job, stored)
             cleanup_temp(temp_dir)
 

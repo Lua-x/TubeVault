@@ -13,6 +13,7 @@ from app.services.auth import LoginThrottle
 from app.services.catalog import Catalog
 from app.services.subscriptions import SubscriptionChecker
 from app.workers.download_manager import DownloadManager
+from app.workers.library_tasks import LibraryTasks
 from app.workers.scheduler import SubscriptionScheduler
 from app.workers.transcoder import Transcoder
 
@@ -28,4 +29,5 @@ class AppContext:
     checker: SubscriptionChecker
     scheduler: SubscriptionScheduler
     transcoder: Transcoder
+    library_tasks: LibraryTasks
     login_throttle: LoginThrottle = field(default_factory=LoginThrottle)

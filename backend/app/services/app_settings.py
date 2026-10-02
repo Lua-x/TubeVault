@@ -74,10 +74,23 @@ class TranscodeOptions(BaseModel):
         return value
 
 
+Layout = Literal["tubevault", "series"]
+
+
+class LibraryOptions(BaseModel):
+    """How files are laid out on disk, e.g. for Jellyfin, Emby, Kodi or Plex."""
+
+    # "tubevault": <Channel>/<Year>/<Title> [id]
+    # "series":    <Channel>/Season <Year>/<YYYY-MM-DD> - <Title> [id]  (channel = show)
+    layout: Layout = "tubevault"
+    write_nfo: bool = True
+
+
 class AppSettings(BaseModel):
     downloads: DownloadOptions = Field(default_factory=DownloadOptions)
     max_concurrent_downloads: int = Field(default=2, ge=1, le=5)
     transcoding: TranscodeOptions = Field(default_factory=TranscodeOptions)
+    library: LibraryOptions = Field(default_factory=LibraryOptions)
 
 
 QUEUE_PAUSED_KEY = "queue_paused"

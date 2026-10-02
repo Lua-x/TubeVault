@@ -10,7 +10,7 @@ from fastapi import APIRouter
 from sqlalchemy import func, select, text
 
 from app import __version__
-from app.core.deps import AppConfig, CurrentUser, DbSession
+from app.core.deps import AdminUser, AppConfig, Context, CurrentUser, DbSession
 from app.models import Video, VideoStatus
 from app.schemas.system import DiskUsage, SystemInfo
 from app.services.ytdlp_updater import current_ytdlp_version
@@ -58,3 +58,10 @@ def system_info(_: CurrentUser, db: DbSession, settings: AppConfig) -> SystemInf
         video_count=db.scalar(select(func.count()).select_from(ready)) or 0,
         library_size=db.scalar(select(func.coalesce(func.sum(ready.c.filesize), 0))) or 0,
     )
+
+
+@router.get("/library/task")
+def library_task(_: AdminUser, ctx: Context) -> dict[str, object] | None:
+    """The running (or last) library task, e.g. moving files or writing NFOs."""
+    state = ctx.library_tasks.current
+    return state.as_dict() if state else None

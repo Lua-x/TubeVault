@@ -51,11 +51,30 @@ def video_basename(title: str, youtube_id: str) -> str:
 
 
 def video_base_path(
-    channel_folder: str, upload_date: date | None, title: str, youtube_id: str
+    channel_folder: str,
+    upload_date: date | None,
+    title: str,
+    youtube_id: str,
+    layout: str = "tubevault",
 ) -> Path:
-    """`<Channel>/<Year>/<Title> [<id>]` without extension, relative to the media root."""
+    """Path without extension, relative to the media root.
+
+    * ``tubevault``: ``<Channel>/<Year>/<Title> [<id>]``
+    * ``series``: ``<Channel>/Season <Year>/<YYYY-MM-DD> - <Title> [<id>]`` – every channel
+      is a show and every year a season, which Jellyfin, Emby, Kodi and Plex understand.
+    """
+    name = video_basename(title, youtube_id)
+    if layout == "series":
+        season = f"Season {upload_date.year}" if upload_date else "Season 0"
+        prefix = upload_date.isoformat() if upload_date else "0000-00-00"
+        return Path(channel_folder) / season / f"{prefix} - {name}"
     year = str(upload_date.year) if upload_date else "Unknown"
-    return Path(channel_folder) / year / video_basename(title, youtube_id)
+    return Path(channel_folder) / year / name
+
+
+def nfo_path(video_file: Path) -> Path:
+    """`<base>.nfo` next to the video file."""
+    return video_file.with_suffix(".nfo")
 
 
 def resolve_media_path(media_dir: Path, relative: str | Path) -> Path:

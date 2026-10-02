@@ -80,6 +80,8 @@ def video_file_exists(media_dir: Path, video: Video) -> bool:
 def delete_video_files(media_dir: Path, video: Video) -> None:
     """Remove the video, thumbnail and subtitle files, then prune empty folders."""
     paths = [video.file_path, video.thumbnail_path, *(s.file_path for s in video.subtitles)]
+    if video.file_path:
+        paths.append(Path(video.file_path).with_suffix(".nfo").as_posix())
     parents: set[Path] = set()
     for relative in paths:
         if not relative:

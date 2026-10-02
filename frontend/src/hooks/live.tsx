@@ -73,6 +73,15 @@ function handleEvent(client: QueryClient, event: LiveEvent) {
         old ? { ...old, paused: event.paused } : old,
       );
       break;
+    case "library.task":
+      client.setQueryData(keys.libraryTask, event.task);
+      if (event.task.state !== "running") {
+        // Files moved: paths, thumbnails and counts may have changed.
+        void client.invalidateQueries({ queryKey: keys.videos });
+        void client.invalidateQueries({ queryKey: keys.channels });
+        void client.invalidateQueries({ queryKey: keys.system });
+      }
+      break;
     case "ping":
       break;
   }

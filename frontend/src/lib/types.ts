@@ -263,10 +263,18 @@ export interface TranscodeOptions {
   cache_gb: number;
 }
 
+export type Layout = "tubevault" | "series";
+
+export interface LibraryOptions {
+  layout: Layout;
+  write_nfo: boolean;
+}
+
 export interface AppSettings {
   downloads: DownloadOptions;
   max_concurrent_downloads: number;
   transcoding: TranscodeOptions;
+  library: LibraryOptions;
 }
 
 export interface PlaybackInfo {
@@ -340,4 +348,16 @@ export type LiveEvent =
   | { type: "subscription.updated"; subscription_id: number }
   | { type: "subscription.deleted"; subscription_id: number }
   | { type: "queue.state"; paused: boolean }
-  | { type: "channels.updated" };
+  | { type: "channels.updated" }
+  | { type: "library.task"; task: LibraryTask };
+
+export interface LibraryTask {
+  kind: string;
+  label: string;
+  state: "running" | "done" | "failed";
+  done: number;
+  total: number;
+  message: string | null;
+  started_at: string;
+  finished_at: string | null;
+}

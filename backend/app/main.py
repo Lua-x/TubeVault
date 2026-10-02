@@ -44,6 +44,7 @@ from app.services.downloader import Downloader, YtDlpDownloader
 from app.services.search import ensure_search_index
 from app.services.subscriptions import SubscriptionChecker
 from app.workers.download_manager import DownloadManager
+from app.workers.library_tasks import LibraryTasks
 from app.workers.scheduler import SubscriptionScheduler
 from app.workers.transcoder import Transcoder
 
@@ -240,6 +241,7 @@ def create_app(
             return load_app_settings(db).transcoding
 
     transcoder = Transcoder(settings, transcode_options)
+    library_tasks = LibraryTasks(settings, sessions, events)
     ctx = AppContext(
         settings=settings,
         engine=engine,
@@ -250,6 +252,7 @@ def create_app(
         checker=checker,
         scheduler=scheduler,
         transcoder=transcoder,
+        library_tasks=library_tasks,
     )
 
     @asynccontextmanager
@@ -258,10 +261,12 @@ def create_app(
         manager.start()
         scheduler.start()
         transcoder.start()
+        library_tasks.backfill_nfo_if_needed()
         log.info("TubeVault %s läuft auf Port %s%s", __version__, settings.port, settings.base_path)
         try:
             yield
         finally:
+            await asyncio.to_thread(library_tasks.wait, 10.0)
             await asyncio.to_thread(transcoder.stop)
             await asyncio.to_thread(scheduler.stop)
             await asyncio.to_thread(manager.stop)
