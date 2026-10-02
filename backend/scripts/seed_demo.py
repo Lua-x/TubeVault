@@ -20,7 +20,16 @@ from app.config import Settings
 from app.db import make_engine, make_session_factory
 from app.main import init_storage
 from app.migrate import run_migrations
-from app.models import Subtitle, VideoStatus
+from app.models import (
+    Channel,
+    ItemState,
+    Subscription,
+    SubscriptionItem,
+    SubscriptionKind,
+    Subtitle,
+    VideoStatus,
+)
+from app.services.catalog import channel_url
 from app.services.downloader import VideoMetadata
 from app.services.library import relative_to_media, video_base_path
 from app.services.videos import upsert_video
@@ -45,6 +54,11 @@ TITLES = [
     "Tiramisu ohne Ei",
 ]
 COLORS = ["0x1f6feb", "0x2ea043", "0xbf8700", "0x8250df", "0xcf222e", "0x0a84ff"]
+CHANNEL_COLORS = {
+    "UCdemo-nature": "0x2ea043",
+    "UCdemo-tech": "0x0a84ff",
+    "UCdemo-kitchen": "0xbf8700",
+}
 
 
 def ffmpeg(*args: str) -> None:
@@ -146,6 +160,61 @@ def main() -> None:
             )
             db.commit()
             print(f"✓ {title}")
+
+        seed_subscriptions(db, settings.media_dir)
+
+
+def seed_subscriptions(db, media_dir: Path) -> None:  # type: ignore[no-untyped-def]
+    """One subscription per demo channel, with artwork and a few filtered entries."""
+    now = datetime.now(UTC)
+    for index, (channel_id, name, _handle) in enumerate(CHANNELS):
+        channel = db.query(Channel).filter_by(youtube_id=channel_id).one()
+        color = CHANNEL_COLORS[channel_id]
+        folder = media_dir / channel.folder_name
+        avatar, banner = folder / "folder.jpg", folder / "banner.jpg"
+        ffmpeg("-f", "lavfi", "-i", f"gradients=s=400x400:c0={color}:c1=0x111114",
+               "-frames:v", "1", str(avatar))  # fmt: skip
+        ffmpeg("-f", "lavfi", "-i", f"gradients=s=1600x400:c0=0x111114:c1={color}",
+               "-frames:v", "1", str(banner))  # fmt: skip
+        channel.avatar_path = relative_to_media(media_dir, avatar)
+        channel.banner_path = relative_to_media(media_dir, banner)
+
+        sub = db.query(Subscription).filter_by(youtube_id=channel_id).one_or_none()
+        if sub is None:
+            sub = Subscription(
+                kind=SubscriptionKind.CHANNEL,
+                youtube_id=channel_id,
+                url=channel_url(channel_id),
+                title=name,
+                channel_id=channel.id,
+                check_interval_minutes=[360, 720, 1440][index],
+                include_shorts=index == 1,
+                keep_last=[None, 10, None][index],
+                min_duration_s=[None, None, 180][index],
+            )
+            db.add(sub)
+            db.flush()
+        sub.last_checked_at = now - timedelta(minutes=40 + index * 25)
+        sub.next_check_at = now + timedelta(hours=5 + index)
+        db.query(SubscriptionItem).filter_by(subscription_id=sub.id).delete()
+        for video in channel.videos:
+            db.add(SubscriptionItem(
+                subscription_id=sub.id, youtube_id=video.youtube_id, title=video.title,
+                upload_date=video.upload_date, duration_s=video.duration_s,
+                state=ItemState.DOWNLOADED, video_id=video.id,
+            ))  # fmt: skip
+        for n, (state, reason) in enumerate([
+            (ItemState.FILTERED, "Shorts ausgeschlossen"),
+            (ItemState.FILTERED, "Kürzer als 3 min"),
+            (ItemState.SKIPPED, "Älter – beim Abonnieren übersprungen"),
+        ]):  # fmt: skip
+            db.add(SubscriptionItem(
+                subscription_id=sub.id, youtube_id=f"{channel_id[-6:]}{n:05d}",
+                title=f"{name}: älteres Video {n + 1}", state=state, reason=reason,
+                upload_date=(now - timedelta(days=200 + n * 30)).date(), duration_s=95,
+            ))  # fmt: skip
+    db.commit()
+    print("✓ Abos")
 
 
 if __name__ == "__main__":

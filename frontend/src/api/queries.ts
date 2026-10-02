@@ -7,6 +7,10 @@ import type {
   Job,
   MaxHeight,
   Page,
+  QueueState,
+  Subscription,
+  SubscriptionDetail,
+  SubscriptionSettings,
   SystemInfo,
   User,
   VideoDetail,
@@ -18,6 +22,9 @@ export const keys = {
   videoList: (params: VideoListParams) => ["videos", "list", params] as const,
   video: (id: number) => ["videos", "detail", id] as const,
   jobs: ["jobs"] as const,
+  queue: ["queue"] as const,
+  subscriptions: ["subscriptions"] as const,
+  subscription: (id: number) => ["subscriptions", "detail", id] as const,
   settings: ["settings"] as const,
   users: ["users"] as const,
   system: ["system"] as const,
@@ -98,6 +105,8 @@ function useJobAction(action: (id: number) => Promise<unknown>) {
 }
 
 export const useCancelJob = () => useJobAction((id) => api.post(`downloads/${id}/cancel`));
+export const usePauseJob = () => useJobAction((id) => api.post(`downloads/${id}/pause`));
+export const useResumeJob = () => useJobAction((id) => api.post(`downloads/${id}/resume`));
 export const useRetryJob = () => useJobAction((id) => api.post(`downloads/${id}/retry`));
 export const useDeleteJob = () => useJobAction((id) => api.delete(`downloads/${id}`));
 export function useClearJobs() {
@@ -158,5 +167,87 @@ export function useChangePassword() {
   return useMutation({
     mutationFn: (body: { current_password: string; new_password: string }) =>
       api.post("auth/me/password", body),
+  });
+}
+
+// --- queue ------------------------------------------------------------------------
+
+export function useQueueState() {
+  return useQuery({
+    queryKey: keys.queue,
+    queryFn: () => api.get<QueueState>("downloads/state"),
+    refetchInterval: 60_000,
+  });
+}
+
+function useQueueAction(path: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post<QueueState>(path),
+    onSuccess: (state) => client.setQueryData(keys.queue, state),
+    onSettled: () => client.invalidateQueries({ queryKey: keys.jobs }),
+  });
+}
+
+export const usePauseAll = () => useQueueAction("downloads/pause-all");
+export const useResumeAll = () => useQueueAction("downloads/resume-all");
+export const useRetryFailed = () => useQueueAction("downloads/retry-failed");
+
+// --- subscriptions --------------------------------------------------------------------
+
+export function useSubscriptions() {
+  return useQuery({
+    queryKey: keys.subscriptions,
+    queryFn: () => api.get<Subscription[]>("subscriptions"),
+  });
+}
+
+export function useSubscription(id: number) {
+  return useQuery({
+    queryKey: keys.subscription(id),
+    queryFn: () => api.get<SubscriptionDetail>(`subscriptions/${id}`),
+    enabled: Number.isFinite(id),
+  });
+}
+
+export interface CreateSubscriptionInput extends SubscriptionSettings {
+  url: string;
+  backfill: number | null;
+}
+
+export function useCreateSubscription() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateSubscriptionInput) => api.post<Subscription>("subscriptions", input),
+    onSuccess: () => client.invalidateQueries({ queryKey: keys.subscriptions }),
+  });
+}
+
+export function useUpdateSubscription(id: number) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (settings: SubscriptionSettings) =>
+      api.put<Subscription>(`subscriptions/${id}`, settings),
+    onSuccess: () => client.invalidateQueries({ queryKey: keys.subscriptions }),
+  });
+}
+
+export function useSubscriptionAction(id: number, action: "check" | "reevaluate") {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post<Subscription>(`subscriptions/${id}/${action}`),
+    onSuccess: () => client.invalidateQueries({ queryKey: keys.subscriptions }),
+  });
+}
+
+export function useDeleteSubscription() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, deleteVideos }: { id: number; deleteVideos: boolean }) =>
+      api.delete(`subscriptions/${id}?delete_videos=${deleteVideos}`),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: keys.subscriptions });
+      void client.invalidateQueries({ queryKey: keys.videos });
+    },
   });
 }

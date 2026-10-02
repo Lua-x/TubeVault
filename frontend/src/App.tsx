@@ -14,6 +14,8 @@ import { LoginPage } from "@/pages/LoginPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { SetupPage } from "@/pages/SetupPage";
+import { SubscriptionPage } from "@/pages/SubscriptionPage";
+import { SubscriptionsPage } from "@/pages/SubscriptionsPage";
 
 // The player (video.js) is only loaded when a video is opened.
 const VideoPage = lazy(() => import("@/pages/VideoPage").then((m) => ({ default: m.VideoPage })));
@@ -31,6 +33,8 @@ function AnimatedRoutes() {
         <Routes location={location}>
           <Route path="/" element={<LibraryPage />} />
           <Route path="/videos/:id" element={<VideoPage />} />
+          <Route path="/subscriptions" element={<SubscriptionsPage />} />
+          <Route path="/subscriptions/:id" element={<SubscriptionPage />} />
           <Route path="/downloads" element={<DownloadsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<NotFoundPage />} />

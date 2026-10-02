@@ -21,7 +21,7 @@ export function Group({
           {title}
         </h2>
       )}
-      <div className="divide-y divide-separator overflow-hidden rounded-2xl bg-elevated">
+      <div className="tv-group-card divide-y divide-separator overflow-hidden rounded-2xl bg-elevated">
         {children}
       </div>
       {footer && <p className="px-4 text-[13px] text-tertiary">{footer}</p>}

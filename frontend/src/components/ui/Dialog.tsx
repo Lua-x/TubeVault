@@ -3,6 +3,8 @@ import { X } from "lucide-react";
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
+import { cn } from "@/lib/cn";
+
 import { IconButton } from "./Button";
 
 interface DialogProps {
@@ -10,10 +12,11 @@ interface DialogProps {
   onClose: () => void;
   title: string;
   children: ReactNode;
+  wide?: boolean;
 }
 
 /** Centered sheet on desktop, bottom sheet on phones. Closes on Escape and backdrop click. */
-export function Dialog({ open, onClose, title, children }: DialogProps) {
+export function Dialog({ open, onClose, title, children, wide }: DialogProps) {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -67,7 +70,12 @@ export function Dialog({ open, onClose, title, children }: DialogProps) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 24, scale: 0.98 }}
             transition={{ type: "spring", stiffness: 380, damping: 34 }}
-            className="relative w-full max-w-lg rounded-t-3xl border border-separator bg-elevated p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-card sm:rounded-3xl sm:pb-6"
+            className={cn(
+              "relative max-h-[92dvh] w-full overflow-y-auto overscroll-contain rounded-t-3xl border border-separator bg-elevated p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-card sm:rounded-3xl sm:pb-6",
+              // Grouped settings inside a sheet need their own surface to stand out.
+              "[&_.tv-group-card]:bg-surface/50",
+              wide ? "max-w-2xl" : "max-w-lg",
+            )}
           >
             <div className="mb-5 flex items-center justify-between gap-4">
               <h2 id={titleId} className="text-[20px] font-semibold tracking-tight">

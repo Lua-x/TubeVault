@@ -20,6 +20,9 @@ export interface Channel {
   name: string;
   handle: string | null;
   url: string | null;
+  has_avatar: boolean;
+  has_banner: boolean;
+  updated_at: string;
 }
 
 export type VideoStatus = "pending" | "downloading" | "ready" | "failed" | "missing";
@@ -72,7 +75,8 @@ export interface Page<T> {
   total: number;
 }
 
-export type JobStatus = "queued" | "running" | "paused" | "completed" | "failed" | "cancelled";
+export type JobStatus =
+  "queued" | "running" | "paused" | "completed" | "failed" | "cancelled" | "skipped";
 export type JobStage = "metadata" | "downloading" | "postprocessing";
 export type ErrorKind = "network" | "rate_limited" | "unavailable" | "live" | "unknown";
 
@@ -96,6 +100,68 @@ export interface Job {
   started_at: string | null;
   finished_at: string | null;
   video: VideoSummary | null;
+  subscription: { id: number; title: string } | null;
+}
+
+export interface QueueState {
+  paused: boolean;
+  running: number;
+  queued: number;
+}
+
+export type SubscriptionKind = "channel" | "playlist";
+export type ItemState = "queued" | "downloaded" | "filtered" | "skipped" | "failed" | "removed";
+
+export interface SubscriptionDownloadOptions {
+  container?: Container | null;
+  max_height?: MaxHeight | null;
+  prefer_h264?: boolean | null;
+}
+
+export interface SubscriptionSettings {
+  enabled: boolean;
+  check_interval_minutes: number;
+  include_shorts: boolean;
+  include_live: boolean;
+  min_duration_s: number | null;
+  max_duration_s: number | null;
+  date_after: string | null;
+  keep_days: number | null;
+  keep_last: number | null;
+  download_options: SubscriptionDownloadOptions;
+}
+
+export interface Subscription extends SubscriptionSettings {
+  id: number;
+  kind: SubscriptionKind;
+  youtube_id: string;
+  url: string;
+  title: string;
+  last_checked_at: string | null;
+  next_check_at: string | null;
+  last_check_error: string | null;
+  backfill: number | null;
+  created_at: string;
+  channel: Channel | null;
+  stats: Record<ItemState, number>;
+  checking: boolean;
+}
+
+export interface SubscriptionItem {
+  id: number;
+  youtube_id: string;
+  title: string | null;
+  upload_date: string | null;
+  duration_s: number | null;
+  state: ItemState;
+  reason: string | null;
+  video_id: number | null;
+  job_id: number | null;
+  first_seen_at: string;
+}
+
+export interface SubscriptionDetail extends Subscription {
+  items: SubscriptionItem[];
 }
 
 export type Container = "mp4" | "mkv";
@@ -141,4 +207,7 @@ export type LiveEvent =
   | { type: "job.deleted"; job_id: number }
   | { type: "jobs.cleared" }
   | { type: "video.updated"; video: VideoSummary }
-  | { type: "video.deleted"; video_id: number };
+  | { type: "video.deleted"; video_id: number }
+  | { type: "subscription.updated"; subscription_id: number }
+  | { type: "subscription.deleted"; subscription_id: number }
+  | { type: "queue.state"; paused: boolean };

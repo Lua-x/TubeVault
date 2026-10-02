@@ -3,7 +3,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 
 import { keys } from "@/api/queries";
 import { websocketUrl } from "@/lib/base";
-import type { Job, LiveEvent, Page } from "@/lib/types";
+import type { Job, LiveEvent, Page, QueueState } from "@/lib/types";
 
 const LiveContext = createContext(false);
 
@@ -19,6 +19,8 @@ function handleEvent(client: QueryClient, event: LiveEvent) {
   switch (event.type) {
     case "job.updated": {
       const job = event.job;
+      if (job.subscription) void client.invalidateQueries({ queryKey: keys.subscriptions });
+      void client.invalidateQueries({ queryKey: keys.queue });
       const cached = client.getQueryData<Page<Job>>(keys.jobs);
       if (!cached) break;
       updateJobs(client, (jobs) =>
@@ -55,6 +57,15 @@ function handleEvent(client: QueryClient, event: LiveEvent) {
     case "video.deleted":
       void client.invalidateQueries({ queryKey: keys.videos });
       void client.invalidateQueries({ queryKey: keys.system });
+      break;
+    case "subscription.updated":
+    case "subscription.deleted":
+      void client.invalidateQueries({ queryKey: keys.subscriptions });
+      break;
+    case "queue.state":
+      client.setQueryData<QueueState>(keys.queue, (old) =>
+        old ? { ...old, paused: event.paused } : old,
+      );
       break;
     case "ping":
       break;

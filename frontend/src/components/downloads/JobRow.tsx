@@ -1,8 +1,8 @@
-import { AlertCircle, Check, Clock, RotateCcw, Trash2, X } from "lucide-react";
+import { AlertCircle, Check, Clock, Pause, Play, RotateCcw, Trash2, X } from "lucide-react";
 import { motion } from "motion/react";
 import { Link } from "react-router";
 
-import { useCancelJob, useDeleteJob, useRetryJob } from "@/api/queries";
+import { useCancelJob, useDeleteJob, usePauseJob, useResumeJob, useRetryJob } from "@/api/queries";
 import { IconButton } from "@/components/ui/Button";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { Thumbnail } from "@/components/video/Thumbnail";
@@ -57,7 +57,9 @@ function statusLine(job: Job): { text: string; tone: "muted" | "accent" | "dange
     case "cancelled":
       return { text: "Abgebrochen", tone: "muted" };
     case "paused":
-      return { text: "Pausiert", tone: "muted" };
+      return { text: "Pausiert – wird beim Fortsetzen weitergeladen", tone: "muted" };
+    case "skipped":
+      return { text: `Übersprungen: ${job.error_message ?? "Filter"}`, tone: "muted" };
   }
 }
 
@@ -65,9 +67,11 @@ export function JobRow({ job }: { job: Job }) {
   const cancel = useCancelJob();
   const retry = useRetryJob();
   const remove = useDeleteJob();
+  const pause = usePauseJob();
+  const resume = useResumeJob();
   const toast = useToast();
   const status = statusLine(job);
-  const active = job.status === "running" || job.status === "queued";
+  const active = job.status === "running" || job.status === "queued" || job.status === "paused";
   const title = job.video?.title ?? job.url;
 
   const run = (action: { mutateAsync: (id: number) => Promise<unknown> }) => {
@@ -91,8 +95,15 @@ export function JobRow({ job }: { job: Job }) {
         <p className="line-clamp-2 text-[15px] leading-snug font-medium break-all sm:break-normal">
           {title}
         </p>
-        {job.video?.channel && (
-          <p className="truncate text-[13px] text-secondary">{job.video.channel.name}</p>
+        {(job.video?.channel || job.subscription) && (
+          <p className="truncate text-[13px] text-secondary">
+            {job.video?.channel?.name}
+            {job.subscription && job.subscription.title !== job.video?.channel?.name && (
+              <span className="text-tertiary">
+                {job.video?.channel ? " · " : ""}Abo: {job.subscription.title}
+              </span>
+            )}
+          </p>
         )}
         {job.status === "running" && (
           <ProgressBar
@@ -142,6 +153,16 @@ export function JobRow({ job }: { job: Job }) {
         <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">{content}</div>
       )}
       <div className="flex shrink-0 items-center gap-1">
+        {(job.status === "running" || (job.status === "queued" && !job.next_attempt_at)) && (
+          <IconButton label="Pausieren" onClick={() => run(pause)}>
+            <Pause className="size-[18px]" strokeWidth={1.75} />
+          </IconButton>
+        )}
+        {job.status === "paused" && (
+          <IconButton label="Fortsetzen" onClick={() => run(resume)}>
+            <Play className="size-[18px]" strokeWidth={1.75} />
+          </IconButton>
+        )}
         {(job.status === "failed" ||
           job.status === "cancelled" ||
           (job.status === "queued" && job.next_attempt_at)) && (
