@@ -15,6 +15,8 @@ def _client(settings: Settings, downloader: FakeDownloader, base_path: str) -> T
     (settings.static_dir / "assets").mkdir()
     (settings.static_dir / "assets" / "app-123.js").write_text("console.log(1)")
     (settings.static_dir / "favicon.svg").write_text("<svg/>")
+    (settings.static_dir / "sw.js").write_text("self.addEventListener('fetch', () => {})")
+    (settings.static_dir / "manifest.webmanifest").write_text('{"name": "TubeVault"}')
     settings.base_path = base_path
     return TestClient(create_app(settings, downloader, configure_logging=False), headers=HEADERS)
 
@@ -38,6 +40,15 @@ def test_spa_with_base_path(settings: Settings, downloader: FakeDownloader) -> N
         assert asset.status_code == 200
         assert "immutable" in asset.headers["cache-control"]
         assert client.get("/tubevault/favicon.svg").text == "<svg/>"
+
+        # PWA files are revalidated on every load so updates reach installed apps.
+        worker = client.get("/tubevault/sw.js")
+        assert worker.headers["content-type"].startswith(
+            ("text/javascript", "application/javascript")
+        )
+        assert worker.headers["cache-control"] == "no-cache"
+        manifest = client.get("/tubevault/manifest.webmanifest")
+        assert manifest.headers["content-type"].startswith("application/manifest+json")
 
         # Works with and without the prefix (proxy may strip it).
         assert client.get("/tubevault/api/health").json() == {"status": "ok"}

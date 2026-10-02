@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import mimetypes
 import re
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -47,6 +48,10 @@ log = logging.getLogger(__name__)
 
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 _PREFIX_RE = re.compile(r"^/[A-Za-z0-9._~/-]*$")
+# PWA files must always be revalidated so updates reach installed apps.
+_NO_CACHE_FILES = {"sw.js", "manifest.webmanifest"}
+
+mimetypes.add_type("application/manifest+json", ".webmanifest")
 
 
 class BasePathMiddleware:
@@ -183,7 +188,8 @@ def _mount_frontend(app: FastAPI, settings: Settings) -> None:
                 and candidate.is_file()
                 and candidate != index_file.resolve()
             ):
-                return FileResponse(candidate)
+                headers = {"Cache-Control": "no-cache"} if path in _NO_CACHE_FILES else None
+                return FileResponse(candidate, headers=headers)
         return render_index(request)
 
 

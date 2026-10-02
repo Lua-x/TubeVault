@@ -25,6 +25,14 @@ const queryClient = new QueryClient({
   },
 });
 
+// Installable app (PWA). Browsers only allow service workers on HTTPS or localhost.
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    // Relative to <base href>, so it also works below a BASE_PATH.
+    navigator.serviceWorker.register("sw.js", { scope: "./" }).catch(() => undefined);
+  });
+}
+
 const root = document.getElementById("root");
 if (!root) throw new Error("#root missing");
 
