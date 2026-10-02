@@ -1,0 +1,423 @@
+"""Download queue backed by the `download_jobs` table.
+
+A dispatcher thread picks queued jobs and runs them on a thread pool. Jobs survive restarts:
+anything that was running when the process stopped is queued again on start.
+"""
+
+from __future__ import annotations
+
+import logging
+import threading
+import time
+from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
+from datetime import UTC, datetime
+from typing import Any
+
+from sqlalchemy import or_, select
+from sqlalchemy.orm import Session, selectinload, sessionmaker
+
+from app.config import Settings
+from app.core.errors import classify_error, clean_message, is_retryable, retry_delay
+from app.core.events import EventBus
+from app.models import DownloadJob, JobStage, JobStatus, Subtitle, Video, VideoStatus
+from app.schemas.jobs import JobOut
+from app.schemas.videos import VideoSummary
+from app.services.app_settings import DownloadOptions, load_app_settings
+from app.services.downloader import (
+    DownloadCancelledError,
+    Downloader,
+    DownloadProgress,
+    DownloadResult,
+    cleanup_temp,
+)
+from app.services.languages import subtitle_label
+from app.services.library import relative_to_media, video_base_path
+from app.services.videos import upsert_video, video_file_exists
+
+log = logging.getLogger(__name__)
+
+MAX_WORKERS = 5
+EVENT_INTERVAL = 0.5
+DB_PROGRESS_INTERVAL = 5.0
+
+
+def utcnow() -> datetime:
+    return datetime.now(UTC)
+
+
+def job_payload(job: DownloadJob) -> dict[str, Any]:
+    return JobOut.model_validate(job).model_dump(mode="json")
+
+
+def video_payload(video: Video) -> dict[str, Any]:
+    return VideoSummary.model_validate(video).model_dump(mode="json")
+
+
+def load_job(db: Session, job_id: int) -> DownloadJob | None:
+    return db.scalar(
+        select(DownloadJob)
+        .where(DownloadJob.id == job_id)
+        .options(selectinload(DownloadJob.video).selectinload(Video.channel))
+    )
+
+
+class DownloadManager:
+    def __init__(
+        self,
+        settings: Settings,
+        session_factory: sessionmaker[Session],
+        events: EventBus,
+        downloader: Downloader,
+        poll_interval: float = 2.0,
+    ) -> None:
+        self._settings = settings
+        self._sessions = session_factory
+        self._events = events
+        self._downloader = downloader
+        self._poll_interval = poll_interval
+        self._executor: ThreadPoolExecutor | None = None
+        self._thread: threading.Thread | None = None
+        self._wake = threading.Event()
+        self._stop = threading.Event()
+        self._lock = threading.Lock()
+        self._db_lock = threading.Lock()
+        self._running: dict[int, threading.Event] = {}
+
+    # --- lifecycle --------------------------------------------------------------
+
+    def start(self) -> None:
+        self._recover()
+        self._stop.clear()
+        self._executor = ThreadPoolExecutor(max_workers=MAX_WORKERS, thread_name_prefix="download")
+        self._thread = threading.Thread(target=self._loop, name="download-dispatcher", daemon=True)
+        self._thread.start()
+        log.info("Download-Queue gestartet")
+
+    def stop(self, timeout: float = 15.0) -> None:
+        self._stop.set()
+        self._wake.set()
+        with self._lock:
+            for cancel in self._running.values():
+                cancel.set()
+        if self._thread is not None:
+            self._thread.join(timeout)
+        if self._executor is not None:
+            self._executor.shutdown(wait=True, cancel_futures=True)
+        log.info("Download-Queue gestoppt")
+
+    def wake(self) -> None:
+        self._wake.set()
+
+    def cancel(self, job_id: int) -> bool:
+        """Signal a running job to stop. Returns False if the job is not running here."""
+        with self._lock:
+            cancel = self._running.get(job_id)
+        if cancel is None:
+            return False
+        cancel.set()
+        return True
+
+    def is_running(self, job_id: int) -> bool:
+        with self._lock:
+            return job_id in self._running
+
+    @property
+    def active_count(self) -> int:
+        with self._lock:
+            return len(self._running)
+
+    # --- internals --------------------------------------------------------------
+
+    @contextmanager
+    def _session(self) -> Iterator[Session]:
+        with self._sessions() as db:
+            yield db
+
+    def _recover(self) -> None:
+        with self._session() as db:
+            jobs = db.scalars(select(DownloadJob).where(DownloadJob.status == JobStatus.RUNNING))
+            count = 0
+            for job in jobs:
+                job.status = JobStatus.QUEUED
+                job.stage = None
+                job.speed = None
+                job.eta = None
+                count += 1
+            db.commit()
+            if count:
+                log.info("%d unterbrochene Downloads wieder eingereiht", count)
+
+    def _loop(self) -> None:
+        while not self._stop.is_set():
+            try:
+                self._dispatch()
+            except Exception:
+                log.exception("Fehler im Download-Dispatcher")
+            self._wake.wait(self._poll_interval)
+            self._wake.clear()
+
+    def _dispatch(self) -> None:
+        if self._executor is None:
+            return
+        with self._session() as db:
+            limit = load_app_settings(db).max_concurrent_downloads
+            free = limit - self.active_count
+            if free <= 0:
+                return
+            now = utcnow()
+            jobs = list(
+                db.scalars(
+                    select(DownloadJob)
+                    .where(
+                        DownloadJob.status == JobStatus.QUEUED,
+                        or_(
+                            DownloadJob.next_attempt_at.is_(None),
+                            DownloadJob.next_attempt_at <= now,
+                        ),
+                    )
+                    .order_by(DownloadJob.priority.desc(), DownloadJob.created_at, DownloadJob.id)
+                    .limit(free)
+                )
+            )
+            for job in jobs:
+                job.status = JobStatus.RUNNING
+                job.stage = JobStage.METADATA
+                job.attempts += 1
+                job.started_at = now
+                job.next_attempt_at = None
+                job.progress = 0.0
+                job.speed = None
+                job.eta = None
+            db.commit()
+
+            for job in jobs:
+                cancel = threading.Event()
+                with self._lock:
+                    self._running[job.id] = cancel
+                fresh = load_job(db, job.id)
+                if fresh is not None:
+                    self._events.publish("job.updated", job=job_payload(fresh))
+                self._executor.submit(self._run, job.id, cancel)
+
+    def _run(self, job_id: int, cancel: threading.Event) -> None:
+        try:
+            self._process(job_id, cancel)
+        except Exception:
+            log.exception("Unerwarteter Fehler in Download-Job %s", job_id)
+        finally:
+            with self._lock:
+                self._running.pop(job_id, None)
+            self._wake.set()
+
+    def _process(self, job_id: int, cancel: threading.Event) -> None:
+        with self._session() as db:
+            job = db.get(DownloadJob, job_id)
+            if job is None:
+                return
+            url = job.url
+            requested_by = job.requested_by_id
+            options = DownloadOptions.model_validate(
+                load_app_settings(db).downloads.model_dump() | (job.options or {})
+            )
+        temp_dir = self._settings.temp_dir / f"job-{job_id}"
+
+        try:
+            meta = self._downloader.fetch_metadata(url)
+            if cancel.is_set():
+                raise DownloadCancelledError
+
+            with self._db_lock, self._session() as db:
+                video = upsert_video(db, meta, requested_by)
+                job = db.get(DownloadJob, job_id)
+                assert job is not None
+                job.video_id = video.id
+                job.youtube_id = meta.youtube_id
+                if video.status is VideoStatus.READY and video_file_exists(
+                    self._settings.media_dir, video
+                ):
+                    self._finish(db, job, video, note="Bereits in der Bibliothek")
+                    return
+                video.status = VideoStatus.DOWNLOADING
+                job.stage = JobStage.DOWNLOADING
+                channel_folder = video.channel.folder_name if video.channel else "Unknown"
+                db.commit()
+                self._publish_job(db, job_id)
+
+            relative_base = video_base_path(
+                channel_folder, meta.upload_date, meta.title, meta.youtube_id
+            )
+            result = self._downloader.download(
+                meta,
+                media_dir=self._settings.media_dir,
+                relative_base=relative_base,
+                temp_dir=temp_dir,
+                options=options,
+                on_progress=self._progress_reporter(job_id),
+                is_cancelled=cancel.is_set,
+            )
+            if cancel.is_set():
+                raise DownloadCancelledError
+
+            with self._session() as db:
+                job = db.get(DownloadJob, job_id)
+                assert job is not None and job.video_id is not None
+                stored = db.get(Video, job.video_id)
+                assert stored is not None
+                self._store_result(db, stored, result)
+                self._finish(db, job, stored)
+            cleanup_temp(temp_dir)
+
+        except DownloadCancelledError:
+            self._handle_cancel(job_id, temp_dir)
+        except Exception as exc:
+            if cancel.is_set():
+                self._handle_cancel(job_id, temp_dir)
+            else:
+                self._handle_error(job_id, exc, temp_dir)
+
+    def _store_result(self, db: Session, video: Video, result: DownloadResult) -> None:
+        media_dir = self._settings.media_dir
+        video.file_path = relative_to_media(media_dir, result.file_path)
+        video.thumbnail_path = (
+            relative_to_media(media_dir, result.thumbnail_path) if result.thumbnail_path else None
+        )
+        video.filesize = result.file_path.stat().st_size
+        video.width = result.width
+        video.height = result.height
+        video.vcodec = result.vcodec
+        video.acodec = result.acodec
+        video.subtitles.clear()
+        db.flush()
+        for sub in result.subtitles:
+            video.subtitles.append(
+                Subtitle(
+                    lang=sub.lang,
+                    label=subtitle_label(sub.lang, sub.is_auto),
+                    is_auto=sub.is_auto,
+                    file_path=relative_to_media(media_dir, sub.path),
+                )
+            )
+        video.status = VideoStatus.READY
+        video.downloaded_at = utcnow()
+
+    def _finish(self, db: Session, job: DownloadJob, video: Video, note: str | None = None) -> None:
+        job.status = JobStatus.COMPLETED
+        job.stage = None
+        job.progress = 1.0
+        job.speed = None
+        job.eta = None
+        job.error_kind = None
+        job.error_message = note
+        job.finished_at = utcnow()
+        db.commit()
+        log.info("Download fertig: %s (%s)", video.title, video.youtube_id)
+        self._publish_job(db, job.id)
+        db.refresh(video)
+        self._events.publish("video.updated", video=video_payload(video))
+
+    def _handle_cancel(self, job_id: int, temp_dir: Any) -> None:
+        shutting_down = self._stop.is_set()
+        with self._session() as db:
+            job = db.get(DownloadJob, job_id)
+            if job is None:
+                return
+            if shutting_down:
+                # Not the user's doing: resume after the restart.
+                job.status = JobStatus.QUEUED
+                job.attempts = max(job.attempts - 1, 0)
+            else:
+                job.status = JobStatus.CANCELLED
+                job.finished_at = utcnow()
+            job.stage = None
+            job.speed = None
+            job.eta = None
+            self._reset_video(db, job, VideoStatus.PENDING if shutting_down else VideoStatus.FAILED)
+            db.commit()
+            self._publish_job(db, job_id)
+        if not shutting_down:
+            cleanup_temp(temp_dir)
+            log.info("Download %s abgebrochen", job_id)
+
+    def _handle_error(self, job_id: int, exc: Exception, temp_dir: Any) -> None:
+        kind = classify_error(exc)
+        message = clean_message(exc)
+        with self._session() as db:
+            job = db.get(DownloadJob, job_id)
+            if job is None:
+                return
+            job.error_kind = kind
+            job.error_message = message
+            job.stage = None
+            job.speed = None
+            job.eta = None
+            if is_retryable(kind) and job.attempts < job.max_attempts:
+                delay = retry_delay(kind, job.attempts)
+                job.status = JobStatus.QUEUED
+                job.next_attempt_at = utcnow() + delay
+                self._reset_video(db, job, VideoStatus.PENDING)
+                log.warning(
+                    "Download %s fehlgeschlagen (%s, Versuch %d/%d), neuer Versuch in %ds: %s",
+                    job_id,
+                    kind,
+                    job.attempts,
+                    job.max_attempts,
+                    delay.total_seconds(),
+                    message,
+                )
+            else:
+                job.status = JobStatus.FAILED
+                job.finished_at = utcnow()
+                self._reset_video(db, job, VideoStatus.FAILED)
+                log.error("Download %s endgültig fehlgeschlagen (%s): %s", job_id, kind, message)
+                cleanup_temp(temp_dir)
+            db.commit()
+            self._publish_job(db, job_id)
+
+    @staticmethod
+    def _reset_video(db: Session, job: DownloadJob, status: VideoStatus) -> None:
+        if job.video_id is None:
+            return
+        video = db.get(Video, job.video_id)
+        if video is not None and video.status is not VideoStatus.READY:
+            video.status = status
+
+    def _publish_job(self, db: Session, job_id: int) -> None:
+        job = load_job(db, job_id)
+        if job is not None:
+            self._events.publish("job.updated", job=job_payload(job))
+
+    def _progress_reporter(self, job_id: int) -> Any:
+        state = {"event": 0.0, "db": time.monotonic()}
+
+        def report(progress: DownloadProgress) -> None:
+            now = time.monotonic()
+            stage_change = progress.stage == "postprocessing"
+            if not stage_change and now - state["event"] < EVENT_INTERVAL:
+                return
+            state["event"] = now
+            self._events.publish(
+                "job.progress",
+                job_id=job_id,
+                stage=progress.stage,
+                progress=round(progress.progress, 4),
+                downloaded_bytes=progress.downloaded_bytes,
+                total_bytes=progress.total_bytes,
+                speed=progress.speed,
+                eta=progress.eta,
+            )
+            if stage_change or now - state["db"] >= DB_PROGRESS_INTERVAL:
+                state["db"] = now
+                with self._session() as db:
+                    job = db.get(DownloadJob, job_id)
+                    if job is not None and job.status is JobStatus.RUNNING:
+                        job.stage = JobStage(progress.stage)
+                        job.progress = progress.progress
+                        job.downloaded_bytes = progress.downloaded_bytes
+                        job.total_bytes = progress.total_bytes
+                        job.speed = progress.speed
+                        job.eta = progress.eta
+                        db.commit()
+
+        return report

@@ -1,0 +1,146 @@
+from __future__ import annotations
+
+import threading
+import time
+from collections.abc import Callable, Iterator
+from datetime import date
+from pathlib import Path
+from typing import Any
+
+import pytest
+from fastapi.testclient import TestClient
+
+from app.config import Settings
+from app.main import create_app
+from app.services.app_settings import DownloadOptions
+from app.services.downloader import (
+    DownloadCancelledError,
+    DownloadProgress,
+    DownloadResult,
+    SubtitleFile,
+    VideoMetadata,
+)
+
+HEADERS = {"X-Requested-With": "TubeVault"}
+VIDEO_BYTES = bytes(range(256)) * 40  # 10 KiB of predictable content
+
+
+class FakeDownloader:
+    """Writes small files instead of talking to YouTube."""
+
+    def __init__(self) -> None:
+        self.errors: list[Exception] = []
+        self.gate: threading.Event | None = None
+        self.started = threading.Event()
+        self.downloads = 0
+
+    def fetch_metadata(self, url: str) -> VideoMetadata:
+        youtube_id = url.rsplit("=", 1)[-1]
+        return VideoMetadata(
+            youtube_id=youtube_id,
+            title=f"Video {youtube_id}: Test",
+            webpage_url=url,
+            description="Eine Beschreibung",
+            channel_id="UCtest",
+            channel_name="Test Channel",
+            channel_handle="@test",
+            channel_url="https://www.youtube.com/@test",
+            upload_date=date(2024, 5, 1),
+            duration_s=120,
+            chapters=[
+                {"start": 0.0, "end": 60.0, "title": "Intro"},
+                {"start": 60.0, "end": 120.0, "title": "Hauptteil"},
+            ],
+        )
+
+    def download(
+        self,
+        meta: VideoMetadata,
+        *,
+        media_dir: Path,
+        relative_base: Path,
+        temp_dir: Path,
+        options: DownloadOptions,
+        on_progress: Callable[[DownloadProgress], None],
+        is_cancelled: Callable[[], bool],
+    ) -> DownloadResult:
+        self.started.set()
+        if self.errors:
+            raise self.errors.pop(0)
+        on_progress(DownloadProgress(stage="downloading", progress=0.5, downloaded_bytes=5))
+        if self.gate is not None:
+            while not self.gate.wait(0.02):
+                if is_cancelled():
+                    raise DownloadCancelledError
+        self.downloads += 1
+        target_dir = media_dir / relative_base.parent
+        target_dir.mkdir(parents=True, exist_ok=True)
+        video = target_dir / f"{relative_base.name}.{options.container}"
+        video.write_bytes(VIDEO_BYTES)
+        thumb = target_dir / f"{relative_base.name}-thumb.jpg"
+        thumb.write_bytes(b"\xff\xd8\xff\xe0fakejpeg")
+        sub = target_dir / f"{relative_base.name}.de.vtt"
+        sub.write_text("WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nHallo\n", encoding="utf-8")
+        return DownloadResult(
+            file_path=video,
+            thumbnail_path=thumb,
+            subtitles=[SubtitleFile(lang="de", is_auto=False, path=sub)],
+            width=1920,
+            height=1080,
+            vcodec="avc1.640028",
+            acodec="mp4a.40.2",
+        )
+
+
+def wait_for(predicate: Callable[[], Any], timeout: float = 5.0) -> Any:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        result = predicate()
+        if result:
+            return result
+        time.sleep(0.02)
+    raise AssertionError("Bedingung wurde nicht rechtzeitig erfüllt")
+
+
+@pytest.fixture
+def settings(tmp_path: Path) -> Settings:
+    return Settings(
+        config_dir=tmp_path / "config",
+        media_dir=tmp_path / "media",
+        static_dir=tmp_path / "static",
+        admin_user=None,
+        admin_password=None,
+    )
+
+
+@pytest.fixture
+def downloader() -> FakeDownloader:
+    return FakeDownloader()
+
+
+@pytest.fixture
+def client(settings: Settings, downloader: FakeDownloader) -> Iterator[TestClient]:
+    app = create_app(settings, downloader, configure_logging=False)
+    with TestClient(app, headers=HEADERS) as test_client:
+        yield test_client
+
+
+@pytest.fixture
+def admin(client: TestClient) -> TestClient:
+    response = client.post("/api/auth/setup", json={"username": "admin", "password": "geheim123"})
+    assert response.status_code == 201, response.text
+    return client
+
+
+def add_and_wait(client: TestClient, youtube_id: str = "dQw4w9WgXcQ") -> dict[str, Any]:
+    response = client.post("/api/videos", json={"url": f"https://youtu.be/{youtube_id}"})
+    assert response.status_code == 202, response.text
+    job_id = response.json()["id"]
+
+    def done() -> dict[str, Any] | None:
+        jobs = client.get("/api/downloads").json()["items"]
+        job = next(j for j in jobs if j["id"] == job_id)
+        return job if job["status"] in ("completed", "failed", "cancelled") else None
+
+    job: dict[str, Any] = wait_for(done)
+    return job
