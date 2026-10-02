@@ -32,7 +32,6 @@ ARG VERSION=dev
 LABEL org.opencontainers.image.title="TubeVault" \
       org.opencontainers.image.description="Self-hosted media server for YouTube content" \
       org.opencontainers.image.source="https://github.com/Lua-x/TubeVault" \
-      org.opencontainers.image.licenses="AGPL-3.0-only" \
       org.opencontainers.image.version="${VERSION}"
 
 RUN groupadd --gid 1000 tubevault \
@@ -54,8 +53,7 @@ ENV PATH="/app/.venv/bin:${PATH}" \
     PORT=8096 \
     PUID=1000 \
     PGID=1000 \
-    TZ="Etc/UTC" \
-    TUBEVAULT_VERSION="${VERSION}"
+    TZ="Etc/UTC"
 
 WORKDIR /app
 COPY --from=backend-deps /app/.venv /app/.venv
