@@ -9,6 +9,7 @@ from app.models.job import (
     JobStage,
     JobStatus,
 )
+from app.models.library import Playlist, PlaylistItem, SponsorSegment, WatchProgress
 from app.models.setting import Setting
 from app.models.subscription import ItemState, Subscription, SubscriptionItem, SubscriptionKind
 from app.models.user import User, UserSession
@@ -23,7 +24,10 @@ __all__ = [
     "ItemState",
     "JobStage",
     "JobStatus",
+    "Playlist",
+    "PlaylistItem",
     "Setting",
+    "SponsorSegment",
     "Subscription",
     "SubscriptionItem",
     "SubscriptionKind",
@@ -32,4 +36,5 @@ __all__ = [
     "UserSession",
     "Video",
     "VideoStatus",
+    "WatchProgress",
 ]

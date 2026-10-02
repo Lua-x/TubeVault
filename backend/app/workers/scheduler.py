@@ -12,7 +12,12 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.config import Settings
 from app.core.events import EventBus
 from app.models import Subscription
-from app.services.subscriptions import SubscriptionChecker, run_cleanup
+from app.services.catalog import Catalog
+from app.services.subscriptions import (
+    SubscriptionChecker,
+    refresh_channel_artwork,
+    run_cleanup,
+)
 
 log = logging.getLogger(__name__)
 
@@ -31,12 +36,14 @@ class SubscriptionScheduler:
         sessions: sessionmaker[Session],
         events: EventBus,
         checker: SubscriptionChecker,
+        catalog: Catalog,
         poll_interval: float = 30.0,
     ) -> None:
         self._settings = settings
         self._sessions = sessions
         self._events = events
         self._checker = checker
+        self._catalog = catalog
         self._poll_interval = poll_interval
         self._wake = threading.Event()
         self._stop = threading.Event()
@@ -115,9 +122,16 @@ class SubscriptionScheduler:
             self.cleanup()
 
     def cleanup(self) -> list[int]:
+        """Hourly maintenance: retention rules, then missing channel artwork."""
         self._last_cleanup = utcnow()
         with self._sessions() as db:
             deleted = run_cleanup(db, self._settings.media_dir)
         for video_id in deleted:
             self._events.publish("video.deleted", video_id=video_id)
+        try:
+            with self._sessions() as db:
+                if refresh_channel_artwork(db, self._catalog, self._settings.media_dir):
+                    self._events.publish("channels.updated")
+        except Exception:
+            log.exception("Kanalbilder konnten nicht aktualisiert werden")
         return deleted

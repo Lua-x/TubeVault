@@ -555,3 +555,37 @@ def channel_media_path(media_dir: Path, channel: Channel | None, kind: str) -> P
     except ValueError:
         return None
     return path if path.is_file() else None
+
+
+ARTWORK_RETRY = timedelta(days=7)
+
+
+def refresh_channel_artwork(db: Session, catalog: Catalog, media_dir: Path, limit: int = 5) -> int:
+    """Fetch avatar and banner for channels that have none yet (e.g. only hand-added videos)."""
+    cutoff = utcnow() - ARTWORK_RETRY
+    channels = list(
+        db.scalars(
+            select(Channel)
+            .where(
+                Channel.avatar_path.is_(None),
+                Channel.youtube_id.startswith("UC"),
+                (Channel.artwork_checked_at.is_(None)) | (Channel.artwork_checked_at < cutoff),
+            )
+            .limit(limit)
+        )
+    )
+    updated = 0
+    for channel in channels:
+        channel.artwork_checked_at = utcnow()
+        try:
+            source = catalog.resolve(SubscriptionKind.CHANNEL, channel_url_for(channel.youtube_id))
+            store_channel_art(db, catalog, media_dir, channel, source)
+            updated += int(channel.avatar_path is not None)
+        except Exception as exc:
+            log.debug("Kanalbilder für %s nicht geladen: %s", channel.name, exc)
+        db.commit()
+    return updated
+
+
+def channel_url_for(channel_id: str) -> str:
+    return f"https://www.youtube.com/channel/{channel_id}"

@@ -25,6 +25,7 @@ class Channel(Base):
     folder_name: Mapped[str] = mapped_column(String(255), unique=True)
     avatar_path: Mapped[str | None] = mapped_column(String(1024))
     banner_path: Mapped[str | None] = mapped_column(String(1024))
+    artwork_checked_at: Mapped[datetime | None]
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
 

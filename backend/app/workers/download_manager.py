@@ -34,6 +34,7 @@ from app.models import (
 )
 from app.schemas.jobs import JobOut
 from app.schemas.videos import VideoSummary
+from app.services import sponsorblock
 from app.services.app_settings import DownloadOptions, load_app_settings, queue_paused
 from app.services.downloader import (
     DownloadCancelledError,
@@ -85,14 +86,14 @@ class DownloadManager:
         events: EventBus,
         downloader: Downloader,
         poll_interval: float = 2.0,
-        on_subscription_download: Callable[[], None] | None = None,
+        on_download_finished: Callable[[], None] | None = None,
     ) -> None:
         self._settings = settings
         self._sessions = session_factory
         self._events = events
         self._downloader = downloader
         self._poll_interval = poll_interval
-        self.on_subscription_download = on_subscription_download
+        self.on_download_finished = on_download_finished
         self._executor: ThreadPoolExecutor | None = None
         self._thread: threading.Thread | None = None
         self._wake = threading.Event()
@@ -320,6 +321,8 @@ class DownloadManager:
                 stored = db.get(Video, job.video_id)
                 assert stored is not None
                 self._store_result(db, stored, result)
+                if options.sponsorblock_mode == "skip" and options.sponsorblock_categories:
+                    sponsorblock.refresh(db, stored, list(options.sponsorblock_categories))
                 self._finish(db, job, stored)
             cleanup_temp(temp_dir)
 
@@ -353,6 +356,13 @@ class DownloadManager:
                     file_path=relative_to_media(media_dir, sub.path),
                 )
             )
+        if result.sponsorblock_cut:
+            video.sponsorblock_cut = True
+            video.sponsor_segments.clear()
+            if result.chapters is not None:
+                video.chapters = result.chapters
+            if result.duration_s:
+                video.duration_s = result.duration_s
         video.status = VideoStatus.READY
         video.downloaded_at = utcnow()
 
@@ -368,8 +378,8 @@ class DownloadManager:
         update_items_for_job(db, job.id, ItemState.DOWNLOADED, video_id=video.id)
         db.commit()
         log.info("Download fertig: %s (%s)", video.title, video.youtube_id)
-        if job.subscription_id and self.on_subscription_download:
-            self.on_subscription_download()
+        if self.on_download_finished:
+            self.on_download_finished()
         self._publish_job(db, job.id)
         db.refresh(video)
         self._events.publish("video.updated", video=video_payload(video))

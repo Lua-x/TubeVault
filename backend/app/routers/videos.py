@@ -5,14 +5,35 @@ from __future__ import annotations
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query, status
-from sqlalchemy import ColumnElement, func, or_, select
-from sqlalchemy.orm import selectinload
+from sqlalchemy import ColumnElement, Select, case, func, or_, select
+from sqlalchemy.orm import aliased, selectinload
 
 from app.core.deps import AdminUser, Context, CurrentUser, DbSession
-from app.models import ACTIVE_JOB_STATUSES, Channel, DownloadJob, Video, VideoStatus
+from app.models import (
+    ACTIVE_JOB_STATUSES,
+    Channel,
+    DownloadJob,
+    Video,
+    VideoStatus,
+    WatchProgress,
+)
 from app.schemas.common import Page
 from app.schemas.jobs import JobOut
-from app.schemas.videos import AddVideoRequest, VideoDetail, VideoSummary
+from app.schemas.videos import (
+    AddVideoRequest,
+    ProgressUpdate,
+    SegmentsOut,
+    SponsorSegmentOut,
+    VideoDetail,
+    VideoSummary,
+    WatchedUpdate,
+    WatchState,
+)
+from app.services import sponsorblock
+from app.services.app_settings import load_app_settings
+from app.services.presenters import video_detail, video_summaries
+from app.services.progress import MIN_RESUME_S, save_progress, set_watched
+from app.services.search import search_ids
 from app.services.subscriptions import mark_video_removed
 from app.services.videos import delete_video_files, video_file_exists
 from app.services.youtube_urls import InvalidVideoUrlError, parse_video_url
@@ -20,42 +41,71 @@ from app.workers.download_manager import load_job
 
 router = APIRouter(prefix="/videos", tags=["videos"])
 
-SortOrder = Literal["added", "newest", "oldest", "title"]
+SortOrder = Literal["relevance", "added", "newest", "oldest", "title"]
+WatchedFilter = Literal["all", "unwatched", "watched", "in_progress"]
 
 
 def _get_video(db: DbSession, video_id: int) -> Video:
     video = db.scalar(
         select(Video)
         .where(Video.id == video_id)
-        .options(selectinload(Video.channel), selectinload(Video.subtitles))
+        .options(
+            selectinload(Video.channel),
+            selectinload(Video.subtitles),
+            selectinload(Video.sponsor_segments),
+        )
     )
     if video is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Video nicht gefunden")
     return video
 
 
+def _watch_filter(query: Select[Any], user_id: int, watched: WatchedFilter) -> Any:
+    if watched == "all":
+        return query
+    progress = aliased(WatchProgress)
+    query = query.outerjoin(
+        progress, (progress.video_id == Video.id) & (progress.user_id == user_id)
+    )
+    if watched == "watched":
+        return query.where(progress.watched.is_(True))
+    if watched == "in_progress":
+        return query.where(progress.watched.is_(False), progress.position_s >= MIN_RESUME_S)
+    return query.where(or_(progress.watched.is_(None), progress.watched.is_(False)))
+
+
 @router.get("")
 def list_videos(
-    _: CurrentUser,
+    user: CurrentUser,
     db: DbSession,
     q: str | None = Query(default=None, max_length=200),
     channel_id: int | None = None,
-    sort: SortOrder = "added",
+    watched: WatchedFilter = "all",
+    sort: SortOrder | None = None,
     limit: int = Query(default=60, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
 ) -> Page[VideoSummary]:
     query = select(Video).where(Video.status == VideoStatus.READY)
     if channel_id is not None:
         query = query.where(Video.channel_id == channel_id)
-    if q:
-        pattern = f"%{q.strip().lower()}%"
-        query = query.outerjoin(Channel).where(
-            or_(
-                func.lower(Video.title).like(pattern),
-                func.lower(Video.description).like(pattern),
-                func.lower(Channel.name).like(pattern),
+    query = _watch_filter(query, user.id, watched)
+
+    ranked: list[int] | None = None
+    if q and q.strip():
+        ranked = search_ids(db.connection(), q)
+        if ranked is None:  # no full-text index (not SQLite)
+            pattern = f"%{q.strip().lower()}%"
+            query = query.outerjoin(Channel).where(
+                or_(
+                    func.lower(Video.title).like(pattern),
+                    func.lower(Video.description).like(pattern),
+                    func.lower(Channel.name).like(pattern),
+                )
             )
-        )
+        else:
+            query = query.where(Video.id.in_(ranked or [-1]))
+    sort = sort or ("relevance" if ranked else "added")
+
     total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
     orders: dict[str, tuple[ColumnElement[Any], ...]] = {
         "added": (Video.added_at.desc(), Video.id.desc()),
@@ -63,16 +113,66 @@ def list_videos(
         "oldest": (Video.upload_date.asc(), Video.id.asc()),
         "title": (func.lower(Video.title).asc(), Video.id.asc()),
     }
-    order = orders[sort]
+    if sort == "relevance" and ranked:
+        order: tuple[ColumnElement[Any], ...] = (
+            case({vid: rank for rank, vid in enumerate(ranked)}, value=Video.id),
+        )
+    else:
+        order = orders.get(sort, orders["added"])
     videos = db.scalars(
         query.options(selectinload(Video.channel)).order_by(*order).limit(limit).offset(offset)
     )
-    return Page(items=[VideoSummary.model_validate(v) for v in videos], total=total)
+    return Page(items=video_summaries(db, user.id, videos), total=total)
 
 
 @router.get("/{video_id}")
-def get_video(video_id: int, _: CurrentUser, db: DbSession) -> VideoDetail:
-    return VideoDetail.model_validate(_get_video(db, video_id))
+def get_video(video_id: int, user: CurrentUser, db: DbSession) -> VideoDetail:
+    return video_detail(db, user.id, _get_video(db, video_id))
+
+
+@router.get("/{video_id}/segments")
+def sponsor_segments(video_id: int, _: CurrentUser, db: DbSession) -> SegmentsOut:
+    """SponsorBlock segments to skip; refreshed from SponsorBlock when they are stale."""
+    video = _get_video(db, video_id)
+    options = load_app_settings(db).downloads
+    if (
+        options.sponsorblock_mode == "skip"
+        and options.sponsorblock_categories
+        and sponsorblock.is_stale(video)
+    ):
+        sponsorblock.refresh(db, video, list(options.sponsorblock_categories))
+        db.refresh(video)
+    wanted = set(options.sponsorblock_categories)
+    return SegmentsOut(
+        mode=options.sponsorblock_mode,
+        cut=video.sponsorblock_cut,
+        segments=[
+            SponsorSegmentOut.model_validate(s)
+            for s in video.sponsor_segments
+            if s.category in wanted
+        ],
+    )
+
+
+@router.put("/{video_id}/progress")
+def update_progress(
+    video_id: int, body: ProgressUpdate, user: CurrentUser, db: DbSession
+) -> WatchState:
+    video = db.get(Video, video_id)
+    if video is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Video nicht gefunden")
+    return WatchState.model_validate(
+        save_progress(db, user.id, video, body.position_s, body.duration_s)
+    )
+
+
+@router.put("/{video_id}/watched")
+def update_watched(
+    video_id: int, body: WatchedUpdate, user: CurrentUser, db: DbSession
+) -> WatchState:
+    if db.get(Video, video_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Video nicht gefunden")
+    return WatchState.model_validate(set_watched(db, user.id, video_id, body.watched))
 
 
 @router.post("", status_code=status.HTTP_202_ACCEPTED)

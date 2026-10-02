@@ -1,15 +1,42 @@
-"""Channel artwork (avatar and banner)."""
+"""Channels: list, details and artwork (avatar, banner)."""
 
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import FileResponse
+from sqlalchemy import func, select
 
 from app.core.deps import AppConfig, CurrentUser, DbSession
-from app.models import Channel
+from app.models import Channel, Video, VideoStatus
+from app.schemas.videos import ChannelCard, ChannelDetail
+from app.services.presenters import channel_cards
 from app.services.subscriptions import channel_media_path
 
 router = APIRouter(prefix="/channels", tags=["channels"])
+
+
+@router.get("")
+def list_channels(user: CurrentUser, db: DbSession) -> list[ChannelCard]:
+    with_videos = (
+        select(Video.channel_id).where(Video.status == VideoStatus.READY).distinct().subquery()
+    )
+    channels = list(
+        db.scalars(
+            select(Channel)
+            .where(Channel.id.in_(select(with_videos.c.channel_id)))
+            .order_by(func.lower(Channel.name))
+        )
+    )
+    return channel_cards(db, user.id, channels)
+
+
+@router.get("/{channel_id}")
+def get_channel(channel_id: int, user: CurrentUser, db: DbSession) -> ChannelDetail:
+    channel = db.get(Channel, channel_id)
+    if channel is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Kanal nicht gefunden")
+    card = channel_cards(db, user.id, [channel])[0]
+    return ChannelDetail(**card.model_dump(), description=channel.description)
 
 
 def _image(db: DbSession, settings: AppConfig, channel_id: int, kind: str) -> FileResponse:

@@ -1,0 +1,73 @@
+"""Per-user watch progress."""
+
+from __future__ import annotations
+
+from collections.abc import Iterable
+from datetime import UTC, datetime
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.models import Video, WatchProgress
+
+# Counted as watched when this close to the end.
+WATCHED_SHARE = 0.92
+WATCHED_REMAINING_S = 30.0
+# Below this position there is nothing worth resuming.
+MIN_RESUME_S = 10.0
+
+
+def progress_map(db: Session, user_id: int, video_ids: Iterable[int]) -> dict[int, WatchProgress]:
+    ids = list(set(video_ids))
+    if not ids:
+        return {}
+    rows = db.scalars(
+        select(WatchProgress).where(
+            WatchProgress.user_id == user_id, WatchProgress.video_id.in_(ids)
+        )
+    )
+    return {row.video_id: row for row in rows}
+
+
+def _get_or_create(db: Session, user_id: int, video_id: int) -> WatchProgress:
+    row = db.get(WatchProgress, (user_id, video_id))
+    if row is None:
+        row = WatchProgress(user_id=user_id, video_id=video_id, position_s=0.0, watched=False)
+        db.add(row)
+    return row
+
+
+def is_finished(position_s: float, duration_s: float | None) -> bool:
+    if not duration_s or duration_s <= 0:
+        return False
+    return (
+        position_s >= duration_s * WATCHED_SHARE or duration_s - position_s <= WATCHED_REMAINING_S
+    )
+
+
+def save_progress(
+    db: Session, user_id: int, video: Video, position_s: float, duration_s: float | None = None
+) -> WatchProgress:
+    row = _get_or_create(db, user_id, video.id)
+    duration = duration_s or (float(video.duration_s) if video.duration_s else None)
+    position = max(0.0, min(position_s, duration or position_s))
+    row.position_s = position
+    row.updated_at = datetime.now(UTC)
+    if is_finished(position, duration) and not row.watched:
+        row.watched = True
+        row.watched_at = datetime.now(UTC)
+    elif position >= MIN_RESUME_S and row.watched and not is_finished(position, duration):
+        # Watching again from somewhere in the middle.
+        row.watched = False
+    db.commit()
+    return row
+
+
+def set_watched(db: Session, user_id: int, video_id: int, watched: bool) -> WatchProgress:
+    row = _get_or_create(db, user_id, video_id)
+    row.watched = watched
+    row.watched_at = datetime.now(UTC) if watched else None
+    row.position_s = 0.0
+    row.updated_at = datetime.now(UTC)
+    db.commit()
+    return row

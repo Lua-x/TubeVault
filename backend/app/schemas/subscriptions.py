@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field, model_validator
 from app.models import ItemState, SubscriptionKind
 from app.schemas.common import ApiModel
 from app.schemas.videos import ChannelOut
-from app.services.app_settings import Container, MaxHeight
+from app.services.app_settings import Container, MaxHeight, SponsorBlockMode
 
 
 class SubscriptionDownloadOptions(BaseModel):
@@ -17,6 +17,7 @@ class SubscriptionDownloadOptions(BaseModel):
     container: Container | None = None
     max_height: MaxHeight | None = None
     prefer_h264: bool | None = None
+    sponsorblock_mode: SponsorBlockMode | None = None
 
 
 class SubscriptionSettings(BaseModel):

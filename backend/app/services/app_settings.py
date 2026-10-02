@@ -13,6 +13,14 @@ SETTINGS_KEY = "app"
 
 Container = Literal["mp4", "mkv"]
 MaxHeight = Literal[2160, 1440, 1080, 720, 480, 360]
+SponsorBlockMode = Literal["off", "skip", "cut"]
+SponsorBlockCategory = Literal[
+    "sponsor", "selfpromo", "interaction", "intro", "outro", "preview", "music_offtopic", "filler"
+]
+
+
+def _default_categories() -> list[SponsorBlockCategory]:
+    return ["sponsor", "selfpromo", "interaction"]
 
 
 class DownloadOptions(BaseModel):
@@ -24,6 +32,11 @@ class DownloadOptions(BaseModel):
     subtitles: bool = True
     auto_subtitles: bool = True
     subtitle_languages: list[str] = Field(default_factory=lambda: ["de", "en"])
+    # "skip": the player jumps over segments; "cut": they are removed from the file.
+    sponsorblock_mode: SponsorBlockMode = "off"
+    sponsorblock_categories: list[SponsorBlockCategory] = Field(
+        default_factory=lambda: _default_categories()
+    )
 
     @field_validator("subtitle_languages")
     @classmethod

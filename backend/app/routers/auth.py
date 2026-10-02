@@ -108,7 +108,7 @@ def me(user: CurrentUser) -> UserOut:
 
 @router.put("/me/preferences")
 def update_preferences(body: Preferences, user: CurrentUser, db: DbSession) -> UserOut:
-    user.preferences = {**(user.preferences or {}), **body.model_dump()}
+    user.preferences = {**(user.preferences or {}), **body.model_dump(exclude_none=True)}
     db.commit()
     return UserOut.model_validate(user)
 

@@ -42,7 +42,11 @@ class PasswordChange(BaseModel):
 
 
 class Preferences(BaseModel):
-    theme: Literal["system", "dark", "light"] = "dark"
+    """Partial update: only the fields that are sent are changed."""
+
+    theme: Literal["system", "dark", "light"] | None = None
+    sponsorblock_skip: bool | None = None
+    autoplay_next: bool | None = None
 
 
 class UserOut(ApiModel):

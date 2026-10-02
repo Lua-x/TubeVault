@@ -75,6 +75,10 @@ class DownloadResult:
     height: int | None = None
     vcodec: str | None = None
     acodec: str | None = None
+    # Set when SponsorBlock segments were cut out: chapters and duration changed.
+    sponsorblock_cut: bool = False
+    chapters: list[dict[str, Any]] | None = None
+    duration_s: int | None = None
 
 
 ProgressCallback = Callable[[DownloadProgress], None]
@@ -344,21 +348,13 @@ class YtDlpDownloader:
             "continuedl": True,
             "progress_hooks": [tracker.hook],
             "postprocessor_hooks": [tracker.postprocessor_hook],
-            "postprocessors": [
-                {"key": "FFmpegThumbnailsConvertor", "format": "jpg", "when": "before_dl"},
-                {"key": "FFmpegVideoRemuxer", "preferedformat": options.container},
-                {
-                    "key": "FFmpegMetadata",
-                    "add_chapters": True,
-                    "add_metadata": True,
-                    "add_infojson": False,
-                },
-            ],
+            "postprocessors": self._postprocessors(options),
         }
         with YoutubeDL(opts) as ydl:
             info: dict[str, Any] = ydl.process_ie_result(copy.deepcopy(meta.raw), download=True)
 
         file_path = self._find_media_file(info, media_dir, relative_base)
+        cut = options.sponsorblock_mode == "cut" and bool(info.get("sponsorblock_chapters"))
         selected = (info.get("requested_downloads") or [info])[0]
         result = DownloadResult(
             file_path=file_path,
@@ -367,10 +363,38 @@ class YtDlpDownloader:
             height=selected.get("height") or info.get("height"),
             vcodec=selected.get("vcodec") or info.get("vcodec"),
             acodec=selected.get("acodec") or info.get("acodec"),
+            sponsorblock_cut=cut,
+            chapters=_parse_chapters(info.get("chapters")) if cut else None,
+            duration_s=int(info["duration"]) if cut and info.get("duration") else None,
         )
         if not is_cancelled():
             result.subtitles = self._download_subtitles(meta, media_dir, relative_base, options)
         return result
+
+    @staticmethod
+    def _postprocessors(options: DownloadOptions) -> list[dict[str, Any]]:
+        cut = options.sponsorblock_mode == "cut" and options.sponsorblock_categories
+        categories = list(options.sponsorblock_categories)
+        postprocessors: list[dict[str, Any]] = []
+        if cut:
+            postprocessors.append(
+                {"key": "SponsorBlock", "categories": categories, "when": "after_filter"}
+            )
+        postprocessors += [
+            {"key": "FFmpegThumbnailsConvertor", "format": "jpg", "when": "before_dl"},
+            {"key": "FFmpegVideoRemuxer", "preferedformat": options.container},
+        ]
+        if cut:
+            postprocessors.append({"key": "ModifyChapters", "remove_sponsor_segments": categories})
+        postprocessors.append(
+            {
+                "key": "FFmpegMetadata",
+                "add_chapters": True,
+                "add_metadata": True,
+                "add_infojson": False,
+            }
+        )
+        return postprocessors
 
     def _download_subtitles(
         self, meta: VideoMetadata, media_dir: Path, relative_base: Path, options: DownloadOptions

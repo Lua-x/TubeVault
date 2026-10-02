@@ -25,7 +25,9 @@ from app.routers import (
     auth,
     channels,
     downloads,
+    home,
     media,
+    playlists,
     settings,
     subscriptions,
     system,
@@ -36,6 +38,7 @@ from app.routers import (
 from app.services.auth import bootstrap_admin, purge_expired_sessions
 from app.services.catalog import Catalog, YtDlpCatalog
 from app.services.downloader import Downloader, YtDlpDownloader
+from app.services.search import ensure_search_index
 from app.services.subscriptions import SubscriptionChecker
 from app.workers.download_manager import DownloadManager
 from app.workers.scheduler import SubscriptionScheduler
@@ -130,9 +133,11 @@ def _api_router() -> APIRouter:
         system,
         auth,
         users,
+        home,
         videos,
         media,
         channels,
+        playlists,
         subscriptions,
         downloads,
         settings,
@@ -203,6 +208,7 @@ def create_app(
 
     engine = make_engine(settings.db_url)
     run_migrations(engine)
+    ensure_search_index(engine)
     sessions = make_session_factory(engine)
     with sessions() as db:
         bootstrap_admin(db, settings)
@@ -215,9 +221,9 @@ def create_app(
         settings, sessions, events, catalog, on_jobs_created=lambda _ids: manager.wake()
     )
     scheduler = SubscriptionScheduler(
-        settings, sessions, events, checker, poll_interval=scheduler_poll_interval
+        settings, sessions, events, checker, catalog, poll_interval=scheduler_poll_interval
     )
-    manager.on_subscription_download = scheduler.request_cleanup
+    manager.on_download_finished = scheduler.request_cleanup
     ctx = AppContext(
         settings=settings,
         engine=engine,

@@ -11,6 +11,7 @@ from app.db import Base, utcnow
 
 if TYPE_CHECKING:
     from app.models.channel import Channel
+    from app.models.library import SponsorSegment
     from app.models.user import User
 
 
@@ -66,6 +67,9 @@ class Video(Base):
     added_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     added_at: Mapped[datetime] = mapped_column(default=utcnow, index=True)
     downloaded_at: Mapped[datetime | None]
+    # SponsorBlock: when segments were last fetched, and whether they were cut from the file.
+    sponsorblock_fetched_at: Mapped[datetime | None]
+    sponsorblock_cut: Mapped[bool] = mapped_column(default=False)
     updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
 
     channel: Mapped[Channel | None] = relationship(back_populates="videos")
@@ -75,6 +79,9 @@ class Video(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
         order_by="Subtitle.lang",
+    )
+    sponsor_segments: Mapped[list[SponsorSegment]] = relationship(
+        cascade="all, delete-orphan", passive_deletes=True, order_by="SponsorSegment.start_s"
     )
 
     @property

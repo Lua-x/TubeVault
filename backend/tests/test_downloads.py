@@ -119,7 +119,9 @@ def test_delete_video_removes_files(admin: TestClient, settings: Settings) -> No
     video_id = admin.get("/api/videos").json()["items"][0]["id"]
     assert admin.delete(f"/api/videos/{video_id}").status_code == 204
     assert admin.get(f"/api/videos/{video_id}").status_code == 404
-    assert not (settings.media_dir / "Test Channel").exists()
+    # The year folder goes away; the channel folder may keep its artwork (folder.jpg).
+    assert not (settings.media_dir / "Test Channel" / "2024").exists()
+    assert not list((settings.media_dir).rglob("*.mp4"))
     assert Path(settings.media_dir).is_dir()
 
 
