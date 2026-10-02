@@ -5,6 +5,7 @@ import {
   ListVideo,
   Search,
   Settings,
+  ShieldCheck,
   Tv,
   UsersRound,
   type LucideIcon,
@@ -17,6 +18,7 @@ export interface NavItem {
   end?: boolean;
   /** Further paths that count as "this section" (e.g. the library's sub pages). */
   also?: string[];
+  adminOnly?: boolean;
 }
 
 export const PRIMARY_NAV: NavItem[] = [
@@ -31,6 +33,7 @@ export const SECONDARY_NAV: NavItem[] = [
   { to: "/subscriptions", label: "Abos", icon: Tv },
   { to: "/downloads", label: "Downloads", icon: ArrowDownToLine },
   { to: "/settings", label: "Einstellungen", icon: Settings },
+  { to: "/admin", label: "Verwaltung", icon: ShieldCheck, adminOnly: true },
 ];
 
 /** Phones: five tabs at most, like iOS. Channels and playlists live under "Library". */

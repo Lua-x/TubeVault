@@ -84,7 +84,7 @@ export function Sidebar({ onAdd }: { onAdd: () => void }) {
         )}
 
         <div className="mt-5 flex flex-col gap-0.5 border-t border-separator pt-4">
-          {SECONDARY_NAV.map((item) => (
+          {SECONDARY_NAV.filter((item) => !item.adminOnly || user?.is_admin).map((item) => (
             <SidebarLink
               key={item.to}
               item={item}

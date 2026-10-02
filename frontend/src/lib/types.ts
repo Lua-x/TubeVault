@@ -361,3 +361,23 @@ export interface LibraryTask {
   started_at: string;
   finished_at: string | null;
 }
+
+export type ImportMode = "move" | "copy" | "keep";
+
+export interface ImportCandidate {
+  key: string;
+  root: "import" | "media";
+  relative: string;
+  size: number;
+  youtube_id: string | null;
+  source: string | null;
+  title: string;
+  status: "ready" | "known" | "unknown";
+}
+
+export interface ImportOverview {
+  import_dir: string;
+  import_dir_exists: boolean;
+  scanned_at: string | null;
+  candidates: ImportCandidate[];
+}

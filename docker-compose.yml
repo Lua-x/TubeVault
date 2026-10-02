@@ -19,6 +19,8 @@ services:
     volumes:
       - ./config:/config
       - ./media:/media
+      # Optional: existing videos to import (Verwaltung → Import); read-only is fine for copying
+      # - ./import:/import
     # Optional: hardware transcoding with an Intel or AMD GPU (VAAPI)
     # devices:
     #   - /dev/dri:/dev/dri

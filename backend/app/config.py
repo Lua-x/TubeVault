@@ -27,6 +27,8 @@ class Settings(BaseSettings):
 
     config_dir: Path = Path("/config")
     media_dir: Path = Path("/media")
+    # Optional folder with existing videos to import (mounted read-only is fine for copying).
+    import_dir: Path = Path("/import")
     database_url: str | None = None
     static_dir: Path = Path(__file__).parent / "static"
 

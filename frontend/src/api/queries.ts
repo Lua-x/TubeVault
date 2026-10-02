@@ -11,6 +11,8 @@ import type {
   HomeFeed,
   HwAccel,
   HwTestResult,
+  ImportMode,
+  ImportOverview,
   Job,
   LibraryTask,
   MaxHeight,
@@ -42,6 +44,7 @@ export const keys = {
   segments: (id: number) => ["videos", "segments", id] as const,
   playback: (id: number) => ["videos", "playback", id] as const,
   libraryTask: ["library", "task"] as const,
+  importOverview: ["import"] as const,
   remux: (id: number) => ["videos", "remux", id] as const,
   videoList: (params: VideoListParams) => ["videos", "list", params] as const,
   video: (id: number) => ["videos", "detail", id] as const,
@@ -449,5 +452,25 @@ export function useLibraryTask(enabled: boolean) {
     queryKey: keys.libraryTask,
     queryFn: () => api.get<LibraryTask | null>("library/task"),
     enabled,
+  });
+}
+
+// --- import ------------------------------------------------------------------------
+
+export function useImportOverview() {
+  return useQuery({
+    queryKey: keys.importOverview,
+    queryFn: () => api.get<ImportOverview>("import"),
+  });
+}
+
+export function useStartImportScan() {
+  return useMutation({ mutationFn: () => api.post<LibraryTask>("import/scan") });
+}
+
+export function useStartImport() {
+  return useMutation({
+    mutationFn: (body: { keys: string[]; mode: ImportMode; fetch_metadata: boolean }) =>
+      api.post<LibraryTask>("import/run", body),
   });
 }

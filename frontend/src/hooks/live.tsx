@@ -80,6 +80,7 @@ function handleEvent(client: QueryClient, event: LiveEvent) {
         void client.invalidateQueries({ queryKey: keys.videos });
         void client.invalidateQueries({ queryKey: keys.channels });
         void client.invalidateQueries({ queryKey: keys.system });
+        void client.invalidateQueries({ queryKey: keys.importOverview });
       }
       break;
     case "ping":

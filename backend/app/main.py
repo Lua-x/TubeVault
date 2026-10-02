@@ -27,6 +27,7 @@ from app.routers import (
     channels,
     downloads,
     home,
+    imports,
     media,
     playback,
     playlists,
@@ -41,6 +42,7 @@ from app.services.app_settings import TranscodeOptions, load_app_settings
 from app.services.auth import bootstrap_admin, purge_expired_sessions
 from app.services.catalog import Catalog, YtDlpCatalog
 from app.services.downloader import Downloader, YtDlpDownloader
+from app.services.importer import Importer
 from app.services.search import ensure_search_index
 from app.services.subscriptions import SubscriptionChecker
 from app.workers.download_manager import DownloadManager
@@ -150,6 +152,7 @@ def _api_router() -> APIRouter:
         playlists,
         subscriptions,
         downloads,
+        imports,
         settings,
         ws,
     ):
@@ -227,7 +230,8 @@ def create_app(
 
     events = EventBus()
     catalog = catalog or YtDlpCatalog()
-    manager = DownloadManager(settings, sessions, events, downloader or YtDlpDownloader())
+    downloader = downloader or YtDlpDownloader()
+    manager = DownloadManager(settings, sessions, events, downloader)
     checker = SubscriptionChecker(
         settings, sessions, events, catalog, on_jobs_created=lambda _ids: manager.wake()
     )
@@ -242,6 +246,7 @@ def create_app(
 
     transcoder = Transcoder(settings, transcode_options)
     library_tasks = LibraryTasks(settings, sessions, events)
+    importer = Importer(settings.media_dir, settings.import_dir, downloader)
     ctx = AppContext(
         settings=settings,
         engine=engine,
@@ -253,6 +258,7 @@ def create_app(
         scheduler=scheduler,
         transcoder=transcoder,
         library_tasks=library_tasks,
+        importer=importer,
     )
 
     @asynccontextmanager
