@@ -1,0 +1,58 @@
+# --- Secrets & local config -------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+cookies.txt
+*cookies*.txt
+
+# --- Runtime data (never commit) --------------------------------------------
+/config/
+/media/
+/data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.log
+logs/
+
+# Downloaded media
+*.mp4
+*.mkv
+*.webm
+*.m4a
+*.part
+*.ytdl
+
+# --- Python -----------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+
+# --- Node / Frontend --------------------------------------------------------
+node_modules/
+frontend/dist/
+backend/app/static/
+*.tsbuildinfo
+.vite/
+
+# --- Editors & OS -----------------------------------------------------------
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
