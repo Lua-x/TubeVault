@@ -1,0 +1,125 @@
+@import "tailwindcss";
+
+/* --- Design tokens -----------------------------------------------------------
+   Dark is the default; light follows Apple's system colors. "System" resolves to one of
+   the two via data-theme (see lib/theme.ts). */
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+  --tv-canvas: #000000;
+  --tv-elevated: #1c1c1e;
+  --tv-surface: #2c2c2e;
+  --tv-surface-hover: #3a3a3c;
+  --tv-separator: rgb(255 255 255 / 0.1);
+  --tv-text: #ffffff;
+  --tv-text-secondary: rgb(235 235 245 / 0.62);
+  --tv-text-tertiary: rgb(235 235 245 / 0.38);
+  --tv-accent: #0a84ff;
+  --tv-accent-hover: #409cff;
+  --tv-danger: #ff453a;
+  --tv-success: #30d158;
+  --tv-glass: rgb(28 28 30 / 0.72);
+  --tv-overlay: rgb(0 0 0 / 0.6);
+  --tv-shadow: 0 18px 40px -12px rgb(0 0 0 / 0.7);
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --tv-canvas: #f5f5f7;
+  --tv-elevated: #ffffff;
+  --tv-surface: #ececf0;
+  --tv-surface-hover: #e2e2e7;
+  --tv-separator: rgb(60 60 67 / 0.14);
+  --tv-text: #1d1d1f;
+  --tv-text-secondary: rgb(60 60 67 / 0.72);
+  --tv-text-tertiary: rgb(60 60 67 / 0.45);
+  --tv-accent: #0071e3;
+  --tv-accent-hover: #0077ed;
+  --tv-danger: #e5372b;
+  --tv-success: #248a3d;
+  --tv-glass: rgb(255 255 255 / 0.72);
+  --tv-overlay: rgb(0 0 0 / 0.35);
+  --tv-shadow: 0 18px 40px -16px rgb(0 0 0 / 0.28);
+}
+
+@theme inline {
+  --color-canvas: var(--tv-canvas);
+  --color-elevated: var(--tv-elevated);
+  --color-surface: var(--tv-surface);
+  --color-surface-hover: var(--tv-surface-hover);
+  --color-separator: var(--tv-separator);
+  --color-primary: var(--tv-text);
+  --color-secondary: var(--tv-text-secondary);
+  --color-tertiary: var(--tv-text-tertiary);
+  --color-accent: var(--tv-accent);
+  --color-accent-hover: var(--tv-accent-hover);
+  --color-danger: var(--tv-danger);
+  --color-success: var(--tv-success);
+  --color-glass: var(--tv-glass);
+  --color-overlay: var(--tv-overlay);
+  --shadow-card: var(--tv-shadow);
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", Inter, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@layer base {
+  html {
+    background: var(--tv-canvas);
+    -webkit-tap-highlight-color: transparent;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-canvas font-sans text-primary antialiased;
+    min-height: 100dvh;
+    line-height: 1.5;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--tv-accent);
+    outline-offset: 3px;
+    border-radius: 6px;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--tv-accent) 35%, transparent);
+  }
+}
+
+@utility glass {
+  background: var(--tv-glass);
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
+  backdrop-filter: saturate(180%) blur(24px);
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@keyframes indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}

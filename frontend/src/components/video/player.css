@@ -1,0 +1,274 @@
+/* Minimal, Apple-like skin for Video.js: a floating glass control bar that fades out
+   while playing, thin progress line, round blurred play button. */
+
+.vjs-tubevault.video-js {
+  font-family: inherit;
+  font-size: 14px;
+  color: #fff;
+  background: #000;
+}
+
+.vjs-tubevault .vjs-tech {
+  object-fit: contain;
+}
+
+.vjs-tubevault .vjs-poster img {
+  object-fit: cover;
+}
+
+/* Big play button */
+.vjs-tubevault .vjs-big-play-button {
+  width: 76px;
+  height: 76px;
+  margin: 0;
+  transform: translate(-50%, -50%);
+  top: 50%;
+  left: 50%;
+  border: 0;
+  border-radius: 9999px;
+  background: rgb(255 255 255 / 0.18);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.35);
+  transition:
+    transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 0.25s;
+}
+
+.vjs-tubevault .vjs-big-play-button .vjs-icon-placeholder::before {
+  font-size: 44px;
+  line-height: 76px;
+}
+
+.vjs-tubevault:hover .vjs-big-play-button,
+.vjs-tubevault .vjs-big-play-button:focus {
+  background: rgb(255 255 255 / 0.28);
+  transform: translate(-50%, -50%) scale(1.06);
+}
+
+/* Floating control bar */
+.vjs-tubevault .vjs-control-bar {
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  width: auto;
+  height: 46px;
+  padding: 0 6px;
+  border-radius: 16px;
+  background: rgb(28 28 30 / 0.55);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.3);
+  align-items: center;
+  transition:
+    opacity 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0.3s;
+}
+
+.vjs-tubevault.vjs-has-started.vjs-user-inactive.vjs-playing .vjs-control-bar {
+  opacity: 0;
+  transform: translateY(8px);
+  visibility: hidden;
+  transition:
+    opacity 0.6s,
+    transform 0.6s,
+    visibility 0.6s;
+}
+
+.vjs-tubevault.vjs-user-inactive.vjs-playing {
+  cursor: none;
+}
+
+.vjs-tubevault .vjs-control {
+  width: 38px;
+}
+
+.vjs-tubevault .vjs-button > .vjs-icon-placeholder::before {
+  font-size: 22px;
+  line-height: 46px;
+}
+
+.vjs-tubevault .vjs-time-control {
+  padding: 0 6px;
+  min-width: 0;
+  width: auto;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  line-height: 46px;
+  color: rgb(255 255 255 / 0.85);
+}
+
+/* Progress line */
+.vjs-tubevault .vjs-progress-control {
+  min-width: 4em;
+}
+
+.vjs-tubevault .vjs-progress-holder {
+  height: 4px;
+  margin: 0 8px;
+  border-radius: 9999px;
+  background: rgb(255 255 255 / 0.22);
+  transition: height 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.vjs-tubevault .vjs-progress-control:hover .vjs-progress-holder {
+  height: 7px;
+  font-size: inherit;
+}
+
+.vjs-tubevault .vjs-load-progress,
+.vjs-tubevault .vjs-load-progress div {
+  border-radius: 9999px;
+  background: rgb(255 255 255 / 0.22);
+}
+
+.vjs-tubevault .vjs-play-progress {
+  border-radius: 9999px;
+  background: #fff;
+}
+
+.vjs-tubevault .vjs-play-progress::before {
+  top: 50%;
+  transform: translateY(-50%) scale(0);
+  font-size: 13px;
+  color: #fff;
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.vjs-tubevault .vjs-progress-control:hover .vjs-play-progress::before {
+  transform: translateY(-50%) scale(1);
+}
+
+.vjs-tubevault .vjs-time-tooltip,
+.vjs-tubevault .vjs-mouse-display .vjs-time-tooltip {
+  border-radius: 6px;
+  background: rgb(28 28 30 / 0.85);
+  color: #fff;
+  font-size: 11px;
+  padding: 3px 6px;
+}
+
+.vjs-tubevault .vjs-chapter-marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  margin-left: -1.5px;
+  background: rgb(0 0 0 / 0.65);
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* Volume */
+.vjs-tubevault .vjs-volume-bar {
+  border-radius: 9999px;
+  background: rgb(255 255 255 / 0.22);
+}
+
+.vjs-tubevault .vjs-volume-level {
+  border-radius: 9999px;
+  background: #fff;
+}
+
+/* Menus (subtitles, chapters, speed) */
+.vjs-tubevault .vjs-menu-button-popup .vjs-menu {
+  bottom: 0;
+  margin-bottom: 52px;
+  left: -5em;
+  width: 14em;
+}
+
+.vjs-tubevault .vjs-menu-button-popup .vjs-menu .vjs-menu-content {
+  bottom: 0;
+  max-height: 18em;
+  padding: 6px;
+  border-radius: 14px;
+  background: rgb(28 28 30 / 0.82);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.4);
+}
+
+.vjs-tubevault .vjs-menu li {
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  text-align: left;
+  text-transform: none;
+}
+
+.vjs-tubevault .vjs-menu li.vjs-selected,
+.vjs-tubevault .vjs-menu li.vjs-selected:focus,
+.vjs-tubevault .vjs-menu li.vjs-selected:hover {
+  background: #0a84ff;
+  color: #fff;
+}
+
+.vjs-tubevault .vjs-menu li:focus,
+.vjs-tubevault .vjs-menu li:hover {
+  background: rgb(255 255 255 / 0.12);
+}
+
+.vjs-tubevault .vjs-menu li.vjs-menu-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgb(255 255 255 / 0.55);
+}
+
+.vjs-tubevault .vjs-playback-rate .vjs-playback-rate-value {
+  font-size: 13px;
+  line-height: 46px;
+}
+
+/* Subtitles */
+.vjs-tubevault .vjs-text-track-display {
+  bottom: 4em;
+}
+
+.vjs-tubevault.vjs-user-inactive.vjs-playing .vjs-text-track-display {
+  bottom: 1.5em;
+}
+
+.vjs-tubevault .vjs-text-track-cue > div {
+  font-family: inherit !important;
+  border-radius: 6px;
+  padding: 2px 8px;
+}
+
+/* Error and loading */
+.vjs-tubevault .vjs-error-display .vjs-modal-dialog-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2em;
+  font-size: 15px;
+  text-align: center;
+}
+
+.vjs-tubevault .vjs-loading-spinner {
+  border-color: rgb(255 255 255 / 0.25);
+}
+
+/* Phones: slimmer bar, fewer controls */
+@media (max-width: 640px) {
+  .vjs-tubevault .vjs-control-bar {
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    height: 40px;
+    border-radius: 12px;
+  }
+  .vjs-tubevault .vjs-button > .vjs-icon-placeholder::before,
+  .vjs-tubevault .vjs-time-control,
+  .vjs-tubevault .vjs-playback-rate .vjs-playback-rate-value {
+    line-height: 40px;
+  }
+  .vjs-tubevault .vjs-volume-panel,
+  .vjs-tubevault .vjs-playback-rate,
+  .vjs-tubevault .vjs-picture-in-picture-control {
+    display: none;
+  }
+}
