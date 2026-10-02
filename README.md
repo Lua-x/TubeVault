@@ -28,9 +28,28 @@
   <img src="docs/screenshots/library-phone-dark.png" width="200" alt="Die Bibliothek auf dem Smartphone mit Tab-Bar unten." />
 </p>
 
+<p align="center">
+  <img src="docs/screenshots/subscriptions-desktop-dark.png" width="420" alt="Abo-Übersicht mit Kanal-Bannern, Avataren und Prüfstatus." />
+  &nbsp;
+  <img src="docs/screenshots/subscription-desktop-dark.png" width="420" alt="Ein Kanal-Abo mit Einstellungen und der Liste gesehener Videos samt Status." />
+</p>
+
 > Die Screenshots zeigen Demo-Videos, die mit `backend/scripts/seed_demo.py` erzeugt wurden.
 
 ## Funktionen
+
+**Version 0.2 – Abos & Automatisierung**
+
+- Kanäle und Playlists abonnieren; neue Videos werden automatisch geladen
+- Prüfintervall pro Abo (15 Minuten bis wöchentlich), „Jetzt prüfen“ jederzeit
+- Filter pro Abo: Shorts, Livestreams, Mindest-/Maximaldauer, nur Videos ab Datum X
+- Qualität und Format pro Abo (z. B. max. 1080p, H.264, MKV)
+- Aufräumen: Videos älter als X Tage löschen oder nur die neuesten N behalten –
+  von Hand hinzugefügte Videos bleiben immer
+- Beim Abonnieren nur die neuesten Videos laden (5, 25, 100 oder alle)
+- Verlauf pro Abo: welche Videos geladen, gefiltert oder übersprungen wurden – und warum
+- Download-Queue mit Pause/Fortsetzen (einzeln und komplett), Wiederholen, Abbrechen
+- Kanal-Avatar und -Banner (auch als `folder.jpg`/`banner.jpg` für Jellyfin)
 
 **Version 0.1 (MVP)**
 
@@ -51,7 +70,6 @@
 
 | Version | Inhalt |
 | ------- | ------ |
-| 0.2 | Kanäle und Playlists abonnieren, Filter (Dauer, Shorts, Livestreams, Datum), Qualität pro Abo, automatisches Aufräumen, Pause in der Queue |
 | 0.3 | Startseite mit „Weiterschauen“, Kanalseiten, Wiedergabefortschritt pro Benutzer, Volltextsuche, eigene Playlists, SponsorBlock, PWA |
 | 0.4 | HLS-Transcoding, Admin-Dashboard mit yt-dlp-Update-Button, Import vorhandener Dateien, API-Tokens, `.nfo`-Dateien |
 
@@ -159,6 +177,8 @@ Ordnerstruktur in `/media`:
 ```
 /media
 └── Kanalname/
+    ├── folder.jpg        (Kanal-Avatar)
+    ├── banner.jpg        (Kanal-Banner)
     └── 2026/
         ├── Titel des Videos [dQw4w9WgXcQ].mp4
         ├── Titel des Videos [dQw4w9WgXcQ]-thumb.jpg
@@ -168,6 +188,22 @@ Ordnerstruktur in `/media`:
 
 Diese Struktur können Jellyfin und Plex parallel als Bibliothek einlesen. Titel, Kapitel und
 Beschreibung sind zusätzlich in die Videodatei eingebettet.
+
+### Abos
+
+Unter **Abos → Abonnieren** fügst du einen Kanal (`https://www.youtube.com/@name`,
+`/channel/…`, `/c/…`) oder eine Playlist (`…/playlist?list=…`) hinzu.
+
+- **Vorhandene Videos:** Beim ersten Prüfen lädt TubeVault standardmäßig nur die neuesten 5
+  Videos. Ältere werden als „übersprungen“ gemerkt und später nicht nachgeladen.
+- **Filter** greifen zweimal: grob anhand der Kanalliste (spart Downloads) und exakt, sobald
+  die Metadaten eines Videos geladen sind. Herausgefilterte Videos tauchen im Verlauf des Abos
+  mit Grund auf. Nach einer Filteränderung bewertet „Neu bewerten“ sie noch einmal.
+- **Aufräumen** („älter als X Tage“ nach Upload-Datum, „nur die neuesten N“) läuft stündlich
+  und nach jedem Download. Gelöscht wird ein Video nur, wenn kein anderes Abo es behalten will
+  und es nicht von Hand hinzugefügt wurde. Gelöschte Videos lädt das Abo nicht erneut.
+- **Kanäle**: Für Shorts und Livestreams werden die jeweiligen Tabs des Kanals mitgelesen.
+  Laufende oder angekündigte Livestreams werden erst nach dem Ende geladen.
 
 ### MP4 oder MKV?
 
