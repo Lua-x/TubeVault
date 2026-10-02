@@ -1,4 +1,4 @@
-import type { Subscription, SubscriptionSettings } from "@/lib/types";
+import type { SponsorBlockMode, Subscription, SubscriptionSettings } from "@/lib/types";
 
 export const INTERVALS: { value: number; label: string }[] = [
   { value: 15, label: "Alle 15 Minuten" },
@@ -40,6 +40,13 @@ export const HEIGHTS: { value: string; label: string }[] = [
   { value: "360", label: "Bis 360p" },
 ];
 
+export const SPONSORBLOCK: { value: "" | SponsorBlockMode; label: string }[] = [
+  { value: "", label: "Standard (Einstellungen)" },
+  { value: "off", label: "Aus" },
+  { value: "skip", label: "Beim Abspielen überspringen" },
+  { value: "cut", label: "Beim Download herausschneiden" },
+];
+
 export interface FormValues {
   enabled: boolean;
   interval: string;
@@ -52,6 +59,7 @@ export interface FormValues {
   maxHeight: string;
   container: "default" | "mp4" | "mkv";
   preferH264: "default" | "yes" | "no";
+  sponsorblock: "" | SponsorBlockMode;
   keepDays: string;
   keepLast: string;
 }
@@ -68,6 +76,7 @@ export const DEFAULT_VALUES: FormValues = {
   maxHeight: "",
   container: "default",
   preferH264: "default",
+  sponsorblock: "",
   keepDays: "",
   keepLast: "",
 };
@@ -88,6 +97,7 @@ export function toSettings(values: FormValues): SubscriptionSettings {
   if (values.maxHeight) options.max_height = Number(values.maxHeight) as 2160;
   if (values.container !== "default") options.container = values.container;
   if (values.preferH264 !== "default") options.prefer_h264 = values.preferH264 === "yes";
+  if (values.sponsorblock) options.sponsorblock_mode = values.sponsorblock;
   return {
     enabled: values.enabled,
     check_interval_minutes: Number(values.interval),
@@ -116,6 +126,7 @@ export function fromSubscription(sub: Subscription): FormValues {
     maxHeight: options.max_height ? String(options.max_height) : "",
     container: options.container ?? "default",
     preferH264: options.prefer_h264 == null ? "default" : options.prefer_h264 ? "yes" : "no",
+    sponsorblock: options.sponsorblock_mode ?? "",
     keepDays: sub.keep_days ? String(sub.keep_days) : "",
     keepLast: sub.keep_last ? String(sub.keep_last) : "",
   };

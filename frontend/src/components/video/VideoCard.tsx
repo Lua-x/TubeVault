@@ -1,27 +1,51 @@
 import { Link } from "react-router";
 
+import { cn } from "@/lib/cn";
 import { formatDuration, formatRelative } from "@/lib/format";
 import type { VideoSummary } from "@/lib/types";
 
 import { Thumbnail } from "./Thumbnail";
+import { WatchOverlay } from "./WatchOverlay";
 
-export function VideoCard({ video }: { video: VideoSummary }) {
-  const meta = [video.channel?.name, formatRelative(video.upload_date)].filter(Boolean).join(" · ");
+interface VideoCardProps {
+  video: VideoSummary;
+  /** Link target, e.g. with a playlist context. */
+  to?: string;
+  hideChannel?: boolean;
+  className?: string;
+}
+
+export function VideoCard({ video, to, hideChannel, className }: VideoCardProps) {
+  const meta = [hideChannel ? null : video.channel?.name, formatRelative(video.upload_date)]
+    .filter(Boolean)
+    .join(" · ");
+  const inProgress = video.progress && !video.progress.watched && video.progress.position_s >= 10;
   return (
     <Link
-      to={`/videos/${video.id}`}
-      className="group flex flex-col gap-3 rounded-2xl focus-visible:outline-offset-4"
+      to={to ?? `/videos/${video.id}`}
+      className={cn(
+        "group flex flex-col gap-3 rounded-2xl focus-visible:outline-offset-4",
+        className,
+      )}
     >
       <div className="relative aspect-video overflow-hidden rounded-2xl bg-surface shadow-[0_0_0_1px_var(--tv-separator)] transition-[transform,box-shadow] duration-300 ease-out-soft group-hover:scale-[1.03] group-hover:shadow-card group-focus-visible:scale-[1.03]">
         <Thumbnail video={video} className="size-full" />
-        {video.duration_s != null && (
+        {video.duration_s != null && !inProgress && (
           <span className="absolute right-2 bottom-2 rounded-md bg-black/70 px-1.5 py-0.5 text-[12px] font-medium text-white tabular-nums backdrop-blur-md">
             {formatDuration(video.duration_s)}
           </span>
         )}
+        <WatchOverlay video={video} />
       </div>
       <div className="min-w-0 px-0.5">
-        <h3 className="line-clamp-2 text-[15px] leading-snug font-medium">{video.title}</h3>
+        <h3
+          className={cn(
+            "line-clamp-2 text-[15px] leading-snug font-medium",
+            video.progress?.watched && "text-secondary",
+          )}
+        >
+          {video.title}
+        </h3>
         {meta && <p className="mt-1 truncate text-[13px] text-secondary">{meta}</p>}
       </div>
     </Link>

@@ -1,10 +1,16 @@
 export type Theme = "system" | "dark" | "light";
 
+export interface Preferences {
+  theme?: Theme;
+  sponsorblock_skip?: boolean;
+  autoplay_next?: boolean;
+}
+
 export interface User {
   id: number;
   username: string;
   is_admin: boolean;
-  preferences: { theme?: Theme };
+  preferences: Preferences;
   created_at: string;
   last_login_at: string | null;
 }
@@ -40,6 +46,72 @@ export interface VideoSummary {
   has_thumbnail: boolean;
   added_at: string;
   updated_at: string;
+  progress: WatchState | null;
+}
+
+export interface WatchState {
+  position_s: number;
+  watched: boolean;
+  updated_at: string;
+}
+
+export interface SponsorSegment {
+  category: SponsorCategory;
+  action: string;
+  start_s: number;
+  end_s: number;
+}
+
+export type SponsorBlockMode = "off" | "skip" | "cut";
+export type SponsorCategory =
+  | "sponsor"
+  | "selfpromo"
+  | "interaction"
+  | "intro"
+  | "outro"
+  | "preview"
+  | "music_offtopic"
+  | "filler";
+
+export interface Segments {
+  mode: SponsorBlockMode;
+  cut: boolean;
+  segments: SponsorSegment[];
+}
+
+export interface ChannelCard extends Channel {
+  video_count: number;
+  unwatched_count: number;
+  subscription_id: number | null;
+  latest_at: string | null;
+}
+
+export interface ChannelDetail extends ChannelCard {
+  description: string | null;
+}
+
+export interface HomeFeed {
+  hero: VideoSummary | null;
+  continue_watching: VideoSummary[];
+  from_subscriptions: VideoSummary[];
+  recently_added: VideoSummary[];
+  channels: ChannelCard[];
+}
+
+export interface Playlist {
+  id: number;
+  name: string;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
+  video_count: number;
+  duration_s: number;
+  cover: VideoSummary[];
+  contains: boolean | null;
+}
+
+export interface PlaylistDetail extends Playlist {
+  videos: VideoSummary[];
 }
 
 export interface Chapter {
@@ -68,6 +140,8 @@ export interface VideoDetail extends VideoSummary {
   subtitles: Subtitle[];
   source_url: string | null;
   downloaded_at: string | null;
+  sponsorblock_cut: boolean;
+  sponsor_segments: SponsorSegment[];
 }
 
 export interface Page<T> {
@@ -116,6 +190,7 @@ export interface SubscriptionDownloadOptions {
   container?: Container | null;
   max_height?: MaxHeight | null;
   prefer_h264?: boolean | null;
+  sponsorblock_mode?: SponsorBlockMode | null;
 }
 
 export interface SubscriptionSettings {
@@ -174,6 +249,8 @@ export interface DownloadOptions {
   subtitles: boolean;
   auto_subtitles: boolean;
   subtitle_languages: string[];
+  sponsorblock_mode: SponsorBlockMode;
+  sponsorblock_categories: SponsorCategory[];
 }
 
 export interface AppSettings {
@@ -210,4 +287,5 @@ export type LiveEvent =
   | { type: "video.deleted"; video_id: number }
   | { type: "subscription.updated"; subscription_id: number }
   | { type: "subscription.deleted"; subscription_id: number }
-  | { type: "queue.state"; paused: boolean };
+  | { type: "queue.state"; paused: boolean }
+  | { type: "channels.updated" };

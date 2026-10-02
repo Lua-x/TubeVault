@@ -11,8 +11,15 @@ import { useToast } from "@/hooks/toast";
 import { backfillValue, DEFAULT_VALUES, toSettings, type FormValues } from "./options";
 import { SubscriptionForm } from "./SubscriptionForm";
 
-export function SubscribeDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [url, setUrl] = useState("");
+interface SubscribeDialogProps {
+  open: boolean;
+  onClose: () => void;
+  /** Pre-filled URL, e.g. when subscribing from a channel page. */
+  initialUrl?: string;
+}
+
+export function SubscribeDialog({ open, onClose, initialUrl = "" }: SubscribeDialogProps) {
+  const [url, setUrl] = useState(initialUrl);
   const [values, setValues] = useState<FormValues>(DEFAULT_VALUES);
   const create = useCreateSubscription();
   const toast = useToast();

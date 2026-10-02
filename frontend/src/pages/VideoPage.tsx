@@ -1,13 +1,34 @@
-import { ArrowLeft, Download, ExternalLink, Trash2 } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  ArrowLeft,
+  Check,
+  CircleCheck,
+  Download,
+  ExternalLink,
+  ListPlus,
+  Trash2,
+} from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 
-import { useDeleteVideo, useVideo } from "@/api/queries";
+import {
+  keys,
+  reportProgress,
+  useDeleteVideo,
+  usePlaylist,
+  useSegments,
+  useSetWatched,
+  useVideo,
+} from "@/api/queries";
+import { AddToPlaylistDialog } from "@/components/playlists/AddToPlaylistDialog";
+import { PlaylistPanel } from "@/components/playlists/PlaylistPanel";
+import { ChannelAvatar } from "@/components/subscriptions/ChannelAvatar";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageSpinner } from "@/components/ui/Spinner";
-import { VideoPlayer, type PlayerHandle } from "@/components/video/VideoPlayer";
+import { PlayerOverlay, type PlayerNotice, type UpNext } from "@/components/video/PlayerOverlay";
+import { VideoPlayer, type PlayerHandle, type SaveReason } from "@/components/video/VideoPlayer";
 import { useAuth } from "@/hooks/auth";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { useToast } from "@/hooks/toast";
@@ -21,11 +42,31 @@ import {
   formatDuration,
   formatResolution,
 } from "@/lib/format";
-import type { VideoDetail } from "@/lib/types";
+import { categoryLabel } from "@/lib/sponsorblock";
+import type { SponsorSegment, VideoDetail } from "@/lib/types";
+
+const MIN_RESUME_S = 10;
+const UP_NEXT_SECONDS = 5;
+
+interface LocationState {
+  autoplay?: boolean;
+}
+
+/** Where to continue: unfinished, and neither at the very start nor at the very end. */
+function resumePosition(video: VideoDetail): number | undefined {
+  const progress = video.progress;
+  if (!progress || progress.watched || progress.position_s < MIN_RESUME_S) return undefined;
+  if (video.duration_s && progress.position_s > video.duration_s - 15) return undefined;
+  return progress.position_s;
+}
 
 export function VideoPage() {
   const { id } = useParams();
   const videoId = Number(id);
+  const [searchParams] = useSearchParams();
+  const playlistParam = Number(searchParams.get("playlist"));
+  const playlistId = Number.isInteger(playlistParam) && playlistParam > 0 ? playlistParam : null;
+  const autoplay = Boolean((useLocation().state as LocationState | null)?.autoplay);
   const { data: video, isLoading, error } = useVideo(videoId);
   useDocumentTitle(video?.title);
 
@@ -36,20 +77,133 @@ export function VideoPage() {
         icon={<ArrowLeft className="size-7" strokeWidth={1.5} />}
         title="Video nicht gefunden"
       >
-        <Link to="/" className="text-accent hover:underline">
-          Zurück zur Bibliothek
+        <Link to="/library" className="text-accent hover:underline">
+          Zur Bibliothek
         </Link>
       </EmptyState>
     );
   }
-  return <VideoView key={video.id} video={video} />;
+  return <VideoView key={video.id} video={video} playlistId={playlistId} autoplay={autoplay} />;
 }
 
-function VideoView({ video }: { video: VideoDetail }) {
+interface VideoViewProps {
+  video: VideoDetail;
+  playlistId: number | null;
+  autoplay: boolean;
+}
+
+function VideoView({ video, playlistId, autoplay }: VideoViewProps) {
   const player = useRef<PlayerHandle>(null);
+  const navigate = useNavigate();
+  const client = useQueryClient();
+  const { user } = useAuth();
+  const preferences = user?.preferences ?? {};
+
   const [time, setTime] = useState(0);
   const onTimeUpdate = useCallback((seconds: number) => setTime(Math.floor(seconds)), []);
-  const navigate = useNavigate();
+
+  const [startAt] = useState(() => resumePosition(video));
+  const [hasPlayed, setHasPlayed] = useState(false);
+  const [notice, setNotice] = useState<PlayerNotice | null>(() =>
+    startAt
+      ? {
+          id: 0,
+          message: `Weiter bei ${formatDuration(startAt)}`,
+          action: { label: "Von vorne", run: () => player.current?.seek(0) },
+          untilPlay: true,
+        }
+      : null,
+  );
+  useEffect(() => {
+    if (!notice || (notice.untilPlay && !hasPlayed)) return;
+    const timer = setTimeout(() => setNotice(null), 6000);
+    return () => clearTimeout(timer);
+  }, [notice, hasPlayed]);
+
+  // SponsorBlock: segments are only fetched when skipping is enabled server-side.
+  const { data: sponsor } = useSegments(video.id, !video.sponsorblock_cut);
+  const segments = sponsor?.mode === "skip" ? sponsor.segments : undefined;
+  const autoSkip = preferences.sponsorblock_skip !== false;
+  const [currentSegment, setCurrentSegment] = useState<SponsorSegment | null>(null);
+  const onSegmentSkipped = useCallback((segment: SponsorSegment) => {
+    setNotice({
+      id: Date.now(),
+      message: `${categoryLabel(segment.category)} übersprungen`,
+      action: {
+        label: "Zurück",
+        run: () => {
+          player.current?.allowSegment(segment);
+          player.current?.seek(segment.start_s);
+        },
+      },
+    });
+  }, []);
+
+  // Playlist context: panel, next video, autoplay.
+  const { data: playlist } = usePlaylist(playlistId);
+  const index = playlist?.videos.findIndex((v) => v.id === video.id) ?? -1;
+  const nextVideo = playlist && index >= 0 ? playlist.videos[index + 1] : undefined;
+  const [upNext, setUpNext] = useState<UpNext | null>(null);
+
+  const openInPlaylist = useCallback(
+    (videoId: number, options?: { autoplay?: boolean }) => {
+      if (!playlistId) return;
+      navigate(`/videos/${videoId}?playlist=${playlistId}`, {
+        replace: options?.autoplay,
+        state: { autoplay: options?.autoplay ?? true } satisfies LocationState,
+      });
+    },
+    [navigate, playlistId],
+  );
+
+  useEffect(() => {
+    if (!upNext) return;
+    const timer = setTimeout(() => {
+      if (upNext.remaining <= 1) openInPlaylist(upNext.video.id, { autoplay: true });
+      else setUpNext({ ...upNext, remaining: upNext.remaining - 1 });
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [upNext, openInPlaylist]);
+
+  // Progress: saved by the player at sensible moments. After "mark as watched" we stop
+  // saving until playback resumes, otherwise the next save would undo it.
+  const savesPaused = useRef(false);
+  const onSave = useCallback(
+    (position: number, duration: number, reason: SaveReason) => {
+      if (savesPaused.current) return;
+      void reportProgress(video.id, position, duration).then((state) => {
+        if (state && reason !== "unmount") {
+          client.setQueryData<VideoDetail>(keys.video(video.id), (old) =>
+            old ? { ...old, progress: state } : old,
+          );
+        }
+        if (reason === "unmount" || reason === "ended") {
+          void client.invalidateQueries({ queryKey: keys.videos });
+          void client.invalidateQueries({ queryKey: keys.channels });
+          void client.invalidateQueries({ queryKey: keys.playlists });
+        }
+      });
+    },
+    [client, video.id],
+  );
+  const onPlay = useCallback(() => {
+    savesPaused.current = false;
+    setHasPlayed(true);
+    setUpNext(null);
+  }, []);
+  const onEnded = useCallback(() => {
+    if (nextVideo && preferences.autoplay_next !== false) {
+      setUpNext({ video: nextVideo, remaining: UP_NEXT_SECONDS });
+    }
+  }, [nextVideo, preferences.autoplay_next]);
+
+  const playlistPanel = playlist ? (
+    <PlaylistPanel
+      playlist={playlist}
+      currentId={video.id}
+      onNavigate={(id) => openInPlaylist(id)}
+    />
+  ) : null;
 
   return (
     <div className="-mx-4 sm:mx-0">
@@ -66,37 +220,63 @@ function VideoView({ video }: { video: VideoDetail }) {
       </div>
 
       <div className="mx-auto max-w-[1400px]">
-        <VideoPlayer ref={player} video={video} onTimeUpdate={onTimeUpdate} />
+        <VideoPlayer
+          ref={player}
+          video={video}
+          startAt={startAt}
+          autoplay={autoplay}
+          segments={segments}
+          skipSegments={autoSkip}
+          onTimeUpdate={onTimeUpdate}
+          onSave={onSave}
+          onPlay={onPlay}
+          onEnded={onEnded}
+          onSegmentSkipped={onSegmentSkipped}
+          onSegmentChange={setCurrentSegment}
+          overlay={
+            <PlayerOverlay
+              notice={notice}
+              onDismissNotice={() => setNotice(null)}
+              skipLabel={
+                currentSegment ? `${categoryLabel(currentSegment.category)} überspringen` : null
+              }
+              onSkip={() => currentSegment && player.current?.seek(currentSegment.end_s)}
+              upNext={upNext}
+              onPlayNext={() => upNext && openInPlaylist(upNext.video.id, { autoplay: true })}
+              onCancelNext={() => setUpNext(null)}
+            />
+          }
+        />
 
-        <div className="mt-6 grid gap-10 px-4 sm:px-0 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="mt-6 grid gap-10 px-4 sm:px-0 lg:grid-cols-[minmax(0,1fr)_360px]">
           <div className="min-w-0">
             <h1 className="text-[24px] leading-tight font-bold tracking-tight sm:text-[28px]">
               {video.title}
             </h1>
-            <p className="mt-2 text-[15px] text-secondary">
-              {[
-                video.channel?.name,
-                formatDate(video.upload_date),
-                video.view_count != null ? `${formatCount(video.view_count)} Aufrufe` : null,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </p>
-            <VideoActions video={video} />
+            <ChannelLine video={video} />
+            <VideoActions
+              video={video}
+              onWatchedChange={(watched) => {
+                savesPaused.current = watched;
+              }}
+            />
+            {/* Phones: the playlist matters more than the description. */}
+            {playlistPanel && <div className="mt-6 lg:hidden">{playlistPanel}</div>}
             {video.description && <Description text={video.description} />}
           </div>
 
-          <aside className="flex flex-col gap-8">
+          <aside className="flex min-w-0 flex-col gap-8">
+            {playlistPanel && <div className="max-lg:hidden">{playlistPanel}</div>}
             {video.chapters.length > 0 && (
               <section aria-labelledby="chapters-heading">
                 <h2 id="chapters-heading" className="mb-3 text-[17px] font-semibold">
                   Kapitel
                 </h2>
                 <ol className="flex flex-col gap-0.5">
-                  {video.chapters.map((chapter, index) => {
+                  {video.chapters.map((chapter, chapterIndex) => {
                     const active = time >= chapter.start && time < chapter.end;
                     return (
-                      <li key={`${chapter.start}-${index}`}>
+                      <li key={`${chapter.start}-${chapterIndex}`}>
                         <button
                           type="button"
                           onClick={() => player.current?.seek(chapter.start)}
@@ -124,7 +304,7 @@ function VideoView({ video }: { video: VideoDetail }) {
                 </ol>
               </section>
             )}
-            <FileInfo video={video} />
+            <FileInfo video={video} skipped={segments?.length ?? 0} />
           </aside>
         </div>
       </div>
@@ -132,18 +312,69 @@ function VideoView({ video }: { video: VideoDetail }) {
   );
 }
 
-function VideoActions({ video }: { video: VideoDetail }) {
+function ChannelLine({ video }: { video: VideoDetail }) {
+  const meta = [
+    formatDate(video.upload_date),
+    video.view_count != null ? `${formatCount(video.view_count)} Aufrufe` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  if (!video.channel) return <p className="mt-2 text-[15px] text-secondary">{meta}</p>;
+  return (
+    <div className="mt-3 flex items-center gap-3">
+      <Link to={`/channels/${video.channel.id}`} className="shrink-0" tabIndex={-1} aria-hidden>
+        <ChannelAvatar channel={video.channel} name={video.channel.name} className="size-10" />
+      </Link>
+      <div className="min-w-0">
+        <Link
+          to={`/channels/${video.channel.id}`}
+          className="block truncate text-[15px] font-semibold hover:underline"
+        >
+          {video.channel.name}
+        </Link>
+        {meta && <p className="text-[13px] text-secondary">{meta}</p>}
+      </div>
+    </div>
+  );
+}
+
+const actionClass =
+  "inline-flex h-9 items-center gap-2 rounded-full bg-surface px-4 text-[14px] font-medium transition-colors duration-200 hover:bg-surface-hover";
+
+interface VideoActionsProps {
+  video: VideoDetail;
+  onWatchedChange: (watched: boolean) => void;
+}
+
+function VideoActions({ video, onWatchedChange }: VideoActionsProps) {
   const { user } = useAuth();
   const [confirming, setConfirming] = useState(false);
+  const [addingToPlaylist, setAddingToPlaylist] = useState(false);
   const remove = useDeleteVideo();
+  const setWatched = useSetWatched();
   const toast = useToast();
   const navigate = useNavigate();
+  const watched = video.progress?.watched ?? false;
+
+  const toggleWatched = () => {
+    const next = !watched;
+    setWatched.mutate(
+      { id: video.id, watched: next },
+      {
+        onSuccess: () => {
+          onWatchedChange(next);
+          toast(next ? "Als gesehen markiert" : "Als ungesehen markiert");
+        },
+        onError: (err) => toast(err.message, "error"),
+      },
+    );
+  };
 
   const confirmDelete = async () => {
     try {
       await remove.mutateAsync(video.id);
       toast("Video gelöscht");
-      navigate("/", { replace: true });
+      navigate("/library", { replace: true });
     } catch (err) {
       toast(err instanceof Error ? err.message : "Löschen fehlgeschlagen", "error");
       setConfirming(false);
@@ -152,10 +383,25 @@ function VideoActions({ video }: { video: VideoDetail }) {
 
   return (
     <div className="mt-5 flex flex-wrap gap-2.5">
-      <a
-        href={apiUrl(`videos/${video.id}/download`)}
-        className="inline-flex h-9 items-center gap-2 rounded-full bg-surface px-4 text-[14px] font-medium transition-colors duration-200 hover:bg-surface-hover"
+      <button
+        type="button"
+        onClick={toggleWatched}
+        disabled={setWatched.isPending}
+        aria-pressed={watched}
+        className={cn(actionClass, watched && "bg-accent/15 text-accent hover:bg-accent/25")}
       >
+        {watched ? (
+          <Check className="size-4" strokeWidth={2.5} />
+        ) : (
+          <CircleCheck className="size-4" strokeWidth={2} />
+        )}
+        {watched ? "Gesehen" : "Als gesehen markieren"}
+      </button>
+      <button type="button" onClick={() => setAddingToPlaylist(true)} className={actionClass}>
+        <ListPlus className="size-4" strokeWidth={2} />
+        Zur Playlist
+      </button>
+      <a href={apiUrl(`videos/${video.id}/download`)} className={actionClass}>
         <Download className="size-4" strokeWidth={2} />
         Datei laden
       </a>
@@ -164,23 +410,28 @@ function VideoActions({ video }: { video: VideoDetail }) {
           href={video.source_url}
           target="_blank"
           rel="noreferrer noopener"
-          className="inline-flex h-9 items-center gap-2 rounded-full bg-surface px-4 text-[14px] font-medium transition-colors duration-200 hover:bg-surface-hover"
+          className={actionClass}
         >
           <ExternalLink className="size-4" strokeWidth={2} />
           Auf YouTube
         </a>
       )}
       {user?.is_admin && (
-        <Button
-          variant="danger"
-          size="sm"
-          className="h-9 px-4 text-[14px]"
-          icon={<Trash2 className="size-4" strokeWidth={2} />}
+        <button
+          type="button"
+          aria-label="Video löschen"
+          title="Video löschen"
           onClick={() => setConfirming(true)}
+          className={cn(actionClass, "w-9 justify-center px-0 text-danger")}
         >
-          Löschen
-        </Button>
+          <Trash2 className="size-4" strokeWidth={2} />
+        </button>
       )}
+      <AddToPlaylistDialog
+        open={addingToPlaylist}
+        onClose={() => setAddingToPlaylist(false)}
+        videoId={video.id}
+      />
       <Dialog open={confirming} onClose={() => setConfirming(false)} title="Video löschen?">
         <p className="text-[15px] text-secondary">
           „{video.title}“ wird mit Thumbnail und Untertiteln von der Festplatte entfernt.
@@ -244,7 +495,12 @@ function Description({ text }: { text: string }) {
   );
 }
 
-function FileInfo({ video }: { video: VideoDetail }) {
+function FileInfo({ video, skipped }: { video: VideoDetail; skipped: number }) {
+  const sponsorblock = video.sponsorblock_cut
+    ? "Herausgeschnitten"
+    : skipped > 0
+      ? `${skipped} ${skipped === 1 ? "Abschnitt" : "Abschnitte"} zum Überspringen`
+      : "";
   const rows: [string, string][] = [
     ["Dauer", formatDuration(video.duration_s)],
     ["Auflösung", formatResolution(video.height)],
@@ -253,6 +509,7 @@ function FileInfo({ video }: { video: VideoDetail }) {
     ["Format", video.container?.toUpperCase() ?? ""],
     ["Größe", formatBytes(video.filesize)],
     ["Untertitel", video.subtitles.map((s) => s.label).join(", ")],
+    ["SponsorBlock", sponsorblock],
     ["Heruntergeladen", formatDate(video.downloaded_at)],
   ];
   const visible = rows.filter(([, value]) => value);

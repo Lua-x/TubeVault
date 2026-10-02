@@ -7,7 +7,13 @@ import { VideoCard, VideoCardSkeleton } from "./VideoCard";
 const GRID =
   "grid grid-cols-1 gap-x-5 gap-y-8 min-[480px]:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 min-[2000px]:grid-cols-5";
 
-export function VideoGrid({ videos }: { videos: VideoSummary[] }) {
+export function VideoGrid({
+  videos,
+  hideChannel,
+}: {
+  videos: VideoSummary[];
+  hideChannel?: boolean;
+}) {
   return (
     <ul className={GRID}>
       {videos.map((video, index) => (
@@ -21,7 +27,7 @@ export function VideoGrid({ videos }: { videos: VideoSummary[] }) {
             delay: Math.min(index, 12) * 0.03,
           }}
         >
-          <VideoCard video={video} />
+          <VideoCard video={video} hideChannel={hideChannel} />
         </motion.li>
       ))}
     </ul>

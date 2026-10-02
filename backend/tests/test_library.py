@@ -32,6 +32,8 @@ def test_progress_resume_and_watched(admin: TestClient) -> None:
 
     # Close to the end (duration 120 s) counts as watched.
     assert admin.put(f"/api/videos/{vid}/progress", json={"position_s": 115}).json()["watched"]
+    # Re-watching a part keeps it watched.
+    assert admin.put(f"/api/videos/{vid}/progress", json={"position_s": 50}).json()["watched"]
     unwatched = admin.put(f"/api/videos/{vid}/watched", json={"watched": False}).json()
     assert unwatched["watched"] is False and unwatched["position_s"] == 0
 

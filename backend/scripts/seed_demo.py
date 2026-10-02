@@ -3,6 +3,9 @@
 Usage (from backend/):
     CONFIG_DIR=./.dev/config MEDIA_DIR=./.dev/media uv run python scripts/seed_demo.py
 
+Watch progress and playlists are created for the first admin, so sign in once (or set
+ADMIN_USER/ADMIN_PASSWORD) before seeding to get them.
+
 Useful when YouTube is not reachable, e.g. for UI work or screenshots.
 """
 
@@ -23,12 +26,19 @@ from app.migrate import run_migrations
 from app.models import (
     Channel,
     ItemState,
+    Playlist,
+    PlaylistItem,
+    SponsorSegment,
     Subscription,
     SubscriptionItem,
     SubscriptionKind,
     Subtitle,
+    User,
+    Video,
     VideoStatus,
+    WatchProgress,
 )
+from app.services.app_settings import load_app_settings, save_app_settings
 from app.services.catalog import channel_url
 from app.services.downloader import VideoMetadata
 from app.services.library import relative_to_media, video_base_path
@@ -53,6 +63,7 @@ TITLES = [
     "Heimnetz absichern: Die wichtigsten Schritte",
     "Tiramisu ohne Ei",
 ]
+DURATIONS = [214, 286, 152, 175, 324, 248, 190, 301, 136, 312, 263, 118]
 COLORS = ["0x1f6feb", "0x2ea043", "0xbf8700", "0x8250df", "0xcf222e", "0x0a84ff"]
 CHANNEL_COLORS = {
     "UCdemo-nature": "0x2ea043",
@@ -79,7 +90,7 @@ def main() -> None:
             channel_id, channel_name, handle = CHANNELS[index % len(CHANNELS)]
             youtube_id = f"demo{index:07d}"
             uploaded = today - timedelta(days=index * 9 + random.randint(0, 6))
-            duration = 20
+            duration = DURATIONS[index]
             meta = VideoMetadata(
                 youtube_id=youtube_id,
                 title=title,
@@ -95,9 +106,9 @@ def main() -> None:
                 duration_s=duration,
                 view_count=random.randint(1_000, 2_000_000),
                 chapters=[
-                    {"start": 0.0, "end": 5.0, "title": "Einleitung"},
-                    {"start": 5.0, "end": 12.0, "title": "Hauptteil"},
-                    {"start": 12.0, "end": 20.0, "title": "Fazit"},
+                    {"start": 0.0, "end": duration * 0.2, "title": "Einleitung"},
+                    {"start": duration * 0.2, "end": duration * 0.65, "title": "Hauptteil"},
+                    {"start": duration * 0.65, "end": float(duration), "title": "Fazit"},
                 ],
             )
             video = upsert_video(db, meta, None)
@@ -115,7 +126,8 @@ def main() -> None:
                     "-f",
                     "lavfi",
                     "-i",
-                    f"gradients=s=1280x720:c0={color}:c1=0x101014:duration={duration}:speed=0.02",
+                    f"gradients=s=1280x720:r=10:c0={color}:c1=0x101014:duration={duration}"
+                    ":speed=0.01",
                     "-f",
                     "lavfi",
                     "-i",
@@ -125,7 +137,7 @@ def main() -> None:
                     "-c:v",
                     "libx264",
                     "-preset",
-                    "veryfast",
+                    "ultrafast",
                     "-c:a",
                     "aac",
                     "-shortest",
@@ -162,6 +174,7 @@ def main() -> None:
             print(f"✓ {title}")
 
         seed_subscriptions(db, settings.media_dir)
+        seed_library(db)
 
 
 def seed_subscriptions(db, media_dir: Path) -> None:  # type: ignore[no-untyped-def]
@@ -215,6 +228,57 @@ def seed_subscriptions(db, media_dir: Path) -> None:  # type: ignore[no-untyped-
             ))  # fmt: skip
     db.commit()
     print("✓ Abos")
+
+
+def seed_library(db) -> None:  # type: ignore[no-untyped-def]
+    """Watch progress, two playlists and SponsorBlock segments for the first admin."""
+    videos = db.query(Video).order_by(Video.youtube_id).all()
+    now = datetime.now(UTC)
+    for video in videos:
+        # Pretend SponsorBlock was asked already, so the demo never calls out.
+        video.sponsorblock_fetched_at = now
+    db.query(SponsorSegment).delete()
+    for index, segments in {
+        1: [("sponsor", 0.15, 25)],
+        4: [("intro", 0.0, 12), ("sponsor", 0.5, 30)],
+        7: [("selfpromo", 0.8, 20)],
+    }.items():
+        video = videos[index]
+        for n, (category, share, length) in enumerate(segments):
+            start = round((video.duration_s or 0) * share, 1)
+            db.add(SponsorSegment(
+                video_id=video.id, uuid=f"demo-{index}-{n}", category=category,
+                action="skip", start_s=start, end_s=start + length,
+            ))  # fmt: skip
+    app_settings = load_app_settings(db)
+    app_settings.downloads.sponsorblock_mode = "skip"
+    save_app_settings(db, app_settings)
+
+    user = db.query(User).filter_by(is_admin=True).order_by(User.id).first()
+    if user is None:
+        db.commit()
+        print("– Kein Benutzer: Fortschritt und Playlists übersprungen")
+        return
+    db.query(WatchProgress).filter_by(user_id=user.id).delete()
+    for index, share in {1: 0.45, 4: 0.7, 8: 0.25, 2: 1.0, 5: 1.0}.items():
+        video = videos[index]
+        db.add(WatchProgress(
+            user_id=user.id, video_id=video.id, position_s=(video.duration_s or 0) * share,
+            watched=share >= 1.0, watched_at=now if share >= 1.0 else None,
+            updated_at=now - timedelta(hours=index),
+        ))  # fmt: skip
+    db.query(Playlist).filter_by(user_id=user.id).delete()
+    for name, indexes in [
+        ("Entspannen am Abend", [0, 3, 6, 9]),
+        ("Technik-Projekte", [4, 10, 1, 7]),
+    ]:
+        playlist = Playlist(user_id=user.id, name=name)
+        playlist.items = [
+            PlaylistItem(video_id=videos[i].id, position=pos) for pos, i in enumerate(indexes)
+        ]
+        db.add(playlist)
+    db.commit()
+    print(f"✓ Fortschritt und Playlists für {user.username}")
 
 
 if __name__ == "__main__":

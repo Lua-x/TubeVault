@@ -53,12 +53,11 @@ def save_progress(
     position = max(0.0, min(position_s, duration or position_s))
     row.position_s = position
     row.updated_at = datetime.now(UTC)
+    # Re-watching parts of a finished video keeps it watched (like Jellyfin); only the
+    # explicit "mark as unwatched" resets it.
     if is_finished(position, duration) and not row.watched:
         row.watched = True
         row.watched_at = datetime.now(UTC)
-    elif position >= MIN_RESUME_S and row.watched and not is_finished(position, duration):
-        # Watching again from somewhere in the middle.
-        row.watched = False
     db.commit()
     return row
 

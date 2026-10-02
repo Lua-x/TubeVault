@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createContext, useCallback, useContext, useEffect, useMemo, type ReactNode } from "react";
 
 import { api, request, setUnauthorizedHandler } from "@/lib/api";
-import type { AuthStatus, User } from "@/lib/types";
+import type { AuthStatus, Preferences, User } from "@/lib/types";
 
 interface AuthContextValue {
   status: AuthStatus | undefined;
@@ -13,6 +13,8 @@ interface AuthContextValue {
   setup: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<unknown>;
+  /** Merges into the signed-in user's preferences (optimistically). */
+  updatePreferences: (patch: Preferences) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -70,6 +72,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         client.setQueryData<AuthStatus>(STATUS_KEY, { setup_required: false, user: null });
       },
       refresh: () => query.refetch(),
+      updatePreferences: async (patch) => {
+        const current = query.data?.user;
+        if (!current) return;
+        setUser({ ...current, preferences: { ...current.preferences, ...patch } });
+        try {
+          setUser(await api.put<User>("auth/me/preferences", patch));
+        } catch (err) {
+          setUser(current);
+          throw err;
+        }
+      },
     }),
     [query, client, setUser],
   );

@@ -4,7 +4,7 @@ import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Select } from "@/components/ui/Select";
 import { Switch } from "@/components/ui/Switch";
 
-import { BACKFILL, HEIGHTS, INTERVALS, KEEP_DAYS, type FormValues } from "./options";
+import { BACKFILL, HEIGHTS, INTERVALS, KEEP_DAYS, SPONSORBLOCK, type FormValues } from "./options";
 
 interface SubscriptionFormProps {
   values: FormValues;
@@ -156,6 +156,20 @@ export function SubscriptionForm({ values, onChange, mode }: SubscriptionFormPro
               { value: "no", label: "Aus" },
             ]}
           />
+        </Row>
+        <Row>
+          <Select
+            inline
+            label="SponsorBlock"
+            value={values.sponsorblock}
+            onChange={(e) => set("sponsorblock", e.target.value as FormValues["sponsorblock"])}
+          >
+            {SPONSORBLOCK.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </Select>
         </Row>
       </Group>
 

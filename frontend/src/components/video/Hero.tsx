@@ -11,6 +11,10 @@ import { Thumbnail } from "./Thumbnail";
 
 /** Big feature card for the newest video, with a blurred backdrop taken from its thumbnail. */
 export function Hero({ video }: { video: VideoSummary }) {
+  const resume =
+    video.progress && !video.progress.watched && video.progress.position_s >= 10
+      ? video.progress.position_s
+      : null;
   const meta = [
     video.channel?.name,
     formatRelative(video.upload_date),
@@ -39,7 +43,9 @@ export function Hero({ video }: { video: VideoSummary }) {
 
       <div className="relative grid items-center gap-6 p-5 sm:p-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:gap-10 lg:p-10">
         <div className="order-2 min-w-0 lg:order-1">
-          <p className="text-[13px] font-semibold tracking-wide text-accent uppercase">Neu</p>
+          <p className="text-[13px] font-semibold tracking-wide text-accent uppercase">
+            {resume != null ? "Weiterschauen" : "Neu"}
+          </p>
           <h2 className="mt-2 line-clamp-3 text-[26px] leading-tight font-bold tracking-tight sm:text-[34px]">
             {video.title}
           </h2>
@@ -49,8 +55,16 @@ export function Hero({ video }: { video: VideoSummary }) {
             className="mt-6 inline-flex h-11 items-center gap-2 rounded-full bg-primary px-6 text-[15px] font-semibold text-canvas transition-transform duration-200 ease-out-soft hover:scale-[1.03] active:scale-[0.98]"
           >
             <Play className="size-4 fill-current" strokeWidth={0} />
-            Abspielen
+            {resume != null ? `Fortsetzen bei ${formatDuration(resume)}` : "Abspielen"}
           </Link>
+          {resume != null && video.duration_s ? (
+            <div className="mt-4 h-1 w-48 overflow-hidden rounded-full bg-primary/20">
+              <div
+                className="h-full rounded-full bg-primary"
+                style={{ width: `${Math.min(resume / video.duration_s, 1) * 100}%` }}
+              />
+            </div>
+          ) : null}
         </div>
         <Link
           to={`/videos/${video.id}`}

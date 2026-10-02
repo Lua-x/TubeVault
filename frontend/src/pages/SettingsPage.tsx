@@ -19,12 +19,14 @@ import { ProgressBar } from "@/components/ui/ProgressBar";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Select } from "@/components/ui/Select";
 import { Switch } from "@/components/ui/Switch";
-import { useCurrentUser } from "@/hooks/auth";
+import { useAuth, useCurrentUser } from "@/hooks/auth";
 import { useTheme } from "@/hooks/theme";
 import { useToast } from "@/hooks/toast";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { cn } from "@/lib/cn";
 import { formatBytes } from "@/lib/format";
-import type { AppSettings, MaxHeight, Theme } from "@/lib/types";
+import { SPONSOR_CATEGORIES, SPONSORBLOCK_MODES } from "@/lib/sponsorblock";
+import type { AppSettings, MaxHeight, Preferences, SponsorCategory, Theme } from "@/lib/types";
 
 export function SettingsPage() {
   useDocumentTitle("Einstellungen");
@@ -34,6 +36,7 @@ export function SettingsPage() {
       <PageHeader title="Einstellungen" />
       <div className="flex max-w-2xl flex-col gap-9 pb-12">
         <AppearanceSection />
+        <PlaybackSection />
         {user.is_admin && <DownloadSection />}
         <AccountSection />
         {user.is_admin && <UsersSection />}
@@ -63,6 +66,42 @@ function AppearanceSection() {
     </Group>
   );
 }
+
+function PlaybackSection() {
+  const { user, updatePreferences } = useAuth();
+  const toast = useToast();
+  const preferences = user?.preferences ?? {};
+  const update = (patch: Preferences) =>
+    updatePreferences(patch).catch((err: unknown) =>
+      toast(err instanceof Error ? err.message : "Speichern fehlgeschlagen", "error"),
+    );
+  return (
+    <Group title="Wiedergabe" footer="Gilt nur für dein Konto.">
+      <Row>
+        <Switch
+          label="Weiter mit nächstem Playlist-Video"
+          description="Nach dem Ende startet das nächste Video nach 5 Sekunden."
+          checked={preferences.autoplay_next !== false}
+          onChange={(autoplay_next) => void update({ autoplay_next })}
+        />
+      </Row>
+      <Row>
+        <Switch
+          label="SponsorBlock automatisch überspringen"
+          description="Sonst erscheint im Player eine Taste zum Überspringen."
+          checked={preferences.sponsorblock_skip !== false}
+          onChange={(sponsorblock_skip) => void update({ sponsorblock_skip })}
+        />
+      </Row>
+    </Group>
+  );
+}
+
+const SPONSORBLOCK_FOOTER = {
+  off: "Es wird keine Verbindung zu SponsorBlock aufgebaut.",
+  skip: "Markierte Abschnitte werden beim Abspielen übersprungen. Abgefragt wird sponsor.ajay.app – dabei verlassen nur die ersten Zeichen eines Hashes der Video-ID den Server.",
+  cut: "Markierte Abschnitte werden beim Download dauerhaft aus der Datei entfernt. Gilt für neue Downloads.",
+} as const;
 
 const HEIGHTS: { value: string; label: string }[] = [
   { value: "", label: "Beste verfügbare" },
@@ -204,12 +243,68 @@ function DownloadForm({ initial }: { initial: AppSettings }) {
         </Row>
       </Group>
 
+      <Group title="SponsorBlock" footer={SPONSORBLOCK_FOOTER[downloads.sponsorblock_mode]}>
+        <Row className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <span className="text-[15px]">Werbung und Füllmaterial</span>
+          <SegmentedControl
+            label="SponsorBlock"
+            value={downloads.sponsorblock_mode}
+            onChange={(sponsorblock_mode) => update({ sponsorblock_mode })}
+            options={SPONSORBLOCK_MODES}
+          />
+        </Row>
+        {downloads.sponsorblock_mode !== "off" && (
+          <Row>
+            <p className="text-[15px]">Kategorien</p>
+            <CategoryPicker
+              value={downloads.sponsorblock_categories}
+              onChange={(sponsorblock_categories) => update({ sponsorblock_categories })}
+            />
+          </Row>
+        )}
+      </Group>
+
       <div className="flex justify-end">
         <Button type="submit" loading={save.isPending}>
           Speichern
         </Button>
       </div>
     </form>
+  );
+}
+
+function CategoryPicker({
+  value,
+  onChange,
+}: {
+  value: SponsorCategory[];
+  onChange: (value: SponsorCategory[]) => void;
+}) {
+  const toggle = (category: SponsorCategory) =>
+    onChange(value.includes(category) ? value.filter((c) => c !== category) : [...value, category]);
+  return (
+    <div className="mt-2.5 flex flex-wrap gap-2">
+      {SPONSOR_CATEGORIES.map((category) => {
+        const active = value.includes(category.value);
+        return (
+          <button
+            key={category.value}
+            type="button"
+            aria-pressed={active}
+            title={category.hint}
+            onClick={() => toggle(category.value)}
+            className={cn(
+              "h-8 rounded-full px-3.5 text-[13px] font-medium transition-colors duration-200",
+              active
+                ? "bg-accent text-white hover:bg-accent-hover"
+                : "bg-surface text-secondary hover:bg-surface-hover hover:text-primary",
+            )}
+          >
+            {category.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 

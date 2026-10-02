@@ -56,7 +56,13 @@ function handleEvent(client: QueryClient, event: LiveEvent) {
     case "video.updated":
     case "video.deleted":
       void client.invalidateQueries({ queryKey: keys.videos });
+      void client.invalidateQueries({ queryKey: keys.channels });
+      void client.invalidateQueries({ queryKey: keys.playlists });
       void client.invalidateQueries({ queryKey: keys.system });
+      break;
+    case "channels.updated":
+      void client.invalidateQueries({ queryKey: keys.channels });
+      void client.invalidateQueries({ queryKey: keys.home });
       break;
     case "subscription.updated":
     case "subscription.deleted":

@@ -160,6 +160,41 @@
   pointer-events: none;
 }
 
+/* SponsorBlock segments on the progress line */
+.vjs-tubevault .vjs-segment-marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 9999px;
+  background: rgb(10 132 255 / 0.6);
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* React overlay inside the player (notices, skip button, up next) */
+.vjs-tubevault .vjs-tubevault-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.vjs-tubevault .vjs-tubevault-overlay > * {
+  pointer-events: auto;
+}
+
+/* video.js styles every button without a cascade layer, which beats Tailwind's layered
+   utilities. revert-layer hands these properties back to the utility classes. */
+.vjs-tubevault .vjs-tubevault-overlay button {
+  background: revert-layer;
+  border: revert-layer;
+  color: revert-layer;
+  display: revert-layer;
+  font-size: revert-layer;
+  line-height: revert-layer;
+  transition: revert-layer;
+}
+
 /* Volume */
 .vjs-tubevault .vjs-volume-bar {
   border-radius: 9999px;

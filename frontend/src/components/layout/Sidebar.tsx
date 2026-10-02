@@ -1,16 +1,48 @@
-import { LogOut, Plus } from "lucide-react";
+import { ListVideo, LogOut, Plus } from "lucide-react";
 import { NavLink } from "react-router";
 
+import { usePlaylists } from "@/api/queries";
 import { IconButton } from "@/components/ui/Button";
 import { useAuth } from "@/hooks/auth";
 import { cn } from "@/lib/cn";
 
-import { NAV_ITEMS } from "./navigation";
+import { PRIMARY_NAV, SECONDARY_NAV, type NavItem } from "./navigation";
 import { useActiveDownloadCount } from "./useActiveDownloads";
+
+function SidebarLink({ item, badge }: { item: NavItem; badge?: number }) {
+  const { to, label, icon: Icon, end } = item;
+  return (
+    <NavLink
+      to={to}
+      end={end}
+      className={({ isActive }) =>
+        cn(
+          "group flex h-9 items-center gap-3 rounded-lg px-3 text-[14px] transition-colors duration-200",
+          isActive
+            ? "bg-surface font-medium text-primary"
+            : "text-secondary hover:bg-surface/60 hover:text-primary",
+        )
+      }
+    >
+      {({ isActive }) => (
+        <>
+          <Icon className={cn("size-[18px]", isActive && "text-accent")} strokeWidth={1.75} />
+          <span className="flex-1 truncate">{label}</span>
+          {badge ? (
+            <span className="min-w-5 rounded-full bg-accent px-1.5 text-center text-[11px] leading-5 font-semibold text-white">
+              {badge}
+            </span>
+          ) : null}
+        </>
+      )}
+    </NavLink>
+  );
+}
 
 export function Sidebar({ onAdd }: { onAdd: () => void }) {
   const { user, logout } = useAuth();
   const active = useActiveDownloadCount();
+  const { data: playlists } = usePlaylists();
 
   return (
     <aside className="glass fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-separator px-3 pt-6 pb-4 md:flex">
@@ -28,40 +60,41 @@ export function Sidebar({ onAdd }: { onAdd: () => void }) {
         Video hinzufügen
       </button>
 
-      <nav aria-label="Hauptnavigation" className="flex flex-col gap-0.5">
-        {NAV_ITEMS.map(({ to, label, icon: Icon, end }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={end}
-            className={({ isActive }) =>
-              cn(
-                "group flex h-9 items-center gap-3 rounded-lg px-3 text-[14px] transition-colors duration-200",
-                isActive
-                  ? "bg-surface font-medium text-primary"
-                  : "text-secondary hover:bg-surface/60 hover:text-primary",
-              )
-            }
-          >
-            {({ isActive }) => (
-              <>
-                <Icon
-                  className={cn("size-[18px]", isActive ? "text-accent" : "")}
-                  strokeWidth={1.75}
+      <nav aria-label="Hauptnavigation" className="no-scrollbar -mx-1 flex-1 overflow-y-auto px-1">
+        <div className="flex flex-col gap-0.5">
+          {PRIMARY_NAV.map((item) => (
+            <SidebarLink key={item.to} item={item} />
+          ))}
+        </div>
+
+        {playlists && playlists.length > 0 && (
+          <div className="mt-5">
+            <p className="mb-1 px-3 text-[11px] font-semibold tracking-wide text-tertiary uppercase">
+              Meine Playlists
+            </p>
+            <div className="flex flex-col gap-0.5">
+              {playlists.slice(0, 12).map((playlist) => (
+                <SidebarLink
+                  key={playlist.id}
+                  item={{ to: `/playlists/${playlist.id}`, label: playlist.name, icon: ListVideo }}
                 />
-                <span className="flex-1">{label}</span>
-                {to === "/downloads" && active > 0 && (
-                  <span className="min-w-5 rounded-full bg-accent px-1.5 text-center text-[11px] leading-5 font-semibold text-white">
-                    {active}
-                  </span>
-                )}
-              </>
-            )}
-          </NavLink>
-        ))}
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="mt-5 flex flex-col gap-0.5 border-t border-separator pt-4">
+          {SECONDARY_NAV.map((item) => (
+            <SidebarLink
+              key={item.to}
+              item={item}
+              badge={item.to === "/downloads" ? active : undefined}
+            />
+          ))}
+        </div>
       </nav>
 
-      <div className="mt-auto flex items-center gap-3 border-t border-separator px-2 pt-4">
+      <div className="mt-4 flex items-center gap-3 border-t border-separator px-2 pt-4">
         <div className="flex size-8 items-center justify-center rounded-full bg-surface text-[13px] font-semibold uppercase">
           {user?.username.slice(0, 1)}
         </div>

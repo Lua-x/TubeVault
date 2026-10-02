@@ -8,10 +8,16 @@ import { PageSpinner } from "@/components/ui/Spinner";
 import { useAuth } from "@/hooks/auth";
 import { LiveEventsProvider } from "@/hooks/live";
 import { basePath } from "@/lib/base";
+import { ChannelPage } from "@/pages/ChannelPage";
+import { ChannelsPage } from "@/pages/ChannelsPage";
 import { DownloadsPage } from "@/pages/DownloadsPage";
+import { HomePage } from "@/pages/HomePage";
 import { LibraryPage } from "@/pages/LibraryPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
+import { PlaylistPage } from "@/pages/PlaylistPage";
+import { PlaylistsPage } from "@/pages/PlaylistsPage";
+import { SearchPage } from "@/pages/SearchPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { SetupPage } from "@/pages/SetupPage";
 import { SubscriptionPage } from "@/pages/SubscriptionPage";
@@ -31,7 +37,13 @@ function AnimatedRoutes() {
     >
       <Suspense fallback={<PageSpinner />}>
         <Routes location={location}>
-          <Route path="/" element={<LibraryPage />} />
+          <Route path="/" element={<HomePage />} />
+          <Route path="/library" element={<LibraryPage />} />
+          <Route path="/search" element={<SearchPage />} />
+          <Route path="/channels" element={<ChannelsPage />} />
+          <Route path="/channels/:id" element={<ChannelPage />} />
+          <Route path="/playlists" element={<PlaylistsPage />} />
+          <Route path="/playlists/:id" element={<PlaylistPage />} />
           <Route path="/videos/:id" element={<VideoPage />} />
           <Route path="/subscriptions" element={<SubscriptionsPage />} />
           <Route path="/subscriptions/:id" element={<SubscriptionPage />} />

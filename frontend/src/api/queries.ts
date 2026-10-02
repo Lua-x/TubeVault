@@ -1,13 +1,20 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/lib/api";
+import { apiUrl } from "@/lib/base";
 import type {
   AppSettings,
+  ChannelCard,
+  ChannelDetail,
   Container,
+  HomeFeed,
   Job,
   MaxHeight,
   Page,
+  Playlist,
+  PlaylistDetail,
   QueueState,
+  Segments,
   Subscription,
   SubscriptionDetail,
   SubscriptionSettings,
@@ -15,10 +22,17 @@ import type {
   User,
   VideoDetail,
   VideoSummary,
+  WatchState,
 } from "@/lib/types";
 
 export const keys = {
   videos: ["videos"] as const,
+  home: ["videos", "home"] as const,
+  channels: ["channels"] as const,
+  channel: (id: number) => ["channels", "detail", id] as const,
+  playlists: ["playlists"] as const,
+  playlist: (id: number) => ["playlists", "detail", id] as const,
+  segments: (id: number) => ["videos", "segments", id] as const,
   videoList: (params: VideoListParams) => ["videos", "list", params] as const,
   video: (id: number) => ["videos", "detail", id] as const,
   jobs: ["jobs"] as const,
@@ -30,23 +44,29 @@ export const keys = {
   system: ["system"] as const,
 };
 
-export type VideoSort = "added" | "newest" | "oldest" | "title";
+export type VideoSort = "relevance" | "added" | "newest" | "oldest" | "title";
+export type WatchedFilter = "all" | "unwatched" | "watched" | "in_progress";
 
 export interface VideoListParams {
   q?: string;
   sort?: VideoSort;
   limit?: number;
+  channelId?: number;
+  watched?: WatchedFilter;
 }
 
-export function useVideos(params: VideoListParams) {
+export function useVideos(params: VideoListParams, enabled = true) {
   const search = new URLSearchParams();
   if (params.q) search.set("q", params.q);
   if (params.sort) search.set("sort", params.sort);
+  if (params.channelId) search.set("channel_id", String(params.channelId));
+  if (params.watched && params.watched !== "all") search.set("watched", params.watched);
   search.set("limit", String(params.limit ?? 120));
   return useQuery({
     queryKey: keys.videoList(params),
     queryFn: () => api.get<Page<VideoSummary>>(`videos?${search}`),
     placeholderData: keepPreviousData,
+    enabled,
   });
 }
 
@@ -251,3 +271,116 @@ export function useDeleteSubscription() {
     },
   });
 }
+
+// --- home, channels -------------------------------------------------------------------
+
+export function useHome() {
+  return useQuery({ queryKey: keys.home, queryFn: () => api.get<HomeFeed>("home") });
+}
+
+export function useChannels() {
+  return useQuery({ queryKey: keys.channels, queryFn: () => api.get<ChannelCard[]>("channels") });
+}
+
+export function useChannel(id: number) {
+  return useQuery({
+    queryKey: keys.channel(id),
+    queryFn: () => api.get<ChannelDetail>(`channels/${id}`),
+    enabled: Number.isFinite(id),
+  });
+}
+
+// --- progress ---------------------------------------------------------------------------
+
+/** Progress report that also survives closing the tab (keepalive). Never throws. */
+export async function reportProgress(
+  videoId: number,
+  positionS: number,
+  durationS?: number,
+): Promise<WatchState | null> {
+  try {
+    const response = await fetch(apiUrl(`videos/${videoId}/progress`), {
+      method: "PUT",
+      credentials: "same-origin",
+      keepalive: true,
+      headers: { "Content-Type": "application/json", "X-Requested-With": "TubeVault" },
+      body: JSON.stringify({ position_s: positionS, duration_s: durationS || null }),
+    });
+    return response.ok ? ((await response.json()) as WatchState) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function useSetWatched() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, watched }: { id: number; watched: boolean }) =>
+      api.put<WatchState>(`videos/${id}/watched`, { watched }),
+    onSuccess: (state, { id }) => {
+      client.setQueryData<VideoDetail>(keys.video(id), (old) =>
+        old ? { ...old, progress: state } : old,
+      );
+      void client.invalidateQueries({ queryKey: keys.videos });
+      void client.invalidateQueries({ queryKey: keys.channels });
+    },
+  });
+}
+
+export function useSegments(id: number, enabled: boolean) {
+  return useQuery({
+    queryKey: keys.segments(id),
+    queryFn: () => api.get<Segments>(`videos/${id}/segments`),
+    enabled: enabled && Number.isFinite(id),
+    staleTime: 5 * 60_000,
+  });
+}
+
+// --- playlists ---------------------------------------------------------------------------
+
+export function usePlaylists(videoId?: number) {
+  return useQuery({
+    queryKey: videoId ? [...keys.playlists, { videoId }] : keys.playlists,
+    queryFn: () => api.get<Playlist[]>(videoId ? `playlists?video_id=${videoId}` : "playlists"),
+  });
+}
+
+export function usePlaylist(id: number | null) {
+  return useQuery({
+    queryKey: keys.playlist(id ?? -1),
+    queryFn: () => api.get<PlaylistDetail>(`playlists/${id}`),
+    enabled: id != null && Number.isFinite(id),
+  });
+}
+
+function usePlaylistMutation<TInput>(fn: (input: TInput) => Promise<unknown>) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: fn,
+    onSettled: () => client.invalidateQueries({ queryKey: keys.playlists }),
+  });
+}
+
+export const useCreatePlaylist = () =>
+  usePlaylistMutation((body: { name: string; description?: string | null }) =>
+    api.post<Playlist>("playlists", body),
+  );
+export const useUpdatePlaylist = () =>
+  usePlaylistMutation(
+    ({ id, ...body }: { id: number; name: string; description?: string | null }) =>
+      api.patch<Playlist>(`playlists/${id}`, body),
+  );
+export const useDeletePlaylist = () =>
+  usePlaylistMutation((id: number) => api.delete(`playlists/${id}`));
+export const useAddToPlaylist = () =>
+  usePlaylistMutation(({ id, videoId }: { id: number; videoId: number }) =>
+    api.post<Playlist>(`playlists/${id}/items`, { video_id: videoId }),
+  );
+export const useRemoveFromPlaylist = () =>
+  usePlaylistMutation(({ id, videoId }: { id: number; videoId: number }) =>
+    api.delete(`playlists/${id}/items/${videoId}`),
+  );
+export const useReorderPlaylist = () =>
+  usePlaylistMutation(({ id, videoIds }: { id: number; videoIds: number[] }) =>
+    api.put<Playlist>(`playlists/${id}/order`, { video_ids: videoIds }),
+  );
