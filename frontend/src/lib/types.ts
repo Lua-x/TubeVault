@@ -381,3 +381,52 @@ export interface ImportOverview {
   scanned_at: string | null;
   candidates: ImportCandidate[];
 }
+
+export interface ChannelStorage {
+  channel_id: number | null;
+  name: string;
+  size: number;
+  videos: number;
+}
+
+export interface DayCount {
+  date: string;
+  completed: number;
+  failed: number;
+}
+
+export interface AdminOverview {
+  videos: number;
+  channels: number;
+  subscriptions: number;
+  library_size: number;
+  disk_total: number | null;
+  disk_free: number | null;
+  cache_size: number;
+  database_size: number;
+  downloads_7d: number;
+  failed_7d: number;
+  queued: number;
+  storage_by_channel: ChannelStorage[];
+  downloads_per_day: DayCount[];
+  versions: Record<string, string | null>;
+  uptime_s: number;
+  hwaccel: HwAccel;
+  transcode_sessions: number;
+}
+
+export interface LogEntry {
+  time: string;
+  level: string;
+  logger: string;
+  message: string;
+}
+
+export interface YtDlpInfo {
+  loaded: string | null;
+  installed: string | null;
+  latest: string | null;
+  restart_required: boolean;
+}
+
+export type MaintenanceAction = "search-index" | "artwork" | "verify" | "nfo" | "cache";

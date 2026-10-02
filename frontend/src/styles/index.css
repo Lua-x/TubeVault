@@ -17,6 +17,7 @@
   --tv-accent: #0a84ff;
   --tv-accent-hover: #409cff;
   --tv-danger: #ff453a;
+  --tv-warning: #ff9f0a;
   --tv-success: #30d158;
   --tv-glass: rgb(28 28 30 / 0.72);
   --tv-overlay: rgb(0 0 0 / 0.6);
@@ -36,6 +37,7 @@
   --tv-accent: #0071e3;
   --tv-accent-hover: #0077ed;
   --tv-danger: #e5372b;
+  --tv-warning: #b35c00;
   --tv-success: #248a3d;
   --tv-glass: rgb(255 255 255 / 0.72);
   --tv-overlay: rgb(0 0 0 / 0.35);
@@ -54,6 +56,7 @@
   --color-accent: var(--tv-accent);
   --color-accent-hover: var(--tv-accent-hover);
   --color-danger: var(--tv-danger);
+  --color-warning: var(--tv-warning);
   --color-success: var(--tv-success);
   --color-glass: var(--tv-glass);
   --color-overlay: var(--tv-overlay);

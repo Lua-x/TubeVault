@@ -3,6 +3,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { api } from "@/lib/api";
 import { apiUrl } from "@/lib/base";
 import type {
+  AdminOverview,
   AppSettings,
   ChannelCard,
   ChannelDetail,
@@ -15,6 +16,8 @@ import type {
   ImportOverview,
   Job,
   LibraryTask,
+  LogEntry,
+  MaintenanceAction,
   MaxHeight,
   Page,
   PlaybackInfo,
@@ -30,6 +33,7 @@ import type {
   TranscodeSession,
   User,
   VideoDetail,
+  YtDlpInfo,
   VideoSummary,
   WatchState,
 } from "@/lib/types";
@@ -472,5 +476,60 @@ export function useStartImport() {
   return useMutation({
     mutationFn: (body: { keys: string[]; mode: ImportMode; fetch_metadata: boolean }) =>
       api.post<LibraryTask>("import/run", body),
+  });
+}
+
+// --- administration ----------------------------------------------------------------
+
+export function useAdminOverview() {
+  return useQuery({
+    queryKey: ["admin", "overview"],
+    queryFn: () => api.get<AdminOverview>("admin/overview"),
+    refetchInterval: 30_000,
+  });
+}
+
+export function useAdminLogs(level: string) {
+  return useQuery({
+    queryKey: ["admin", "logs", level],
+    queryFn: () => api.get<LogEntry[]>(`admin/logs?level=${level}&limit=400`),
+  });
+}
+
+export function useYtDlp() {
+  return useQuery({
+    queryKey: ["admin", "ytdlp"],
+    queryFn: () => api.get<YtDlpInfo>("admin/ytdlp"),
+  });
+}
+
+export function useCheckYtDlp() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.get<YtDlpInfo>("admin/ytdlp?check=true"),
+    onSuccess: (info) => client.setQueryData(["admin", "ytdlp"], info),
+  });
+}
+
+export function useUpdateYtDlp() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      api.post<{ updated: boolean; message: string; info: YtDlpInfo }>("admin/ytdlp/update"),
+    onSuccess: (result) =>
+      client.setQueryData<YtDlpInfo>(["admin", "ytdlp"], (old) => ({
+        ...result.info,
+        latest: old?.latest ?? null,
+      })),
+  });
+}
+
+export function useRestart() {
+  return useMutation({ mutationFn: () => api.post("admin/restart") });
+}
+
+export function useMaintenance() {
+  return useMutation({
+    mutationFn: (action: MaintenanceAction) => api.post<LibraryTask>(`admin/maintenance/${action}`),
   });
 }

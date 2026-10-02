@@ -1,5 +1,6 @@
-import { Trash2 } from "lucide-react";
+import { ChevronRight, ShieldCheck, Trash2 } from "lucide-react";
 import { useState, type FormEvent } from "react";
+import { Link } from "react-router";
 
 import {
   useAppSettings,
@@ -38,6 +39,7 @@ export function SettingsPage() {
     <>
       <PageHeader title="Einstellungen" />
       <div className="flex max-w-2xl flex-col gap-9 pb-12">
+        {user.is_admin && <AdminLink />}
         <AppearanceSection />
         <PlaybackSection />
         {user.is_admin && <DownloadSection />}
@@ -46,6 +48,24 @@ export function SettingsPage() {
         <SystemSection />
       </div>
     </>
+  );
+}
+
+function AdminLink() {
+  return (
+    <Link
+      to="/admin"
+      className="tv-group-card flex items-center gap-3 rounded-2xl bg-elevated px-4 py-3 transition-colors hover:bg-surface/60"
+    >
+      <ShieldCheck className="size-5 shrink-0 text-accent" strokeWidth={1.75} />
+      <span className="min-w-0 flex-1">
+        <span className="block text-[15px]">Verwaltung</span>
+        <span className="block text-[13px] text-secondary">
+          Statistik, yt-dlp, Import, Wartung und Protokoll
+        </span>
+      </span>
+      <ChevronRight className="size-4 text-tertiary" strokeWidth={2} />
+    </Link>
   );
 }
 

@@ -12,9 +12,13 @@ from app.logging_setup import setup_logging
 
 
 def serve(settings: Settings) -> None:
+    import os
+
     import uvicorn
 
-    uvicorn.run(
+    from app.core.lifecycle import register_server, restart_requested
+
+    config = uvicorn.Config(
         "app.main:create_app",
         factory=True,
         host=settings.host,
@@ -25,6 +29,13 @@ def serve(settings: Settings) -> None:
         ws_ping_interval=20,
         timeout_graceful_shutdown=10,
     )
+    server = uvicorn.Server(config)
+    register_server(server)
+    server.run()
+    if restart_requested():
+        logging.getLogger("app").info("TubeVault startet neu …")
+        # Same PID (the container keeps running), fresh interpreter (new yt-dlp is imported).
+        os.execv(sys.executable, [sys.executable, "-m", "app", "serve"])  # noqa: S606
 
 
 def update_ytdlp(settings: Settings, only_if_enabled: bool) -> None:

@@ -23,6 +23,7 @@ from app.db import make_engine, make_session_factory
 from app.logging_setup import setup_logging
 from app.migrate import run_migrations
 from app.routers import (
+    admin,
     auth,
     channels,
     downloads,
@@ -154,6 +155,7 @@ def _api_router() -> APIRouter:
         downloads,
         imports,
         settings,
+        admin,
         ws,
     ):
         api.include_router(module.router)

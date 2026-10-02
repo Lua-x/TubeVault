@@ -493,10 +493,11 @@ class Transcoder:
         for file in self.remux_dir.glob(f"{prefix}*"):
             file.unlink(missing_ok=True)
 
-    def cleanup_cache(self) -> int:
+    def cleanup_cache(self, limit: int | None = None) -> int:
         """Deletes least recently used entries above the size limit; returns bytes freed."""
         self._last_cleanup = time.monotonic()
-        limit = self._options().cache_gb * 1024**3
+        if limit is None:
+            limit = self._options().cache_gb * 1024**3
         with self._lock:
             active = {s.directory for s in self._sessions.values() if s.running()}
             active |= {j.target for j in self._remuxes.values() if j.state == "running"}

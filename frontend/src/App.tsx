@@ -11,6 +11,7 @@ import { basePath } from "@/lib/base";
 import { ChannelPage } from "@/pages/ChannelPage";
 import { ChannelsPage } from "@/pages/ChannelsPage";
 import { DownloadsPage } from "@/pages/DownloadsPage";
+import { AdminPage } from "@/pages/AdminPage";
 import { HomePage } from "@/pages/HomePage";
 import { ImportPage } from "@/pages/ImportPage";
 import { LibraryPage } from "@/pages/LibraryPage";
@@ -50,6 +51,7 @@ function AnimatedRoutes() {
           <Route path="/subscriptions/:id" element={<SubscriptionPage />} />
           <Route path="/downloads" element={<DownloadsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/admin" element={<AdminPage />} />
           <Route path="/admin/import" element={<ImportPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
