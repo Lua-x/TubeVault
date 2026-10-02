@@ -18,17 +18,23 @@ log = logging.getLogger(__name__)
 PING_INTERVAL = 25.0
 
 
+def _hostname(value: str) -> str:
+    """Host without port. Reverse proxies often forward `Host` without the port."""
+    value = value.strip().lower()
+    if value.startswith("["):  # IPv6 literal
+        return value.split("]")[0] + "]"
+    return value.rsplit(":", 1)[0] if value.count(":") == 1 else value
+
+
 def _origin_allowed(websocket: WebSocket) -> bool:
     """Browsers send cookies on cross-site WebSocket handshakes, so check the Origin."""
     origin = websocket.headers.get("origin")
     if not origin:
         return True  # non-browser client
-    origin_host = urlparse(origin).netloc.lower()
-    hosts = {
-        websocket.headers.get("host", "").lower(),
-        websocket.headers.get("x-forwarded-host", "").split(",")[0].strip().lower(),
-    }
-    return origin_host in hosts
+    origin_host = _hostname(urlparse(origin).netloc)
+    candidates = [websocket.headers.get("host", "")]
+    candidates += websocket.headers.get("x-forwarded-host", "").split(",")
+    return origin_host in {_hostname(c) for c in candidates if c.strip()}
 
 
 @router.websocket("/ws")

@@ -63,3 +63,25 @@ def test_system_info(admin: TestClient) -> None:
     assert info["video_count"] == 1
     assert info["library_size"] == len(VIDEO_BYTES)
     assert admin.get("/api/health").json() == {"status": "ok"}
+
+
+def test_websocket_origin_check(admin: TestClient) -> None:
+    from app.routers.ws import _hostname
+
+    assert _hostname("Example.com:8096") == "example.com"
+    assert _hostname("[::1]:8096") == "[::1]"
+    with admin.websocket_connect(
+        "/api/ws", headers={"Origin": "http://testserver:8096", "Host": "testserver"}
+    ) as socket:
+        socket.close()
+
+
+def test_websocket_rejects_foreign_origin(admin: TestClient) -> None:
+    import pytest
+    from starlette.websockets import WebSocketDisconnect
+
+    with (
+        pytest.raises(WebSocketDisconnect),
+        admin.websocket_connect("/api/ws", headers={"Origin": "https://evil.example"}) as socket,
+    ):
+        socket.receive_json()
