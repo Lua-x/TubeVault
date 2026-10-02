@@ -338,8 +338,11 @@ function ChannelLine({ video }: { video: VideoDetail }) {
   );
 }
 
-const actionClass =
-  "inline-flex h-9 items-center gap-2 rounded-full bg-surface px-4 text-[14px] font-medium transition-colors duration-200 hover:bg-surface-hover";
+// Kept apart because cn() only joins classes; conflicting utilities must not meet.
+const actionBase =
+  "inline-flex h-9 items-center gap-2 rounded-full text-[14px] font-medium transition-colors duration-200";
+const actionNeutral = "bg-surface hover:bg-surface-hover";
+const actionClass = cn(actionBase, actionNeutral, "px-4");
 
 interface VideoActionsProps {
   video: VideoDetail;
@@ -388,7 +391,11 @@ function VideoActions({ video, onWatchedChange }: VideoActionsProps) {
         onClick={toggleWatched}
         disabled={setWatched.isPending}
         aria-pressed={watched}
-        className={cn(actionClass, watched && "bg-accent/15 text-accent hover:bg-accent/25")}
+        className={cn(
+          actionBase,
+          "px-4",
+          watched ? "bg-accent/15 text-accent hover:bg-accent/25" : actionNeutral,
+        )}
       >
         {watched ? (
           <Check className="size-4" strokeWidth={2.5} />
@@ -422,7 +429,7 @@ function VideoActions({ video, onWatchedChange }: VideoActionsProps) {
           aria-label="Video löschen"
           title="Video löschen"
           onClick={() => setConfirming(true)}
-          className={cn(actionClass, "w-9 justify-center px-0 text-danger")}
+          className={cn(actionBase, actionNeutral, "w-9 justify-center text-danger")}
         >
           <Trash2 className="size-4" strokeWidth={2} />
         </button>

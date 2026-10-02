@@ -1,6 +1,6 @@
 [project]
 name = "tubevault"
-version = "0.2.0"
+version = "0.3.0"
 description = "Self-hosted media server for YouTube content"
 readme = "../README.md"
 requires-python = ">=3.12"

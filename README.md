@@ -17,15 +17,21 @@
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: light)" srcset="docs/screenshots/library-desktop-light.png" />
-    <img src="docs/screenshots/library-desktop-dark.png" width="860" alt="Die Bibliothek: Sidebar links, oben das neueste Video als großer Hero, darunter ein Raster aus Thumbnails." />
+    <source media="(prefers-color-scheme: light)" srcset="docs/screenshots/home-desktop-light.png" />
+    <img src="docs/screenshots/home-desktop-dark.png" width="860" alt="Die Startseite: Sidebar mit eigenen Playlists, oben ein großer Hero zum Weiterschauen, darunter die Reihe „Weiterschauen“ mit Fortschrittsbalken." />
   </picture>
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/video-desktop-dark.png" width="600" alt="Videoseite mit Player, schwebender Steuerleiste, Kapitelmarken und Kapitelliste." />
+  <img src="docs/screenshots/video-desktop-dark.png" width="600" alt="Videoseite: Hinweis „Sponsor übersprungen“ mit Zurück-Knopf, SponsorBlock- und Kapitelmarken auf der Zeitleiste, daneben die laufende Playlist." />
   &nbsp;
-  <img src="docs/screenshots/library-phone-dark.png" width="200" alt="Die Bibliothek auf dem Smartphone mit Tab-Bar unten." />
+  <img src="docs/screenshots/home-phone-dark.png" width="200" alt="Die Startseite auf dem Smartphone mit Tab-Bar unten." />
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/channel-desktop-dark.png" width="420" alt="Kanalseite mit Banner, Avatar, Filter gesehen/ungesehen und allen Videos des Kanals." />
+  &nbsp;
+  <img src="docs/screenshots/playlist-desktop-dark.png" width="420" alt="Eigene Playlist mit Cover aus vier Thumbnails, Abspielen-Knopf und per Drag & Drop sortierbarer Liste." />
 </p>
 
 <p align="center">
@@ -37,6 +43,18 @@
 > Die Screenshots zeigen Demo-Videos, die mit `backend/scripts/seed_demo.py` erzeugt wurden.
 
 ## Funktionen
+
+**Version 0.3 – Bibliothek & Wiedergabe**
+
+- Startseite mit „Weiterschauen“, „Neu von deinen Abos“ und deinen Kanälen
+- Wiedergabefortschritt pro Benutzer: Videos setzen dort fort, wo du aufgehört hast,
+  und gelten kurz vor Schluss als gesehen. Filter „Ungesehen“, „Angefangen“, „Gesehen“
+- Kanalseiten mit Banner, Avatar und allen Videos – direkt von dort abonnieren
+- Volltextsuche über Titel, Beschreibung und Kanal (findet „Brücke“ auch mit „brucke“)
+- Eigene Playlists: anlegen, per Drag & Drop sortieren, am Stück abspielen
+- [SponsorBlock](https://sponsor.ajay.app): Sponsoren, Intros & Co. beim Abspielen
+  überspringen (mit „Zurück“) oder beim Download herausschneiden – global oder pro Abo
+- Als App installierbar (PWA) auf iPhone, Android und Desktop
 
 **Version 0.2 – Abos & Automatisierung**
 
@@ -70,7 +88,6 @@
 
 | Version | Inhalt |
 | ------- | ------ |
-| 0.3 | Startseite mit „Weiterschauen“, Kanalseiten, Wiedergabefortschritt pro Benutzer, Volltextsuche, eigene Playlists, SponsorBlock, PWA |
 | 0.4 | HLS-Transcoding, Admin-Dashboard mit yt-dlp-Update-Button, Import vorhandener Dateien, API-Tokens, `.nfo`-Dateien |
 
 ## Installation
@@ -162,7 +179,9 @@ anlegen und diesem Benutzer geben.
 | `SESSION_DAYS` | `30` | Wie lange eine Anmeldung gültig bleibt |
 
 Alles Weitere – Format (MP4/MKV), maximale Qualität, H.264 bevorzugen, Untertitel-Sprachen,
-parallele Downloads, Benutzer – stellst du in der App unter **Einstellungen** ein.
+SponsorBlock, parallele Downloads, Benutzer – stellst du in der App unter **Einstellungen** ein.
+Jeder Benutzer legt dort außerdem fest, ob Playlists automatisch weiterlaufen und ob
+SponsorBlock-Abschnitte automatisch übersprungen werden.
 Eine Vorlage für eine `.env`-Datei liegt in [`.env.example`](.env.example).
 
 ### Volumes
@@ -204,6 +223,34 @@ Unter **Abos → Abonnieren** fügst du einen Kanal (`https://www.youtube.com/@n
   und es nicht von Hand hinzugefügt wurde. Gelöschte Videos lädt das Abo nicht erneut.
 - **Kanäle**: Für Shorts und Livestreams werden die jeweiligen Tabs des Kanals mitgelesen.
   Laufende oder angekündigte Livestreams werden erst nach dem Ende geladen.
+
+### SponsorBlock
+
+[SponsorBlock](https://sponsor.ajay.app) ist eine Community-Datenbank mit markierten
+Abschnitten in YouTube-Videos. Unter **Einstellungen → SponsorBlock** (und pro Abo) wählst du:
+
+- **Aus** (Standard): keine Verbindung zu SponsorBlock.
+- **Überspringen:** Die Abschnitte erscheinen als blaue Markierungen auf der Zeitleiste und
+  werden beim Abspielen übersprungen. Ein Hinweis mit „Zurück“ macht das rückgängig. Die
+  Datei bleibt unverändert; neue Markierungen werden für frische Videos regelmäßig nachgeladen.
+- **Herausschneiden:** Die Abschnitte werden beim Download dauerhaft aus der Datei entfernt –
+  ideal, wenn du die Videos auch in Jellyfin/Plex schaust. Gilt nur für neue Downloads.
+
+Welche Kategorien zählen (Sponsor, Eigenwerbung, Abo-Erinnerung, Intro, Abspann, …), stellst
+du ebenfalls dort ein.
+
+### Als App installieren (PWA)
+
+TubeVault lässt sich wie eine App auf den Startbildschirm legen – ohne Browserleiste und mit
+eigenem Icon:
+
+- **iPhone/iPad:** in Safari *Teilen → Zum Home-Bildschirm*
+- **Android:** in Chrome *⋮ → App installieren*
+- **Desktop:** in Chrome oder Edge das Installieren-Symbol in der Adressleiste
+
+Android und Desktop-Browser bieten das nur über **HTTPS** an (oder auf `localhost`), also
+z. B. hinter einem [Reverse Proxy](#reverse-proxy) mit Zertifikat. Gecacht werden nur die
+Oberfläche und ihre Dateien – deine Videos kommen immer live vom Server.
 
 ### MP4 oder MKV?
 
@@ -300,6 +347,7 @@ example.com {
 | Passwort vergessen | `docker exec -it tubevault python -m app reset-password <benutzer>` |
 | Downloads scheitern mit „not a bot“ / HTTP 429 | YouTube bremst. TubeVault versucht es automatisch später erneut (Backoff bis 6 h) |
 | Video spielt nicht ab (MKV) | Safari/iOS können kein MKV – Format in den Einstellungen auf MP4 stellen |
+| „App installieren“ fehlt | Android/Desktop verlangen HTTPS – TubeVault hinter einen Reverse Proxy mit Zertifikat stellen |
 | Logs | `docker logs tubevault` oder `config/logs/tubevault.log` |
 
 ## Entwicklung
@@ -311,7 +359,8 @@ uv sync
 CONFIG_DIR=./.dev/config MEDIA_DIR=./.dev/media uv run python -m app   # http://localhost:8096
 uv run pytest && uv run ruff check app tests && uv run mypy app
 
-# Demo-Videos ohne YouTube-Zugang erzeugen (braucht ffmpeg)
+# Demo-Videos ohne YouTube-Zugang erzeugen (braucht ffmpeg); Fortschritt und
+# Playlists bekommt der erste Admin – also vorher einmal anmelden
 CONFIG_DIR=./.dev/config MEDIA_DIR=./.dev/media uv run python scripts/seed_demo.py
 
 # Frontend (Node 24) – Vite-Dev-Server mit Proxy auf das Backend
@@ -326,8 +375,8 @@ Aufbau:
 ```
 backend/app/
   routers/    HTTP- und WebSocket-Endpunkte
-  services/   yt-dlp, Bibliothek/Dateinamen, Auth, Einstellungen
-  workers/    Download-Queue
+  services/   yt-dlp, Bibliothek/Dateinamen, Abos, Suche, SponsorBlock, Auth
+  workers/    Download-Queue, Abo-Scheduler
   models/     SQLAlchemy-Modelle, migrations/ (Alembic)
 frontend/src/
   pages/ components/ hooks/ api/ lib/
@@ -342,4 +391,6 @@ und veröffentlicht ein Release.
 
 TubeVault sendet keine Telemetrie und lädt keine externen Skripte oder Schriften. Verbindungen
 nach außen gehen nur zu YouTube (Downloads), zu PyPI (yt-dlp-Update beim Start, abschaltbar)
-und später optional zu SponsorBlock.
+und – nur wenn du es einschaltest – zu SponsorBlock. Dabei verlassen nur die ersten vier
+Zeichen eines SHA-256-Hashes der Video-ID den Server; SponsorBlock erfährt also nicht, welches
+Video du schaust.
