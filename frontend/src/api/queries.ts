@@ -7,18 +7,24 @@ import type {
   ChannelCard,
   ChannelDetail,
   Container,
+  HardwareInfo,
   HomeFeed,
+  HwAccel,
+  HwTestResult,
   Job,
   MaxHeight,
   Page,
+  PlaybackInfo,
   Playlist,
   PlaylistDetail,
   QueueState,
+  RemuxStatus,
   Segments,
   Subscription,
   SubscriptionDetail,
   SubscriptionSettings,
   SystemInfo,
+  TranscodeSession,
   User,
   VideoDetail,
   VideoSummary,
@@ -33,6 +39,8 @@ export const keys = {
   playlists: ["playlists"] as const,
   playlist: (id: number) => ["playlists", "detail", id] as const,
   segments: (id: number) => ["videos", "segments", id] as const,
+  playback: (id: number) => ["videos", "playback", id] as const,
+  remux: (id: number) => ["videos", "remux", id] as const,
   videoList: (params: VideoListParams) => ["videos", "list", params] as const,
   video: (id: number) => ["videos", "detail", id] as const,
   jobs: ["jobs"] as const,
@@ -384,3 +392,51 @@ export const useReorderPlaylist = () =>
   usePlaylistMutation(({ id, videoIds }: { id: number; videoIds: number[] }) =>
     api.put<Playlist>(`playlists/${id}/order`, { video_ids: videoIds }),
   );
+
+// --- playback and transcoding ------------------------------------------------------
+
+export function usePlayback(id: number) {
+  return useQuery({
+    queryKey: keys.playback(id),
+    queryFn: () => api.get<PlaybackInfo>(`videos/${id}/playback`),
+    staleTime: 10 * 60_000,
+    retry: false,
+  });
+}
+
+/** Starts the remux when enabled and polls until it is ready (or failed). */
+export function useRemux(id: number, enabled: boolean) {
+  return useQuery({
+    queryKey: keys.remux(id),
+    queryFn: () => api.post<RemuxStatus>(`videos/${id}/remux`),
+    enabled,
+    staleTime: Infinity,
+    retry: false,
+    refetchInterval: (query) => (query.state.data?.state === "running" ? 1000 : false),
+  });
+}
+
+export function useHardware(enabled: boolean) {
+  return useQuery({
+    queryKey: ["transcoding", "hardware"],
+    queryFn: () => api.get<HardwareInfo>("transcoding/hardware"),
+    enabled,
+    staleTime: 60_000,
+  });
+}
+
+export function useHwTest() {
+  return useMutation({
+    mutationFn: (body: { hwaccel: HwAccel; vaapi_device: string }) =>
+      api.post<HwTestResult>("transcoding/test", body),
+  });
+}
+
+export function useTranscodeSessions(enabled: boolean) {
+  return useQuery({
+    queryKey: ["transcoding", "sessions"],
+    queryFn: () => api.get<TranscodeSession[]>("transcoding/sessions"),
+    enabled,
+    refetchInterval: 5000,
+  });
+}

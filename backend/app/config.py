@@ -61,6 +61,11 @@ class Settings(BaseSettings):
         return self.config_dir / ".runtime"
 
     @property
+    def cache_dir(self) -> Path:
+        """Converted streams (HLS segments, remuxed files); safe to delete at any time."""
+        return self.media_dir / ".tubevault" / "cache"
+
+    @property
     def temp_dir(self) -> Path:
         """Partial downloads, on the media volume so finished files can be moved atomically."""
         return self.media_dir / ".tubevault" / "tmp"

@@ -28,6 +28,7 @@ from app.routers import (
     downloads,
     home,
     media,
+    playback,
     playlists,
     settings,
     subscriptions,
@@ -36,6 +37,7 @@ from app.routers import (
     videos,
     ws,
 )
+from app.services.app_settings import TranscodeOptions, load_app_settings
 from app.services.auth import bootstrap_admin, purge_expired_sessions
 from app.services.catalog import Catalog, YtDlpCatalog
 from app.services.downloader import Downloader, YtDlpDownloader
@@ -43,6 +45,7 @@ from app.services.search import ensure_search_index
 from app.services.subscriptions import SubscriptionChecker
 from app.workers.download_manager import DownloadManager
 from app.workers.scheduler import SubscriptionScheduler
+from app.workers.transcoder import Transcoder
 
 log = logging.getLogger(__name__)
 
@@ -141,6 +144,7 @@ def _api_router() -> APIRouter:
         home,
         videos,
         media,
+        playback,
         channels,
         playlists,
         subscriptions,
@@ -230,6 +234,12 @@ def create_app(
         settings, sessions, events, checker, catalog, poll_interval=scheduler_poll_interval
     )
     manager.on_download_finished = scheduler.request_cleanup
+
+    def transcode_options() -> TranscodeOptions:
+        with sessions() as db:
+            return load_app_settings(db).transcoding
+
+    transcoder = Transcoder(settings, transcode_options)
     ctx = AppContext(
         settings=settings,
         engine=engine,
@@ -239,6 +249,7 @@ def create_app(
         catalog=catalog,
         checker=checker,
         scheduler=scheduler,
+        transcoder=transcoder,
     )
 
     @asynccontextmanager
@@ -246,10 +257,12 @@ def create_app(
         events.bind(asyncio.get_running_loop())
         manager.start()
         scheduler.start()
+        transcoder.start()
         log.info("TubeVault %s läuft auf Port %s%s", __version__, settings.port, settings.base_path)
         try:
             yield
         finally:
+            await asyncio.to_thread(transcoder.stop)
             await asyncio.to_thread(scheduler.stop)
             await asyncio.to_thread(manager.stop)
             engine.dispose()

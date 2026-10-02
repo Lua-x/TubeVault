@@ -28,9 +28,11 @@ import { Dialog } from "@/components/ui/Dialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageSpinner } from "@/components/ui/Spinner";
 import { PlayerOverlay, type PlayerNotice, type UpNext } from "@/components/video/PlayerOverlay";
+import { PlaybackStatus, QualityMenu } from "@/components/video/QualityMenu";
 import { VideoPlayer, type PlayerHandle, type SaveReason } from "@/components/video/VideoPlayer";
 import { useAuth } from "@/hooks/auth";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { usePlaybackSource } from "@/hooks/usePlaybackSource";
 import { useToast } from "@/hooks/toast";
 import { apiUrl } from "@/lib/base";
 import { cn } from "@/lib/cn";
@@ -99,6 +101,7 @@ function VideoView({ video, playlistId, autoplay }: VideoViewProps) {
   const { user } = useAuth();
   const preferences = user?.preferences ?? {};
 
+  const playback = usePlaybackSource(video);
   const [time, setTime] = useState(0);
   const onTimeUpdate = useCallback((seconds: number) => setTime(Math.floor(seconds)), []);
 
@@ -223,6 +226,8 @@ function VideoView({ video, playlistId, autoplay }: VideoViewProps) {
         <VideoPlayer
           ref={player}
           video={video}
+          source={playback.source}
+          onSourceError={playback.onSourceError}
           startAt={startAt}
           autoplay={autoplay}
           segments={segments}
@@ -234,17 +239,31 @@ function VideoView({ video, playlistId, autoplay }: VideoViewProps) {
           onSegmentSkipped={onSegmentSkipped}
           onSegmentChange={setCurrentSegment}
           overlay={
-            <PlayerOverlay
-              notice={notice}
-              onDismissNotice={() => setNotice(null)}
-              skipLabel={
-                currentSegment ? `${categoryLabel(currentSegment.category)} überspringen` : null
-              }
-              onSkip={() => currentSegment && player.current?.seek(currentSegment.end_s)}
-              upNext={upNext}
-              onPlayNext={() => upNext && openInPlaylist(upNext.video.id, { autoplay: true })}
-              onCancelNext={() => setUpNext(null)}
-            />
+            <>
+              {playback.showMenu && (
+                <QualityMenu
+                  options={playback.options}
+                  value={playback.choice}
+                  onChange={playback.setChoice}
+                />
+              )}
+              <PlaybackStatus
+                preparing={playback.preparing}
+                error={playback.error}
+                onRetry={playback.retry}
+              />
+              <PlayerOverlay
+                notice={notice}
+                onDismissNotice={() => setNotice(null)}
+                skipLabel={
+                  currentSegment ? `${categoryLabel(currentSegment.category)} überspringen` : null
+                }
+                onSkip={() => currentSegment && player.current?.seek(currentSegment.end_s)}
+                upNext={upNext}
+                onPlayNext={() => upNext && openInPlaylist(upNext.video.id, { autoplay: true })}
+                onCancelNext={() => setUpNext(null)}
+              />
+            </>
           }
         />
 

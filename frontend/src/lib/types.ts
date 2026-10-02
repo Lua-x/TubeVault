@@ -253,9 +253,61 @@ export interface DownloadOptions {
   sponsorblock_categories: SponsorCategory[];
 }
 
+export type HwAccel = "none" | "vaapi" | "nvenc";
+
+export interface TranscodeOptions {
+  hwaccel: HwAccel;
+  vaapi_device: string;
+  max_height: 2160 | 1440 | 1080 | 720 | 480;
+  max_sessions: number;
+  cache_gb: number;
+}
+
 export interface AppSettings {
   downloads: DownloadOptions;
   max_concurrent_downloads: number;
+  transcoding: TranscodeOptions;
+}
+
+export interface PlaybackInfo {
+  container: string | null;
+  video_codec: string | null;
+  audio_codec: string | null;
+  width: number | null;
+  height: number | null;
+  duration: number;
+  can_remux: boolean;
+  qualities: number[];
+  transcode_height: number;
+}
+
+export interface RemuxStatus {
+  state: "none" | "running" | "ready" | "failed";
+  progress: number;
+  error: string | null;
+}
+
+export interface HardwareInfo {
+  render_devices: string[];
+  nvidia: boolean;
+  encoders: Record<string, boolean>;
+}
+
+export interface HwTestResult {
+  ok: boolean;
+  seconds: number;
+  message: string;
+}
+
+export interface TranscodeSession {
+  video_id: number;
+  title: string | null;
+  quality: string;
+  height: number;
+  mode: string;
+  position_s: number;
+  paused: boolean;
+  idle_s: number;
 }
 
 export interface SystemInfo {

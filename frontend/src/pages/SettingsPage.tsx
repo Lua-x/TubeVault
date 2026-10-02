@@ -12,6 +12,7 @@ import {
   useUsers,
 } from "@/api/queries";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { TranscodeGroup } from "@/components/settings/TranscodeGroup";
 import { Button, IconButton } from "@/components/ui/Button";
 import { Group, Row } from "@/components/ui/Group";
 import { TextField } from "@/components/ui/Input";
@@ -263,6 +264,13 @@ function DownloadForm({ initial }: { initial: AppSettings }) {
           </Row>
         )}
       </Group>
+
+      <TranscodeGroup
+        value={draft.transcoding}
+        onChange={(patch) =>
+          setDraft({ ...draft, transcoding: { ...draft.transcoding, ...patch } })
+        }
+      />
 
       <div className="flex justify-end">
         <Button type="submit" loading={save.isPending}>

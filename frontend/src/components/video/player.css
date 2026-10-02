@@ -177,6 +177,8 @@
   inset: 0;
   z-index: 3;
   pointer-events: none;
+  /* video.js sets line-height: 1 on the player, which is too tight for text. */
+  line-height: 1.35;
 }
 
 .vjs-tubevault .vjs-tubevault-overlay > * {
@@ -306,4 +308,14 @@
   .vjs-tubevault .vjs-picture-in-picture-control {
     display: none;
   }
+}
+
+/* Overlay controls (quality menu) fade out together with the control bar. */
+.vjs-tubevault .vjs-tubevault-overlay .tv-autohide {
+  transition: opacity 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.vjs-tubevault.vjs-has-started.vjs-user-inactive.vjs-playing .vjs-tubevault-overlay .tv-autohide {
+  opacity: 0;
+  pointer-events: none;
 }

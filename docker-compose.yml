@@ -19,4 +19,15 @@ services:
     volumes:
       - ./config:/config
       - ./media:/media
+    # Optional: hardware transcoding with an Intel or AMD GPU (VAAPI)
+    # devices:
+    #   - /dev/dri:/dev/dri
+    # Optional: hardware transcoding with an NVIDIA GPU (needs the NVIDIA Container Toolkit)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu, video]
     restart: unless-stopped

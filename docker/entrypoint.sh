@@ -23,6 +23,18 @@ if [ "$(id -u)" = "0" ]; then
   chown "$PUID:$PGID" /media 2>/dev/null || true
   find /media/.tubevault \! -user "$PUID" -exec chown "$PUID:$PGID" {} + 2>/dev/null || true
 
+  # GPU for hardware transcoding: join the groups that own /dev/dri (render, video, …).
+  for dev in /dev/dri/renderD* /dev/dri/card*; do
+    [ -e "$dev" ] || continue
+    gid="$(stat -c %g "$dev")"
+    name="$(getent group "$gid" | cut -d: -f1)"
+    if [ -z "$name" ]; then
+      name="gpu$gid"
+      groupadd -o -g "$gid" "$name"
+    fi
+    id -nG tubevault | tr ' ' '\n' | grep -qx "$name" || usermod -aG "$name" tubevault
+  done
+
   echo "[tubevault] running as uid=$PUID gid=$PGID"
   exec setpriv --reuid="$PUID" --regid="$PGID" --init-groups "$0" "$@"
 fi

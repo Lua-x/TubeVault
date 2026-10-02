@@ -241,6 +241,7 @@ def delete_video(
         db.delete(job)
     if delete_files:
         delete_video_files(ctx.settings.media_dir, video)
+    ctx.transcoder.purge(video.id)
     # Subscriptions must not download it again.
     mark_video_removed(db, video.id, "Gelöscht")
     db.delete(video)

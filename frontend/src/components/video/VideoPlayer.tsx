@@ -27,11 +27,20 @@ export interface PlayerHandle {
   allowSegment: (segment: SponsorSegment) => void;
 }
 
+export interface PlayerSource {
+  src: string;
+  type: string;
+}
+
 /** Why a save point was reached; the page decides what to do with it. */
 export type SaveReason = "interval" | "pause" | "seeked" | "ended" | "hidden" | "unmount";
 
 interface VideoPlayerProps {
   video: VideoDetail;
+  /** What to play; null while it is being prepared. Changing it keeps the position. */
+  source: PlayerSource | null;
+  /** The browser couldn't play the source (MediaError code, 4 = format not supported). */
+  onSourceError?: (code: number) => void;
   /** Position to continue from once the metadata is loaded. */
   startAt?: number;
   autoplay?: boolean;
@@ -48,16 +57,6 @@ interface VideoPlayerProps {
   onEnded?: () => void;
   /** Rendered inside the player element, so it stays visible in fullscreen. */
   overlay?: ReactNode;
-}
-
-function sourceType(container: string | null): string {
-  if (container === "mkv") {
-    // Chrome and Firefox play Matroska with H.264/VP9 but don't advertise the MIME type.
-    const probe = document.createElement("video");
-    return probe.canPlayType("video/x-matroska") ? "video/x-matroska" : "video/webm";
-  }
-  if (container === "webm") return "video/webm";
-  return "video/mp4";
 }
 
 const SEEK_STEP = 10;
@@ -138,6 +137,8 @@ export const VideoPlayer = forwardRef<PlayerHandle, VideoPlayerProps>(
     // The player lives outside React; it reads the latest props through this ref.
     const latest = useRef(props);
     const allowed = useRef(new Set<string>());
+    const appliedSource = useRef("");
+    const playRequested = useRef(false);
 
     useEffect(() => {
       latest.current = props;
@@ -173,16 +174,19 @@ export const VideoPlayer = forwardRef<PlayerHandle, VideoPlayerProps>(
         poster: video.has_thumbnail ? thumbnailUrl(video) : undefined,
         playbackRates: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
         language: "de",
+        // Errors are handled by the page (fallbacks, our own message), not by a modal.
+        errorDisplay: false,
         html5: { nativeTextTracks: false },
         userActions: { hotkeys: handleHotkeys },
         controlBar: {
           remainingTimeDisplay: { displayNegative: true },
           pictureInPictureToggle: true,
         },
-        sources: [{ src: apiUrl(`videos/${video.id}/stream`), type: sourceType(video.container) }],
       });
       playerRef.current = player;
       allowed.current = new Set();
+      appliedSource.current = "";
+      playRequested.current = false;
 
       let started = false;
       let lastSaved = startAt ?? 0;
@@ -232,7 +236,7 @@ export const VideoPlayer = forwardRef<PlayerHandle, VideoPlayerProps>(
               srclang: sub.lang,
               label: sub.label,
             },
-            false,
+            true,
           );
         }
         if (video.chapters.length > 0) {
@@ -244,7 +248,7 @@ export const VideoPlayer = forwardRef<PlayerHandle, VideoPlayerProps>(
               label: "Kapitel",
               default: true,
             },
-            false,
+            true,
           );
         }
         if (autoplay) {
@@ -259,7 +263,10 @@ export const VideoPlayer = forwardRef<PlayerHandle, VideoPlayerProps>(
       player.on("playing", () => {
         started = true;
       });
-      player.on("play", () => latest.current.onPlay?.());
+      player.on("play", () => {
+        playRequested.current = true;
+        latest.current.onPlay?.();
+      });
       player.on("timeupdate", () => {
         const time = player.currentTime() ?? 0;
         latest.current.onTimeUpdate?.(time);
@@ -278,12 +285,7 @@ export const VideoPlayer = forwardRef<PlayerHandle, VideoPlayerProps>(
         latest.current.onEnded?.();
       });
       player.on("error", () => {
-        const error = player.error();
-        if (error?.code === 4 && video.container === "mkv") {
-          player.error(
-            "Dein Browser kann MKV nicht direkt abspielen. Lade die Datei herunter oder nutze Chrome, Edge oder Firefox.",
-          );
-        }
+        latest.current.onSourceError?.(player.error()?.code ?? 0);
       });
 
       const onHidden = () => {
@@ -302,6 +304,27 @@ export const VideoPlayer = forwardRef<PlayerHandle, VideoPlayerProps>(
         playerRef.current = null;
       };
     }, [fileKey]);
+
+    // Switching the source (direct → remux → HLS, or another quality) keeps the position.
+    const sourceKey = props.source ? `${props.source.type}|${props.source.src}` : "";
+    useEffect(() => {
+      const player = playerRef.current;
+      const source = latest.current.source;
+      if (!player || player.isDisposed() || !source || appliedSource.current === sourceKey) return;
+      const first = appliedSource.current === "";
+      appliedSource.current = sourceKey;
+      const failed = player.error() != null;
+      const time = first ? 0 : (player.currentTime() ?? 0);
+      const resume = !first && (failed ? playRequested.current : !player.paused());
+      player.error(null);
+      player.src(source);
+      if (!first) {
+        player.one("loadedmetadata", () => {
+          if (time > 0) player.currentTime(time);
+          if (resume) player.play()?.catch(() => undefined);
+        });
+      }
+    }, [sourceKey, fileKey]);
 
     // Segments usually arrive after the player was created.
     useEffect(() => {

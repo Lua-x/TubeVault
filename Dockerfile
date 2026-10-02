@@ -3,10 +3,12 @@
 
 ARG NODE_IMAGE=node:24-slim
 ARG PYTHON_IMAGE=python:3.12-slim
-# Statically linked ffmpeg + ffprobe (amd64 and arm64), no apt packages needed.
-ARG FFMPEG_IMAGE=mwader/static-ffmpeg:7.1
 
-FROM ${FFMPEG_IMAGE} AS ffmpeg
+# --- 0. Signing key of the Jellyfin repository (for jellyfin-ffmpeg) ------------------
+# jellyfin-ffmpeg is the ffmpeg Jellyfin ships: hardware transcoding with VAAPI (Intel and
+# AMD, drivers included) and NVENC (NVIDIA), for amd64 and arm64.
+FROM --platform=$BUILDPLATFORM ${PYTHON_IMAGE} AS jellyfin-key
+RUN python -c "import urllib.request as u; u.urlretrieve('https://repo.jellyfin.org/jellyfin_team.gpg.key', '/jellyfin.asc')"
 
 # --- 1. Frontend ----------------------------------------------------------------
 # Built once on the build machine's platform; the output is plain static files.
@@ -39,7 +41,19 @@ RUN groupadd --gid 1000 tubevault \
  && useradd --uid 1000 --gid tubevault --home-dir /config --no-create-home \
       --shell /usr/sbin/nologin tubevault
 
-COPY --from=ffmpeg /ffmpeg /ffprobe /usr/local/bin/
+COPY --from=jellyfin-key /jellyfin.asc /etc/apt/keyrings/jellyfin.asc
+# Try the repository for this Debian release first, then bookworm.
+RUN set -eux; \
+    . /etc/os-release; \
+    for suite in "$VERSION_CODENAME" bookworm; do \
+      echo "deb [signed-by=/etc/apt/keyrings/jellyfin.asc] https://repo.jellyfin.org/debian $suite main" \
+        > /etc/apt/sources.list.d/jellyfin.list; \
+      if apt-get update && apt-get install -y --no-install-recommends jellyfin-ffmpeg7; then break; fi; \
+    done; \
+    ln -s /usr/lib/jellyfin-ffmpeg/ffmpeg /usr/local/bin/ffmpeg; \
+    ln -s /usr/lib/jellyfin-ffmpeg/ffprobe /usr/local/bin/ffprobe; \
+    ffmpeg -hide_banner -version | head -n 1; \
+    rm -rf /var/lib/apt/lists/*
 
 ENV PATH="/app/.venv/bin:${PATH}" \
     PYTHONUNBUFFERED=1 \
@@ -54,7 +68,9 @@ ENV PATH="/app/.venv/bin:${PATH}" \
     PORT=8096 \
     PUID=1000 \
     PGID=1000 \
-    TZ="Etc/UTC"
+    TZ="Etc/UTC" \
+    # Lets the NVIDIA Container Toolkit mount the video encoding libraries.
+    NVIDIA_DRIVER_CAPABILITIES="compute,video,utility"
 
 WORKDIR /app
 COPY --from=backend-deps /app/.venv /app/.venv

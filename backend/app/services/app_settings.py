@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
@@ -49,9 +50,34 @@ class DownloadOptions(BaseModel):
         return cleaned
 
 
+HwAccel = Literal["none", "vaapi", "nvenc"]
+TranscodeHeight = Literal[2160, 1440, 1080, 720, 480]
+_DRI_DEVICE = re.compile(r"^/dev/dri/[A-Za-z0-9_]+$")
+
+
+class TranscodeOptions(BaseModel):
+    """How videos are converted for devices that can't play the file directly."""
+
+    hwaccel: HwAccel = "none"
+    vaapi_device: str = "/dev/dri/renderD128"
+    # Upper limit for converted video; the original file is never touched.
+    max_height: TranscodeHeight = 1080
+    max_sessions: int = Field(default=2, ge=1, le=8)
+    cache_gb: int = Field(default=10, ge=1, le=2000)
+
+    @field_validator("vaapi_device")
+    @classmethod
+    def _check_device(cls, value: str) -> str:
+        value = value.strip()
+        if not _DRI_DEVICE.match(value):
+            raise ValueError("Gerät muss unter /dev/dri liegen, z. B. /dev/dri/renderD128")
+        return value
+
+
 class AppSettings(BaseModel):
     downloads: DownloadOptions = Field(default_factory=DownloadOptions)
     max_concurrent_downloads: int = Field(default=2, ge=1, le=5)
+    transcoding: TranscodeOptions = Field(default_factory=TranscodeOptions)
 
 
 QUEUE_PAUSED_KEY = "queue_paused"

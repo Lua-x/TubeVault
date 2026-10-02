@@ -258,8 +258,48 @@ Beides geht – global in den Einstellungen oder pro Video im Dialog „Video hi
 
 - **MP4 (Standard):** spielt in jedem Browser direkt ab, auch in Safari und auf iPhone/iPad.
   Mit „H.264 bevorzugen“ ist die Kompatibilität maximal (YouTube bietet H.264 bis 1080p).
-- **MKV:** flexibler Container, spielt in Chrome, Edge und Firefox, aber **nicht in Safari/iOS**.
-  Für solche Geräte kommt in Version 0.4 das Transcoding.
+- **MKV:** flexibler Container, spielt in Chrome, Edge und Firefox direkt. Safari und iOS
+  bekommen automatisch eine umverpackte Fassung (siehe unten).
+
+### Wiedergabe auf allen Geräten
+
+Der Player prüft, was dein Browser kann, und wählt von selbst:
+
+1. **Direkt:** Die Originaldatei wird abgespielt – der Normalfall.
+2. **Umverpackt:** Passt nur der Container nicht (z. B. MKV auf dem iPhone), kopiert ffmpeg Bild
+   und Ton einmalig in eine MP4. Das dauert ein paar Sekunden und kostet kaum Rechenleistung.
+3. **Umgewandelt:** Kann das Gerät den Codec nicht (z. B. AV1 auf älteren Geräten) oder wählst
+   du im Player eine kleinere Qualität (⚙︎ oben rechts), wandelt TubeVault das Video beim
+   Abspielen in H.264 um (HLS). Spulen funktioniert; ffmpeg läuft nur, solange jemand schaut.
+
+Umverpacktes und Umgewandeltes landet in `media/.tubevault/cache` und wird automatisch
+aufgeräumt (Größe einstellbar). Die Originale bleiben immer unverändert.
+
+#### Hardware-Beschleunigung
+
+Umwandeln geht in Software, mit einer GPU aber deutlich schneller und stromsparender.
+Freigeben in der `docker-compose.yml`, dann unter **Einstellungen → Umwandlung** auswählen und
+mit **Prüfen** testen:
+
+```yaml
+    # Intel (QuickSync) oder AMD – VAAPI
+    devices:
+      - /dev/dri:/dev/dri
+
+    # NVIDIA – braucht das NVIDIA Container Toolkit auf dem Host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu, video]
+```
+
+TubeVault nimmt den internen Benutzer automatisch in die Gruppe auf, der `/dev/dri` gehört.
+Startest du den Container mit `user:`, ergänze stattdessen `group_add:` mit der Gruppen-ID von
+`/dev/dri/renderD128` (`stat -c %g /dev/dri/renderD128`). Klappt etwas mit der GPU nicht, fällt
+TubeVault von selbst auf Software zurück – der Grund steht im Log.
 
 ## Reverse Proxy
 
