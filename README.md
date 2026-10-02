@@ -325,6 +325,10 @@ example.com {
   ohne dass das Image neu gebaut werden muss. YouTube ändert häufig Details – ein Neustart
   (`docker compose restart`) bringt die neueste Version.
 - **TubeVault** selbst: `docker compose pull && docker compose up -d`.
+- **Image-Tags:** `latest` ist immer der aktuelle Stand; `0.3` oder `0.3.0` hält dich auf
+  einer festen Version. Zurück auf eine ältere Version geht nicht, weil die Datenbank beim
+  Update migriert wird – TubeVault startet dann mit einem entsprechenden Hinweis nicht.
+  Sichere vor großen Updates einfach den `config`-Ordner.
 - **Automatisch** mit [Watchtower](https://github.com/containrrr/watchtower), das Container
   aktualisiert, sobald ein neues Image auf GHCR liegt:
 

@@ -167,3 +167,19 @@ def test_chapters_to_vtt() -> None:
     vtt = chapters_to_vtt([{"start": 3725.5, "end": 0, "title": "A --> B"}], duration=4000)
     assert "01:02:05.500 --> 01:06:40.000" in vtt
     assert "A → B" in vtt
+
+
+def test_database_from_newer_version_is_refused(tmp_path: Path) -> None:
+    from sqlalchemy import text
+
+    from app.db import make_engine
+    from app.migrate import DatabaseTooNewError, run_migrations
+
+    engine = make_engine(f"sqlite:///{tmp_path / 'tubevault.db'}")
+    run_migrations(engine)
+    run_migrations(engine)  # idempotent
+    with engine.begin() as connection:
+        connection.execute(text("UPDATE alembic_version SET version_num = '0099_future'"))
+    with pytest.raises(DatabaseTooNewError, match="neueren TubeVault-Version"):
+        run_migrations(engine)
+    engine.dispose()
