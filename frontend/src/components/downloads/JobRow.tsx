@@ -78,7 +78,7 @@ export function JobRow({ job }: { job: Job }) {
 
   const content = (
     <>
-      <div className="relative aspect-video w-28 shrink-0 overflow-hidden rounded-lg bg-surface sm:w-36">
+      <div className="relative aspect-video w-24 shrink-0 overflow-hidden rounded-lg bg-surface sm:w-36">
         {job.video ? (
           <Thumbnail video={job.video} className="size-full" />
         ) : (
