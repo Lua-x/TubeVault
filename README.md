@@ -398,3 +398,10 @@ nach außen gehen nur zu YouTube (Downloads), zu PyPI (yt-dlp-Update beim Start,
 und – nur wenn du es einschaltest – zu SponsorBlock. Dabei verlassen nur die ersten vier
 Zeichen eines SHA-256-Hashes der Video-ID den Server; SponsorBlock erfährt also nicht, welches
 Video du schaust.
+
+## Lizenz
+
+TubeVault ist freie Software unter der [GNU Affero General Public License v3.0](LICENSE)
+oder einer späteren Version. Du darfst es nutzen, verändern und weitergeben. Wer eine
+veränderte Version anderen über das Netz anbietet, muss ihnen auch den Quellcode dieser
+Version zugänglich machen.

@@ -32,7 +32,8 @@ ARG VERSION=dev
 LABEL org.opencontainers.image.title="TubeVault" \
       org.opencontainers.image.description="Self-hosted media server for YouTube content" \
       org.opencontainers.image.source="https://github.com/Lua-x/TubeVault" \
-      org.opencontainers.image.version="${VERSION}"
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.licenses="AGPL-3.0-or-later"
 
 RUN groupadd --gid 1000 tubevault \
  && useradd --uid 1000 --gid tubevault --home-dir /config --no-create-home \

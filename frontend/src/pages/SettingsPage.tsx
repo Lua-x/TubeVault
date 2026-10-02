@@ -467,6 +467,8 @@ function UsersSection() {
   );
 }
 
+const SOURCE_URL = "https://github.com/Lua-x/TubeVault";
+
 function SystemSection() {
   const { data } = useSystemInfo();
   if (!data) return null;
@@ -479,7 +481,32 @@ function SystemSection() {
     ["Bibliotheksgröße", formatBytes(data.library_size)],
   ];
   return (
-    <Group title="System">
+    <Group
+      title="System"
+      footer={
+        <>
+          TubeVault ist freie Software unter der{" "}
+          <a
+            href={`${SOURCE_URL}/blob/main/LICENSE`}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="text-accent hover:underline"
+          >
+            AGPL-3.0
+          </a>
+          . Den Quellcode findest du auf{" "}
+          <a
+            href={SOURCE_URL}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="text-accent hover:underline"
+          >
+            GitHub
+          </a>
+          .
+        </>
+      }
+    >
       {rows.map(([label, value]) => (
         <Row key={label} className="flex justify-between gap-4 text-[15px]">
           <span>{label}</span>
