@@ -25,7 +25,9 @@ from app.main import init_storage
 from app.migrate import run_migrations
 from app.models import (
     Channel,
+    DownloadJob,
     ItemState,
+    JobStatus,
     Playlist,
     PlaylistItem,
     SponsorSegment,
@@ -253,6 +255,21 @@ def seed_library(db) -> None:  # type: ignore[no-untyped-def]
     app_settings = load_app_settings(db)
     app_settings.downloads.sponsorblock_mode = "skip"
     save_app_settings(db, app_settings)
+
+    # A month of finished downloads for the statistics in Verwaltung.
+    db.query(DownloadJob).filter(DownloadJob.url.like("%demo-history%")).delete()
+    rng = random.Random(3)
+    for day in range(30):
+        for n in range(rng.choice([0, 0, 1, 1, 2, 3, 5])):
+            video = rng.choice(videos)
+            finished = now - timedelta(days=day, hours=rng.randint(0, 20), minutes=n)
+            db.add(DownloadJob(
+                url=f"https://www.youtube.com/watch?v={video.youtube_id}#demo-history",
+                youtube_id=video.youtube_id, video_id=video.id,
+                status=JobStatus.FAILED if rng.random() < 0.08 else JobStatus.COMPLETED,
+                progress=1.0, attempts=1, created_at=finished - timedelta(minutes=3),
+                started_at=finished - timedelta(minutes=2), finished_at=finished,
+            ))  # fmt: skip
 
     user = db.query(User).filter_by(is_admin=True).order_by(User.id).first()
     if user is None:

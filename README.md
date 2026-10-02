@@ -37,12 +37,25 @@
 <p align="center">
   <img src="docs/screenshots/subscriptions-desktop-dark.png" width="420" alt="Abo-Übersicht mit Kanal-Bannern, Avataren und Prüfstatus." />
   &nbsp;
-  <img src="docs/screenshots/subscription-desktop-dark.png" width="420" alt="Ein Kanal-Abo mit Einstellungen und der Liste gesehener Videos samt Status." />
+  <img src="docs/screenshots/admin-desktop-dark.png" width="420" alt="Verwaltung mit Kennzahlen, Speicher pro Kanal, Downloads der letzten 30 Tage, yt-dlp-Update und Wartung." />
 </p>
 
 > Die Screenshots zeigen Demo-Videos, die mit `backend/scripts/seed_demo.py` erzeugt wurden.
 
 ## Funktionen
+
+**Version 0.4 – Für jedes Gerät und jeden Mediaserver**
+
+- Wiedergabe auf jedem Gerät: Was der Browser nicht direkt kann, wird umverpackt oder beim
+  Abspielen umgewandelt (HLS) – mit Qualitätswahl im Player und Spulen
+- Hardware-Transcoding mit Intel/AMD (VAAPI) oder NVIDIA (NVENC), Rückfall auf Software
+- Jellyfin, Emby, Kodi, Plex: NFO-Dateien und wahlweise ein Serien-Schema (Kanal = Serie,
+  Jahr = Staffel); Umschalten zieht die Bibliothek automatisch um
+- Import vorhandener Videos, z. B. aus einem alten yt-dlp-Archiv (mit `.info.json`)
+- Verwaltung: Statistik, Speicher pro Kanal, yt-dlp-Update auf Knopfdruck samt Neustart,
+  Wartung und Protokoll
+- API-Tokens für Skripte und Kurzbefehle, Teilen-Ziel auf Android
+- Lizenz: AGPL-3.0
 
 **Version 0.3 – Bibliothek & Wiedergabe**
 
@@ -84,11 +97,8 @@
 - Ordnerstruktur kompatibel mit Jellyfin/Plex: `/media/<Kanal>/<Jahr>/<Titel> [<ID>].mp4`
 - Ein einziger Container, läuft auf amd64 und arm64 (Raspberry Pi, NAS)
 
-**Geplant**
-
-| Version | Inhalt |
-| ------- | ------ |
-| 0.4 | HLS-Transcoding, Admin-Dashboard mit yt-dlp-Update-Button, Import vorhandener Dateien, API-Tokens, `.nfo`-Dateien |
+Ideen und Wünsche für weitere Versionen gern als
+[Issue](https://github.com/Lua-x/TubeVault/issues).
 
 ## Installation
 
@@ -177,9 +187,11 @@ anlegen und diesem Benutzer geben.
 | `FORWARDED_ALLOW_IPS` | `*` | IPs der Reverse Proxys, deren `X-Forwarded-*`-Header vertraut wird |
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
 | `SESSION_DAYS` | `30` | Wie lange eine Anmeldung gültig bleibt |
+| `IMPORT_DIR` | `/import` | Ordner, aus dem **Verwaltung → Import** vorhandene Videos übernimmt |
 
 Alles Weitere – Format (MP4/MKV), maximale Qualität, H.264 bevorzugen, Untertitel-Sprachen,
-SponsorBlock, parallele Downloads, Benutzer – stellst du in der App unter **Einstellungen** ein.
+SponsorBlock, Hardware-Transcoding, Ordnerstruktur, parallele Downloads, Benutzer – stellst du in
+der App unter **Einstellungen** ein.
 Jeder Benutzer legt dort außerdem fest, ob Playlists automatisch weiterlaufen und ob
 SponsorBlock-Abschnitte automatisch übersprungen werden.
 Eine Vorlage für eine `.env`-Datei liegt in [`.env.example`](.env.example).
@@ -189,9 +201,10 @@ Eine Vorlage für eine `.env`-Datei liegt in [`.env.example`](.env.example).
 | Pfad | Inhalt |
 | ---- | ------ |
 | `/config` | Datenbank (`tubevault.db`), Logs (`logs/`), aktualisiertes yt-dlp (`.runtime/`), Caches |
-| `/media` | Videos, Thumbnails, Untertitel – der Unterordner `.tubevault/` enthält nur temporäre Downloads |
+| `/media` | Videos, Thumbnails, Untertitel, NFOs – der Unterordner `.tubevault/` enthält nur temporäre Downloads und den Umwandlungs-Cache |
+| `/import` | Optional: vorhandene Videos zum Importieren (darf schreibgeschützt sein, dann „Kopieren“ wählen) |
 
-Ordnerstruktur in `/media`:
+Ordnerstruktur in `/media` (Standard „TubeVault“):
 
 ```
 /media
@@ -200,13 +213,38 @@ Ordnerstruktur in `/media`:
     ├── banner.jpg        (Kanal-Banner)
     └── 2026/
         ├── Titel des Videos [dQw4w9WgXcQ].mp4
+        ├── Titel des Videos [dQw4w9WgXcQ].nfo
         ├── Titel des Videos [dQw4w9WgXcQ]-thumb.jpg
         ├── Titel des Videos [dQw4w9WgXcQ].de.vtt
         └── Titel des Videos [dQw4w9WgXcQ].en.vtt
 ```
 
-Diese Struktur können Jellyfin und Plex parallel als Bibliothek einlesen. Titel, Kapitel und
-Beschreibung sind zusätzlich in die Videodatei eingebettet.
+Unter **Einstellungen → Mediaserver** lässt sich auf das Serien-Schema umschalten. Dann wird
+jeder Kanal in Jellyfin, Emby, Kodi oder Plex zur Serie und jedes Jahr zur Staffel:
+
+```
+/media
+└── Kanalname/
+    ├── tvshow.nfo, folder.jpg, banner.jpg, fanart.jpg
+    └── Season 2026/
+        ├── 2026-08-23 - Titel des Videos [dQw4w9WgXcQ].mp4
+        ├── 2026-08-23 - Titel des Videos [dQw4w9WgXcQ].nfo
+        └── …
+```
+
+Beim Umschalten verschiebt TubeVault alle vorhandenen Dateien – danach in Jellyfin/Plex die
+Bibliothek neu scannen (Bibliothekstyp „Serien“ bzw. „Filme“/„Heimvideos“ beim TubeVault-Schema).
+Titel, Kapitel und Beschreibung sind zusätzlich in die Videodatei eingebettet; eigene
+NFO-Dateien anderer Programme überschreibt TubeVault nie.
+
+### Import
+
+**Verwaltung → Import** übernimmt Videos, die schon auf der Platte liegen – aus dem optionalen
+`/import`-Volume oder von unbekannten Dateien unter `/media`. Die YouTube-ID kommt aus einer
+`.info.json` von yt-dlp (dann auch Titel, Kanal, Datum) oder aus dem Dateinamen
+(`Titel [ID].mp4`, `Titel (ID).mp4`, `Titel-ID.mp4`). Fehlende Infos lädt TubeVault von YouTube;
+gibt es ein Video dort nicht mehr, nimmt es den Dateinamen. Thumbnails und Untertitel
+(`.vtt`, `.srt`) neben der Datei werden mitgenommen, fehlende Thumbnails erzeugt ffmpeg.
 
 ### Abos
 
@@ -416,6 +454,9 @@ example.com {
 | Downloads scheitern mit „not a bot“ / HTTP 429 | YouTube bremst. TubeVault versucht es automatisch später erneut (Backoff bis 6 h) |
 | Video spielt nicht ab (MKV) | Safari/iOS können kein MKV – Format in den Einstellungen auf MP4 stellen |
 | „App installieren“ fehlt | Android/Desktop verlangen HTTPS – TubeVault hinter einen Reverse Proxy mit Zertifikat stellen |
+| Hardware-Test meldet einen Fehler | `/dev/dri` (Intel/AMD) bzw. die NVIDIA-GPU im Compose-File freigeben; die Meldung im Test nennt den Grund. Ohne GPU wandelt TubeVault in Software um |
+| Umgewandelte Videos ruckeln | Die CPU schafft die Qualität nicht in Echtzeit – Hardware-Beschleunigung einschalten oder im Player eine kleinere Qualität wählen |
+| yt-dlp ist zu alt | **Verwaltung → yt-dlp → Jetzt aktualisieren**, danach **Neu starten** |
 | Logs | `docker logs tubevault` oder `config/logs/tubevault.log` |
 
 ## Entwicklung
@@ -443,8 +484,9 @@ Aufbau:
 ```
 backend/app/
   routers/    HTTP- und WebSocket-Endpunkte
-  services/   yt-dlp, Bibliothek/Dateinamen, Abos, Suche, SponsorBlock, Auth
-  workers/    Download-Queue, Abo-Scheduler
+  services/   yt-dlp, Bibliothek/Dateinamen, Abos, Suche, SponsorBlock, Transcoding,
+              NFO, Import, Auth/Tokens
+  workers/    Download-Queue, Abo-Scheduler, Transcoder, Bibliotheksaufgaben
   models/     SQLAlchemy-Modelle, migrations/ (Alembic)
 frontend/src/
   pages/ components/ hooks/ api/ lib/
@@ -458,7 +500,8 @@ und veröffentlicht ein Release.
 ## Datenschutz
 
 TubeVault sendet keine Telemetrie und lädt keine externen Skripte oder Schriften. Verbindungen
-nach außen gehen nur zu YouTube (Downloads), zu PyPI (yt-dlp-Update beim Start, abschaltbar)
+nach außen gehen nur zu YouTube (Downloads), zu PyPI (yt-dlp-Update beim Start und auf
+Knopfdruck in der Verwaltung, abschaltbar)
 und – nur wenn du es einschaltest – zu SponsorBlock. Dabei verlassen nur die ersten vier
 Zeichen eines SHA-256-Hashes der Video-ID den Server; SponsorBlock erfährt also nicht, welches
 Video du schaust.
