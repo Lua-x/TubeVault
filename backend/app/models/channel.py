@@ -29,3 +29,11 @@ class Channel(Base):
     updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
 
     videos: Mapped[list[Video]] = relationship(back_populates="channel")
+
+    @property
+    def has_avatar(self) -> bool:
+        return bool(self.avatar_path)
+
+    @property
+    def has_banner(self) -> bool:
+        return bool(self.banner_path)

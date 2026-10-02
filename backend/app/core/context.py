@@ -10,7 +10,10 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.config import Settings
 from app.core.events import EventBus
 from app.services.auth import LoginThrottle
+from app.services.catalog import Catalog
+from app.services.subscriptions import SubscriptionChecker
 from app.workers.download_manager import DownloadManager
+from app.workers.scheduler import SubscriptionScheduler
 
 
 @dataclass
@@ -20,4 +23,7 @@ class AppContext:
     sessions: sessionmaker[Session]
     events: EventBus
     downloads: DownloadManager
+    catalog: Catalog
+    checker: SubscriptionChecker
+    scheduler: SubscriptionScheduler
     login_throttle: LoginThrottle = field(default_factory=LoginThrottle)

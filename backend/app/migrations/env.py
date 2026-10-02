@@ -1,13 +1,22 @@
 from __future__ import annotations
 
+import warnings
+
 from alembic import context
 from sqlalchemy import Connection, engine_from_config, pool
+from sqlalchemy.exc import SAWarning
 
 import app.models  # noqa: F401 – registers all tables
 from app.config import Settings
 from app.db import Base
 
 config = context.config
+
+# SQLite batch migrations reflect related tables; the case-insensitive username index is
+# an expression index SQLAlchemy cannot reflect. It is recreated unchanged, so stay quiet.
+warnings.filterwarnings(
+    "ignore", message="Skipped unsupported reflection of expression-based index", category=SAWarning
+)
 target_metadata = Base.metadata
 
 

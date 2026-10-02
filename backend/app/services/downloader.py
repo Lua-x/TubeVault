@@ -225,6 +225,10 @@ class _YtDlpLogger:
         ytdlp_log.warning(msg)
 
 
+def ytdlp_logger() -> _YtDlpLogger:
+    return _YtDlpLogger()
+
+
 class _ProgressTracker:
     """Combines the separate video and audio downloads into one overall progress."""
 
@@ -282,7 +286,7 @@ class YtDlpDownloader:
 
     def _base_options(self) -> dict[str, Any]:
         return {
-            "logger": _YtDlpLogger(),
+            "logger": ytdlp_logger(),
             "quiet": True,
             "noprogress": True,
             "noplaylist": True,

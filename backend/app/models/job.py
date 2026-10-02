@@ -11,6 +11,7 @@ from app.db import Base, utcnow
 from app.models.video import str_enum
 
 if TYPE_CHECKING:
+    from app.models.subscription import Subscription
     from app.models.video import Video
 
 
@@ -21,6 +22,7 @@ class JobStatus(enum.StrEnum):
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
+    SKIPPED = "skipped"  # excluded by a subscription filter after reading the metadata
 
 
 class JobStage(enum.StrEnum):
@@ -38,6 +40,12 @@ class ErrorKind(enum.StrEnum):
 
 
 ACTIVE_JOB_STATUSES = (JobStatus.QUEUED, JobStatus.RUNNING, JobStatus.PAUSED)
+FINISHED_JOB_STATUSES = (
+    JobStatus.COMPLETED,
+    JobStatus.FAILED,
+    JobStatus.CANCELLED,
+    JobStatus.SKIPPED,
+)
 
 
 class DownloadJob(Base):
@@ -67,8 +75,12 @@ class DownloadJob(Base):
     # Per-job overrides of the download settings (container, max height, …).
     options: Mapped[dict[str, Any]] = mapped_column(default=dict)
     requested_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    subscription_id: Mapped[int | None] = mapped_column(
+        ForeignKey("subscriptions.id", ondelete="SET NULL"), index=True
+    )
     created_at: Mapped[datetime] = mapped_column(default=utcnow, index=True)
     started_at: Mapped[datetime | None]
     finished_at: Mapped[datetime | None]
 
     video: Mapped[Video | None] = relationship()
+    subscription: Mapped[Subscription | None] = relationship()

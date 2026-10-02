@@ -45,6 +45,8 @@ class Video(Base):
     duration_s: Mapped[int | None]
     is_short: Mapped[bool] = mapped_column(default=False)
     was_live: Mapped[bool] = mapped_column(default=False)
+    # Added by hand (not only through a subscription): never removed by cleanup.
+    manual: Mapped[bool] = mapped_column(default=False)
     view_count: Mapped[int | None] = mapped_column(BigInteger)
     status: Mapped[VideoStatus] = mapped_column(
         str_enum(VideoStatus), default=VideoStatus.PENDING, index=True

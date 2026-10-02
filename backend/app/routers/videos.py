@@ -13,6 +13,7 @@ from app.models import ACTIVE_JOB_STATUSES, Channel, DownloadJob, Video, VideoSt
 from app.schemas.common import Page
 from app.schemas.jobs import JobOut
 from app.schemas.videos import AddVideoRequest, VideoDetail, VideoSummary
+from app.services.subscriptions import mark_video_removed
 from app.services.videos import delete_video_files, video_file_exists
 from app.services.youtube_urls import InvalidVideoUrlError, parse_video_url
 from app.workers.download_manager import load_job
@@ -87,6 +88,10 @@ def add_video(body: AddVideoRequest, user: CurrentUser, db: DbSession, ctx: Cont
         and existing.status is VideoStatus.READY
         and video_file_exists(ctx.settings.media_dir, existing)
     ):
+        if not existing.manual:
+            # Added by hand on purpose: keep it even when a subscription cleans up.
+            existing.manual = True
+            db.commit()
         raise HTTPException(status.HTTP_409_CONFLICT, "Dieses Video ist bereits in der Bibliothek.")
     active = db.scalar(
         select(DownloadJob).where(
@@ -136,6 +141,8 @@ def delete_video(
         db.delete(job)
     if delete_files:
         delete_video_files(ctx.settings.media_dir, video)
+    # Subscriptions must not download it again.
+    mark_video_removed(db, video.id, "Gelöscht")
     db.delete(video)
     db.commit()
     ctx.events.publish("video.deleted", video_id=video_id)

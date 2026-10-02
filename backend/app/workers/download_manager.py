@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from datetime import UTC, datetime
@@ -21,10 +21,20 @@ from sqlalchemy.orm import Session, selectinload, sessionmaker
 from app.config import Settings
 from app.core.errors import classify_error, clean_message, is_retryable, retry_delay
 from app.core.events import EventBus
-from app.models import DownloadJob, JobStage, JobStatus, Subtitle, Video, VideoStatus
+from app.models import (
+    ACTIVE_JOB_STATUSES,
+    DownloadJob,
+    ItemState,
+    JobStage,
+    JobStatus,
+    Subscription,
+    Subtitle,
+    Video,
+    VideoStatus,
+)
 from app.schemas.jobs import JobOut
 from app.schemas.videos import VideoSummary
-from app.services.app_settings import DownloadOptions, load_app_settings
+from app.services.app_settings import DownloadOptions, load_app_settings, queue_paused
 from app.services.downloader import (
     DownloadCancelledError,
     Downloader,
@@ -34,6 +44,7 @@ from app.services.downloader import (
 )
 from app.services.languages import subtitle_label
 from app.services.library import relative_to_media, video_base_path
+from app.services.subscriptions import FilterRules, update_items_for_job
 from app.services.videos import upsert_video, video_file_exists
 
 log = logging.getLogger(__name__)
@@ -59,7 +70,10 @@ def load_job(db: Session, job_id: int) -> DownloadJob | None:
     return db.scalar(
         select(DownloadJob)
         .where(DownloadJob.id == job_id)
-        .options(selectinload(DownloadJob.video).selectinload(Video.channel))
+        .options(
+            selectinload(DownloadJob.video).selectinload(Video.channel),
+            selectinload(DownloadJob.subscription),
+        )
     )
 
 
@@ -71,12 +85,14 @@ class DownloadManager:
         events: EventBus,
         downloader: Downloader,
         poll_interval: float = 2.0,
+        on_subscription_download: Callable[[], None] | None = None,
     ) -> None:
         self._settings = settings
         self._sessions = session_factory
         self._events = events
         self._downloader = downloader
         self._poll_interval = poll_interval
+        self.on_subscription_download = on_subscription_download
         self._executor: ThreadPoolExecutor | None = None
         self._thread: threading.Thread | None = None
         self._wake = threading.Event()
@@ -84,6 +100,8 @@ class DownloadManager:
         self._lock = threading.Lock()
         self._db_lock = threading.Lock()
         self._running: dict[int, threading.Event] = {}
+        # Why a running job was interrupted: "cancel", "pause" or "requeue".
+        self._stop_reasons: dict[int, str] = {}
 
     # --- lifecycle --------------------------------------------------------------
 
@@ -111,12 +129,26 @@ class DownloadManager:
         self._wake.set()
 
     def cancel(self, job_id: int) -> bool:
-        """Signal a running job to stop. Returns False if the job is not running here."""
+        """Stop a running job for good. Returns False if the job is not running here."""
+        return self._interrupt(job_id, "cancel")
+
+    def pause(self, job_id: int) -> bool:
+        """Stop a running job but keep its partial files, so it can resume later."""
+        return self._interrupt(job_id, "pause")
+
+    def requeue_running(self) -> int:
+        """Put every running job back into the queue (used when the queue is paused)."""
         with self._lock:
-            cancel = self._running.get(job_id)
-        if cancel is None:
-            return False
-        cancel.set()
+            job_ids = list(self._running)
+        return sum(self._interrupt(job_id, "requeue") for job_id in job_ids)
+
+    def _interrupt(self, job_id: int, reason: str) -> bool:
+        with self._lock:
+            event = self._running.get(job_id)
+            if event is None:
+                return False
+            self._stop_reasons[job_id] = reason
+        event.set()
         return True
 
     def is_running(self, job_id: int) -> bool:
@@ -148,6 +180,18 @@ class DownloadManager:
             db.commit()
             if count:
                 log.info("%d unterbrochene Downloads wieder eingereiht", count)
+            active = set(
+                db.scalars(
+                    select(DownloadJob.id).where(DownloadJob.status.in_(ACTIVE_JOB_STATUSES))
+                )
+            )
+        # Partial downloads of jobs that no longer exist.
+        temp_root = self._settings.temp_dir
+        if temp_root.is_dir():
+            for path in temp_root.iterdir():
+                name = path.name
+                if name.startswith("job-") and name[4:].isdigit() and int(name[4:]) not in active:
+                    cleanup_temp(path)
 
     def _loop(self) -> None:
         while not self._stop.is_set():
@@ -162,6 +206,8 @@ class DownloadManager:
         if self._executor is None:
             return
         with self._session() as db:
+            if queue_paused(db):
+                return
             limit = load_app_settings(db).max_concurrent_downloads
             free = limit - self.active_count
             if free <= 0:
@@ -218,18 +264,26 @@ class DownloadManager:
                 return
             url = job.url
             requested_by = job.requested_by_id
+            manual = job.subscription_id is None
             options = DownloadOptions.model_validate(
                 load_app_settings(db).downloads.model_dump() | (job.options or {})
             )
+            sub = db.get(Subscription, job.subscription_id) if job.subscription_id else None
+            rules = FilterRules.of(sub) if sub else None
         temp_dir = self._settings.temp_dir / f"job-{job_id}"
 
         try:
             meta = self._downloader.fetch_metadata(url)
             if cancel.is_set():
                 raise DownloadCancelledError
+            if rules is not None and (reason := rules.metadata_reason(meta)):
+                self._skip(job_id, meta.youtube_id, reason)
+                return
 
             with self._db_lock, self._session() as db:
                 video = upsert_video(db, meta, requested_by)
+                if manual:
+                    video.manual = True
                 job = db.get(DownloadJob, job_id)
                 assert job is not None
                 job.video_id = video.id
@@ -311,34 +365,62 @@ class DownloadManager:
         job.error_kind = None
         job.error_message = note
         job.finished_at = utcnow()
+        update_items_for_job(db, job.id, ItemState.DOWNLOADED, video_id=video.id)
         db.commit()
         log.info("Download fertig: %s (%s)", video.title, video.youtube_id)
+        if job.subscription_id and self.on_subscription_download:
+            self.on_subscription_download()
         self._publish_job(db, job.id)
         db.refresh(video)
         self._events.publish("video.updated", video=video_payload(video))
 
-    def _handle_cancel(self, job_id: int, temp_dir: Any) -> None:
-        shutting_down = self._stop.is_set()
+    def _skip(self, job_id: int, youtube_id: str, reason: str) -> None:
         with self._session() as db:
             job = db.get(DownloadJob, job_id)
             if job is None:
                 return
-            if shutting_down:
-                # Not the user's doing: resume after the restart.
-                job.status = JobStatus.QUEUED
-                job.attempts = max(job.attempts - 1, 0)
-            else:
+            job.status = JobStatus.SKIPPED
+            job.youtube_id = youtube_id
+            job.stage = None
+            job.error_kind = None
+            job.error_message = reason
+            job.finished_at = utcnow()
+            update_items_for_job(db, job_id, ItemState.FILTERED, reason=reason)
+            db.commit()
+            log.info("Download %s übersprungen: %s", job_id, reason)
+            self._publish_job(db, job_id)
+
+    def _handle_cancel(self, job_id: int, temp_dir: Any) -> None:
+        with self._lock:
+            reason = self._stop_reasons.pop(job_id, None)
+        if self._stop.is_set():
+            reason = "requeue"  # shutting down: resume after the restart
+        reason = reason or "cancel"
+        with self._session() as db:
+            job = db.get(DownloadJob, job_id)
+            if job is None:
+                return
+            if reason == "cancel":
                 job.status = JobStatus.CANCELLED
                 job.finished_at = utcnow()
+                update_items_for_job(db, job_id, ItemState.REMOVED, reason="Abgebrochen")
+            else:
+                # Paused or re-queued: keep the partial files and don't count the attempt.
+                job.status = JobStatus.PAUSED if reason == "pause" else JobStatus.QUEUED
+                job.attempts = max(job.attempts - 1, 0)
             job.stage = None
             job.speed = None
             job.eta = None
-            self._reset_video(db, job, VideoStatus.PENDING if shutting_down else VideoStatus.FAILED)
+            self._reset_video(
+                db, job, VideoStatus.FAILED if reason == "cancel" else VideoStatus.PENDING
+            )
             db.commit()
             self._publish_job(db, job_id)
-        if not shutting_down:
+        if reason == "cancel":
             cleanup_temp(temp_dir)
             log.info("Download %s abgebrochen", job_id)
+        else:
+            log.info("Download %s %s", job_id, "pausiert" if reason == "pause" else "eingereiht")
 
     def _handle_error(self, job_id: int, exc: Exception, temp_dir: Any) -> None:
         kind = classify_error(exc)
@@ -370,6 +452,7 @@ class DownloadManager:
                 job.status = JobStatus.FAILED
                 job.finished_at = utcnow()
                 self._reset_video(db, job, VideoStatus.FAILED)
+                update_items_for_job(db, job_id, ItemState.FAILED, reason=message[:255])
                 log.error("Download %s endgültig fehlgeschlagen (%s): %s", job_id, kind, message)
                 cleanup_temp(temp_dir)
             db.commit()

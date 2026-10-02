@@ -55,7 +55,7 @@ def test_invalid_urls(admin: TestClient) -> None:
         "/api/videos", json={"url": "https://www.youtube.com/playlist?list=PL123"}
     )
     assert playlist.status_code == 400
-    assert "Playlists" in playlist.json()["detail"]
+    assert "Abos" in playlist.json()["detail"]
 
 
 def test_network_error_is_retried(admin: TestClient, downloader: FakeDownloader) -> None:

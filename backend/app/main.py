@@ -21,10 +21,24 @@ from app.core.security import CSRF_HEADER
 from app.db import make_engine, make_session_factory
 from app.logging_setup import setup_logging
 from app.migrate import run_migrations
-from app.routers import auth, downloads, media, settings, system, users, videos, ws
+from app.routers import (
+    auth,
+    channels,
+    downloads,
+    media,
+    settings,
+    subscriptions,
+    system,
+    users,
+    videos,
+    ws,
+)
 from app.services.auth import bootstrap_admin, purge_expired_sessions
+from app.services.catalog import Catalog, YtDlpCatalog
 from app.services.downloader import Downloader, YtDlpDownloader
+from app.services.subscriptions import SubscriptionChecker
 from app.workers.download_manager import DownloadManager
+from app.workers.scheduler import SubscriptionScheduler
 
 log = logging.getLogger(__name__)
 
@@ -112,7 +126,18 @@ class ImmutableStaticFiles(StaticFiles):
 
 def _api_router() -> APIRouter:
     api = APIRouter(prefix="/api")
-    for module in (system, auth, users, videos, media, downloads, settings, ws):
+    for module in (
+        system,
+        auth,
+        users,
+        videos,
+        media,
+        channels,
+        subscriptions,
+        downloads,
+        settings,
+        ws,
+    ):
         api.include_router(module.router)
     return api
 
@@ -166,8 +191,10 @@ def init_storage(settings: Settings) -> None:
 def create_app(
     settings: Settings | None = None,
     downloader: Downloader | None = None,
+    catalog: Catalog | None = None,
     *,
     configure_logging: bool = True,
+    scheduler_poll_interval: float = 30.0,
 ) -> FastAPI:
     settings = settings or Settings()
     init_storage(settings)
@@ -182,19 +209,36 @@ def create_app(
         purge_expired_sessions(db)
 
     events = EventBus()
+    catalog = catalog or YtDlpCatalog()
     manager = DownloadManager(settings, sessions, events, downloader or YtDlpDownloader())
+    checker = SubscriptionChecker(
+        settings, sessions, events, catalog, on_jobs_created=lambda _ids: manager.wake()
+    )
+    scheduler = SubscriptionScheduler(
+        settings, sessions, events, checker, poll_interval=scheduler_poll_interval
+    )
+    manager.on_subscription_download = scheduler.request_cleanup
     ctx = AppContext(
-        settings=settings, engine=engine, sessions=sessions, events=events, downloads=manager
+        settings=settings,
+        engine=engine,
+        sessions=sessions,
+        events=events,
+        downloads=manager,
+        catalog=catalog,
+        checker=checker,
+        scheduler=scheduler,
     )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         events.bind(asyncio.get_running_loop())
         manager.start()
+        scheduler.start()
         log.info("TubeVault %s läuft auf Port %s%s", __version__, settings.port, settings.base_path)
         try:
             yield
         finally:
+            await asyncio.to_thread(scheduler.stop)
             await asyncio.to_thread(manager.stop)
             engine.dispose()
 

@@ -15,6 +15,9 @@ class ChannelOut(ApiModel):
     name: str
     handle: str | None
     url: str | None
+    has_avatar: bool
+    has_banner: bool
+    updated_at: datetime
 
 
 class SubtitleOut(ApiModel):

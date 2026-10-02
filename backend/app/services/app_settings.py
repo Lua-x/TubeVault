@@ -41,6 +41,23 @@ class AppSettings(BaseModel):
     max_concurrent_downloads: int = Field(default=2, ge=1, le=5)
 
 
+QUEUE_PAUSED_KEY = "queue_paused"
+
+
+def queue_paused(db: Session) -> bool:
+    row = db.get(Setting, QUEUE_PAUSED_KEY)
+    return bool(row and row.value)
+
+
+def set_queue_paused(db: Session, paused: bool) -> None:
+    row = db.get(Setting, QUEUE_PAUSED_KEY)
+    if row is None:
+        db.add(Setting(key=QUEUE_PAUSED_KEY, value=paused))
+    else:
+        row.value = paused
+    db.commit()
+
+
 def load_app_settings(db: Session) -> AppSettings:
     row = db.get(Setting, SETTINGS_KEY)
     if row is None or not isinstance(row.value, dict):

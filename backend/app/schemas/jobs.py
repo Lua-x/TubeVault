@@ -7,6 +7,11 @@ from app.schemas.common import ApiModel
 from app.schemas.videos import VideoSummary
 
 
+class JobSubscription(ApiModel):
+    id: int
+    title: str
+
+
 class JobOut(ApiModel):
     id: int
     url: str
@@ -27,3 +32,4 @@ class JobOut(ApiModel):
     started_at: datetime | None
     finished_at: datetime | None
     video: VideoSummary | None
+    subscription: JobSubscription | None
