@@ -20,6 +20,7 @@ import { NotFoundPage } from "@/pages/NotFoundPage";
 import { PlaylistPage } from "@/pages/PlaylistPage";
 import { PlaylistsPage } from "@/pages/PlaylistsPage";
 import { SearchPage } from "@/pages/SearchPage";
+import { SharePage } from "@/pages/SharePage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { SetupPage } from "@/pages/SetupPage";
 import { SubscriptionPage } from "@/pages/SubscriptionPage";
@@ -51,6 +52,7 @@ function AnimatedRoutes() {
           <Route path="/subscriptions/:id" element={<SubscriptionPage />} />
           <Route path="/downloads" element={<DownloadsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/add" element={<SharePage />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/admin/import" element={<ImportPage />} />
           <Route path="*" element={<NotFoundPage />} />

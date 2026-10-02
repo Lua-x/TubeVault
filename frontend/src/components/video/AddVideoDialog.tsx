@@ -23,8 +23,14 @@ const QUALITIES: { value: string; label: string }[] = [
   { value: "480", label: "Bis 480p" },
 ];
 
-export function AddVideoDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [url, setUrl] = useState("");
+interface AddVideoDialogProps {
+  open: boolean;
+  onClose: () => void;
+  initialUrl?: string;
+}
+
+export function AddVideoDialog({ open, onClose, initialUrl }: AddVideoDialogProps) {
+  const [url, setUrl] = useState(initialUrl ?? "");
   const [advanced, setAdvanced] = useState(false);
   const [container, setContainer] = useState<ContainerChoice>("default");
   const [quality, setQuality] = useState("");

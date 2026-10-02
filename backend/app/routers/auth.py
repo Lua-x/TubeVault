@@ -6,7 +6,14 @@ import threading
 
 from fastapi import APIRouter, HTTPException, Request, Response, status
 
-from app.core.deps import AppConfig, Context, CurrentUser, DbSession, get_optional_user
+from app.core.deps import (
+    AppConfig,
+    Context,
+    CurrentUser,
+    DbSession,
+    SessionUser,
+    get_optional_user,
+)
 from app.core.security import (
     SESSION_COOKIE,
     hash_password,
@@ -14,16 +21,20 @@ from app.core.security import (
     needs_rehash,
     verify_password,
 )
-from app.models import UserSession
+from app.models import ApiToken, UserSession
 from app.schemas.auth import (
     AuthStatus,
     Credentials,
     PasswordChange,
     Preferences,
     SetupRequest,
+    TokenCreate,
+    TokenCreated,
+    TokenOut,
     UserOut,
 )
 from app.services import auth as auth_service
+from app.services.tokens import create_token
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -115,7 +126,7 @@ def update_preferences(body: Preferences, user: CurrentUser, db: DbSession) -> U
 
 @router.post("/me/password", status_code=status.HTTP_204_NO_CONTENT)
 def change_password(
-    body: PasswordChange, request: Request, user: CurrentUser, db: DbSession
+    body: PasswordChange, request: Request, user: SessionUser, db: DbSession
 ) -> None:
     if not verify_password(user.password_hash, body.current_password):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Das aktuelle Passwort ist falsch.")
@@ -126,4 +137,29 @@ def change_password(
     for session in list(user.sessions):
         if session.id != current_id:
             db.delete(session)
+    db.commit()
+
+
+# --- API tokens -------------------------------------------------------------------------
+
+
+@router.get("/tokens")
+def list_tokens(user: SessionUser, db: DbSession) -> list[TokenOut]:
+    tokens = db.query(ApiToken).filter_by(user_id=user.id).order_by(ApiToken.created_at.desc())
+    return [TokenOut.model_validate(t) for t in tokens]
+
+
+@router.post("/tokens", status_code=status.HTTP_201_CREATED)
+def new_token(body: TokenCreate, user: SessionUser, db: DbSession) -> TokenCreated:
+    token, raw = create_token(db, user, body.name, body.scope, body.expires_days)
+    created = TokenOut.model_validate(token).model_dump()
+    return TokenCreated.model_validate({**created, "token": raw})
+
+
+@router.delete("/tokens/{token_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_token(token_id: int, user: SessionUser, db: DbSession) -> None:
+    token = db.get(ApiToken, token_id)
+    if token is None or token.user_id != user.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Token nicht gefunden")
+    db.delete(token)
     db.commit()

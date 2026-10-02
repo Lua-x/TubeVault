@@ -61,3 +61,32 @@ class UserOut(ApiModel):
 class AuthStatus(BaseModel):
     setup_required: bool
     user: UserOut | None
+
+
+class TokenCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    scope: Literal["read", "full"] = "read"
+    expires_days: int | None = Field(default=None, ge=1, le=3650)
+
+    @field_validator("name")
+    @classmethod
+    def _strip(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Bitte einen Namen angeben")
+        return value
+
+
+class TokenOut(ApiModel):
+    id: int
+    name: str
+    prefix: str
+    scope: str
+    created_at: datetime
+    last_used_at: datetime | None
+    expires_at: datetime | None
+
+
+class TokenCreated(TokenOut):
+    # Shown exactly once; only a hash is stored.
+    token: str

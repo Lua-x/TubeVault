@@ -1,7 +1,10 @@
 import { createContext, useContext } from "react";
 
-export const AddVideoContext = createContext<() => void>(() => undefined);
+/** Opens the "add video" dialog, optionally with a link filled in. */
+export type OpenAddVideo = (url?: unknown) => void;
 
-export function useOpenAddVideo(): () => void {
+export const AddVideoContext = createContext<OpenAddVideo>(() => undefined);
+
+export function useOpenAddVideo(): OpenAddVideo {
   return useContext(AddVideoContext);
 }

@@ -51,17 +51,39 @@ def user_from_token(db: Session, token: str | None, settings: Settings) -> User 
     return session.user
 
 
+READ_ONLY_METHODS = {"GET", "HEAD", "OPTIONS"}
+
+
 def get_optional_user(
     request: Request,
     db: Annotated[Session, Depends(get_db)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> User | None:
+    authorization = request.headers.get("authorization", "")
+    if authorization.lower().startswith("bearer "):
+        # An API token replaces the cookie completely, never falls back to it.
+        from app.services.tokens import verify_token
+
+        token = verify_token(db, authorization[7:].strip())
+        if token is None:
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Ungültiges oder abgelaufenes Token")
+        if token.scope != "full" and request.method not in READ_ONLY_METHODS:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Dieses Token darf nur lesen")
+        request.state.api_token = token
+        return token.user
     return user_from_token(db, request.cookies.get(SESSION_COOKIE), settings)
 
 
 def get_current_user(user: Annotated[User | None, Depends(get_optional_user)]) -> User:
     if user is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Nicht angemeldet")
+    return user
+
+
+def require_session(request: Request, user: Annotated[User, Depends(get_current_user)]) -> User:
+    """Account actions (tokens, password) need a real login, not an API token."""
+    if getattr(request.state, "api_token", None) is not None:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Nur nach Anmeldung im Browser möglich")
     return user
 
 
@@ -77,6 +99,7 @@ def websocket_user(websocket: WebSocket, db: Session, settings: Settings) -> Use
 
 DbSession = Annotated[Session, Depends(get_db)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
+SessionUser = Annotated[User, Depends(require_session)]
 AdminUser = Annotated[User, Depends(require_admin)]
 Context = Annotated[AppContext, Depends(get_context)]
 AppConfig = Annotated[Settings, Depends(get_settings)]

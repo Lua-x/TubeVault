@@ -4,9 +4,11 @@ import { api } from "@/lib/api";
 import { apiUrl } from "@/lib/base";
 import type {
   AdminOverview,
+  ApiToken,
   AppSettings,
   ChannelCard,
   ChannelDetail,
+  CreatedApiToken,
   Container,
   HardwareInfo,
   HomeFeed,
@@ -30,6 +32,7 @@ import type {
   SubscriptionDetail,
   SubscriptionSettings,
   SystemInfo,
+  TokenScope,
   TranscodeSession,
   User,
   VideoDetail,
@@ -531,5 +534,28 @@ export function useRestart() {
 export function useMaintenance() {
   return useMutation({
     mutationFn: (action: MaintenanceAction) => api.post<LibraryTask>(`admin/maintenance/${action}`),
+  });
+}
+
+// --- API tokens ----------------------------------------------------------------------
+
+export function useTokens() {
+  return useQuery({ queryKey: ["tokens"], queryFn: () => api.get<ApiToken[]>("auth/tokens") });
+}
+
+export function useCreateToken() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { name: string; scope: TokenScope; expires_days: number | null }) =>
+      api.post<CreatedApiToken>("auth/tokens", body),
+    onSuccess: () => client.invalidateQueries({ queryKey: ["tokens"] }),
+  });
+}
+
+export function useDeleteToken() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.delete(`auth/tokens/${id}`),
+    onSuccess: () => client.invalidateQueries({ queryKey: ["tokens"] }),
   });
 }

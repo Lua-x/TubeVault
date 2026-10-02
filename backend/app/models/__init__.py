@@ -12,12 +12,13 @@ from app.models.job import (
 from app.models.library import Playlist, PlaylistItem, SponsorSegment, WatchProgress
 from app.models.setting import Setting
 from app.models.subscription import ItemState, Subscription, SubscriptionItem, SubscriptionKind
-from app.models.user import User, UserSession
+from app.models.user import ApiToken, User, UserSession
 from app.models.video import Subtitle, Video, VideoStatus
 
 __all__ = [
     "ACTIVE_JOB_STATUSES",
     "FINISHED_JOB_STATUSES",
+    "ApiToken",
     "Channel",
     "DownloadJob",
     "ErrorKind",

@@ -45,3 +45,23 @@ class UserSession(Base):
     user_agent: Mapped[str | None] = mapped_column(String(255))
 
     user: Mapped[User] = relationship(back_populates="sessions")
+
+
+class ApiToken(Base):
+    """Personal access token for scripts and shortcuts. Only its SHA-256 hash is stored."""
+
+    __tablename__ = "api_tokens"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(100))
+    # First characters of the token, shown so people can tell their tokens apart.
+    prefix: Mapped[str] = mapped_column(String(16))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    # "read": GET only; "full": everything the user may do (except managing tokens).
+    scope: Mapped[str] = mapped_column(String(16), default="read")
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    last_used_at: Mapped[datetime | None]
+    expires_at: Mapped[datetime | None]
+
+    user: Mapped[User] = relationship()

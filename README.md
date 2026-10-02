@@ -252,6 +252,30 @@ Android und Desktop-Browser bieten das nur über **HTTPS** an (oder auf `localho
 z. B. hinter einem [Reverse Proxy](#reverse-proxy) mit Zertifikat. Gecacht werden nur die
 Oberfläche und ihre Dateien – deine Videos kommen immer live vom Server.
 
+### API und Kurzbefehle
+
+Unter **Einstellungen → API-Tokens** legst du Tokens für Skripte an („Nur lesen“ oder „Voller
+Zugriff“, optional mit Ablaufdatum). Gesendet wird das Token als Header:
+
+```sh
+curl -X POST https://tube.example.com/api/videos \
+  -H "Authorization: Bearer tv_…" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://youtu.be/dQw4w9WgXcQ"}'
+```
+
+Alle Schnittstellen beschreibt die API-Dokumentation unter `/api/docs`. Tokens verwalten oder
+das Passwort ändern geht nur nach Anmeldung im Browser, nicht per Token.
+
+**iPhone/iPad – „Teilen → In TubeVault laden“:** In der App *Kurzbefehle* einen neuen
+Kurzbefehl anlegen, in den Details „Im Share-Sheet anzeigen“ (Eingabe: URLs) einschalten und die
+Aktion **Inhalte von URL abrufen** hinzufügen: URL `https://tube.example.com/api/videos`,
+Methode *POST*, Header `Authorization` = `Bearer tv_…`, Anfragetext *JSON* mit dem Feld `url` =
+*Kurzbefehleingabe*. Danach taucht der Kurzbefehl in der YouTube-App unter *Teilen* auf.
+
+**Android:** Ist TubeVault als App installiert, steht es direkt im Teilen-Menü – der Link landet
+im Dialog „Video hinzufügen“.
+
 ### MP4 oder MKV?
 
 Beides geht – global in den Einstellungen oder pro Video im Dialog „Video hinzufügen“.

@@ -430,3 +430,19 @@ export interface YtDlpInfo {
 }
 
 export type MaintenanceAction = "search-index" | "artwork" | "verify" | "nfo" | "cache";
+
+export type TokenScope = "read" | "full";
+
+export interface ApiToken {
+  id: number;
+  name: string;
+  prefix: string;
+  scope: TokenScope;
+  created_at: string;
+  last_used_at: string | null;
+  expires_at: string | null;
+}
+
+export interface CreatedApiToken extends ApiToken {
+  token: string;
+}

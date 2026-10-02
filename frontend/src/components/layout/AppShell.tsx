@@ -8,9 +8,13 @@ import { Sidebar } from "./Sidebar";
 import { TabBar } from "./TabBar";
 
 export function AppShell({ children }: { children?: ReactNode }) {
-  const [adding, setAdding] = useState(false);
-  const openAdd = useCallback(() => setAdding(true), []);
-  const closeAdd = useCallback(() => setAdding(false), []);
+  const [adding, setAdding] = useState<{ url: string; key: number } | null>(null);
+  // Buttons pass their click event; only strings count as a link to fill in.
+  const openAdd = useCallback(
+    (url?: unknown) => setAdding({ url: typeof url === "string" ? url : "", key: Date.now() }),
+    [],
+  );
+  const closeAdd = useCallback(() => setAdding(null), []);
 
   return (
     <AddVideoContext.Provider value={openAdd}>
@@ -30,7 +34,12 @@ export function AppShell({ children }: { children?: ReactNode }) {
         </div>
       </main>
       <TabBar />
-      <AddVideoDialog open={adding} onClose={closeAdd} />
+      <AddVideoDialog
+        key={adding?.key ?? 0}
+        open={adding != null}
+        initialUrl={adding?.url}
+        onClose={closeAdd}
+      />
     </AddVideoContext.Provider>
   );
 }

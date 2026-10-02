@@ -105,8 +105,10 @@ class SecurityMiddleware:
             return
         path: str = scope["path"]
         if scope["method"] in UNSAFE_METHODS and path.startswith("/api/"):
-            headers = {k.decode().lower() for k, _ in scope.get("headers", [])}
-            if CSRF_HEADER.lower() not in headers:
+            headers = {k.decode().lower(): v for k, v in scope.get("headers", [])}
+            # Bearer tokens aren't sent automatically by browsers, so they can't be forged.
+            bearer = headers.get("authorization", b"").lower().startswith(b"bearer ")
+            if CSRF_HEADER.lower() not in headers and not bearer:
                 response = JSONResponse(
                     {"detail": f"Header {CSRF_HEADER} fehlt"}, status_code=status.HTTP_403_FORBIDDEN
                 )

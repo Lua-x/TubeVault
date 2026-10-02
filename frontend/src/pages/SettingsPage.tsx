@@ -14,6 +14,7 @@ import {
 } from "@/api/queries";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { LibraryGroup, LibraryTaskStatus } from "@/components/settings/LibraryGroup";
+import { TokensGroup } from "@/components/settings/TokensGroup";
 import { TranscodeGroup } from "@/components/settings/TranscodeGroup";
 import { Dialog } from "@/components/ui/Dialog";
 import { Button, IconButton } from "@/components/ui/Button";
@@ -44,6 +45,7 @@ export function SettingsPage() {
         <PlaybackSection />
         {user.is_admin && <DownloadSection />}
         <AccountSection />
+        <TokensGroup />
         {user.is_admin && <UsersSection />}
         <SystemSection />
       </div>
