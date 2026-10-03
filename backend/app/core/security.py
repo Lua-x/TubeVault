@@ -22,7 +22,9 @@ def hash_password(password: str) -> str:
 
 def verify_password(password_hash: str | None, password: str) -> bool:
     try:
-        return _hasher.verify(password_hash or _DUMMY_HASH, password) and password_hash is not None
+        # No hash (unknown user, or an account from the OIDC provider): still spend the
+        # time of a real check, then refuse.
+        return _hasher.verify(password_hash or _DUMMY_HASH, password) and bool(password_hash)
     except (VerifyMismatchError, VerificationError, InvalidHashError):
         return False
 

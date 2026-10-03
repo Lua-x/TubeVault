@@ -17,13 +17,15 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    with op.batch_alter_table("users", schema=None) as batch_op:
-        batch_op.add_column(
-            sa.Column("channel_access", sa.String(length=16), nullable=False, server_default="all")
-        )
-        batch_op.add_column(
-            sa.Column("may_add", sa.Boolean(), nullable=False, server_default=sa.true())
-        )
+    # Plain ADD COLUMN: a batch operation would rebuild the table on SQLite and lose the
+    # expression index on lower(username).
+    op.add_column(
+        "users",
+        sa.Column("channel_access", sa.String(length=16), nullable=False, server_default="all"),
+    )
+    op.add_column(
+        "users", sa.Column("may_add", sa.Boolean(), nullable=False, server_default=sa.true())
+    )
     op.create_table(
         "user_channels",
         sa.Column("user_id", sa.Integer(), nullable=False),

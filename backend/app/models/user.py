@@ -41,6 +41,8 @@ class User(Base):
     channel_access: Mapped[str] = mapped_column(String(16), default="all")  # all | selected
     may_add: Mapped[bool] = mapped_column(default=True)  # add videos, subscribe, downloads
     channels: Mapped[list[Channel]] = relationship(secondary=user_channels)
+    # Linked account at the OpenID Connect provider ("sub" claim).
+    oidc_subject: Mapped[str | None] = mapped_column(String(255), unique=True, index=True)
 
     sessions: Mapped[list[UserSession]] = relationship(
         back_populates="user", cascade="all, delete-orphan", passive_deletes=True
@@ -59,6 +61,15 @@ class User(Base):
     @property
     def can_add(self) -> bool:
         return self.is_admin or (self.may_add and not self.restricted)
+
+    @property
+    def has_password(self) -> bool:
+        """Accounts created through the provider have none until one is set."""
+        return bool(self.password_hash)
+
+    @property
+    def oidc_linked(self) -> bool:
+        return self.oidc_subject is not None
 
     @property
     def two_factor(self) -> bool:

@@ -38,6 +38,23 @@ class Settings(BaseSettings):
 
     ytdlp_auto_update: bool = True
 
+    # Optional login via an OpenID Connect provider (Authelia, Authentik, Keycloak, …).
+    # Configured here rather than in the UI, so the client secret stays out of the
+    # database and backups.
+    public_url: str | None = None  # e.g. https://tube.example.com – for the redirect URI
+    oidc_issuer: str | None = None
+    oidc_client_id: str | None = None
+    oidc_client_secret: str | None = None
+    oidc_name: str = "SSO"  # shown on the button: "Mit … anmelden"
+    oidc_scopes: str = "openid profile email groups"
+    oidc_username_claim: str = "preferred_username"
+    oidc_groups_claim: str = "groups"
+    oidc_admin_group: str | None = None
+    oidc_auto_create: bool = True
+    oidc_token_auth: Literal["client_secret_basic", "client_secret_post"] = "client_secret_basic"
+    # Off: only the provider – keep a way in (reset-password needs the console).
+    password_login: bool = True
+
     @field_validator("base_path")
     @classmethod
     def _normalize_base_path(cls, value: str) -> str:
@@ -48,6 +65,10 @@ class Settings(BaseSettings):
     @classmethod
     def _upper_log_level(cls, value: object) -> object:
         return value.upper() if isinstance(value, str) else value
+
+    @property
+    def oidc_enabled(self) -> bool:
+        return bool(self.oidc_issuer and self.oidc_client_id and self.oidc_client_secret)
 
     @cached_property
     def db_url(self) -> str:

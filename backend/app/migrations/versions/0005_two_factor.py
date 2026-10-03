@@ -19,13 +19,13 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    with op.batch_alter_table("users", schema=None) as batch_op:
-        batch_op.add_column(sa.Column("totp_secret", sa.String(length=64), nullable=True))
-        batch_op.add_column(sa.Column("totp_enabled_at", app.db.UTCDateTime(), nullable=True))
-        batch_op.add_column(sa.Column("totp_last_counter", sa.Integer(), nullable=True))
-        batch_op.add_column(
-            sa.Column("recovery_codes", sa.JSON(), nullable=False, server_default="[]")
-        )
+    # Plain ADD COLUMN (no batch): rebuilding the table would lose the expression index.
+    op.add_column("users", sa.Column("totp_secret", sa.String(length=64), nullable=True))
+    op.add_column("users", sa.Column("totp_enabled_at", app.db.UTCDateTime(), nullable=True))
+    op.add_column("users", sa.Column("totp_last_counter", sa.Integer(), nullable=True))
+    op.add_column(
+        "users", sa.Column("recovery_codes", sa.JSON(), nullable=False, server_default="[]")
+    )
 
 
 def downgrade() -> None:

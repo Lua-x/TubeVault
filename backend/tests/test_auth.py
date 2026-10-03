@@ -99,3 +99,29 @@ def test_preferences_and_password(admin: TestClient) -> None:
     admin.post("/api/auth/logout")
     login = admin.post("/api/auth/login", json={"username": "admin", "password": "neuespasswort"})
     assert login.status_code == 200
+
+
+def test_usernames_stay_unique_regardless_of_case(admin: TestClient) -> None:
+    """Migrations must not rebuild the users table and drop the expression index."""
+    import pytest
+    from sqlalchemy import text
+    from sqlalchemy.exc import IntegrityError
+
+    engine = admin.app.state.ctx.engine  # type: ignore[attr-defined]
+    with engine.connect() as conn:
+        names = {row[0] for row in conn.execute(text("SELECT name FROM sqlite_master"))}
+    assert "ix_users_username_lower" in names
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO users (username, password_hash, is_admin, preferences, created_at) "
+                "VALUES ('Mia', '', 0, '{}', CURRENT_TIMESTAMP)"
+            )
+        )
+    with pytest.raises(IntegrityError), engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO users (username, password_hash, is_admin, preferences, created_at) "
+                "VALUES ('mia', '', 0, '{}', CURRENT_TIMESTAMP)"
+            )
+        )
