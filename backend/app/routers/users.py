@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 
 from app.core.deps import AdminUser, DbSession
 from app.core.security import hash_password
-from app.models import User
+from app.models import Channel, User
 from app.schemas.auth import NewUser, UserOut, UserUpdate
 from app.services import auth as auth_service
 from app.services import two_factor
@@ -30,7 +30,24 @@ def create_user(body: NewUser, _: AdminUser, db: DbSession) -> UserOut:
     if auth_service.find_user(db, body.username):
         raise HTTPException(status.HTTP_409_CONFLICT, "Diesen Benutzernamen gibt es schon.")
     user = auth_service.create_user(db, body.username, body.password, is_admin=body.is_admin)
+    _apply_access(db, user, body.channel_access, body.may_add, body.channel_ids)
+    db.commit()
     return UserOut.model_validate(user)
+
+
+def _apply_access(
+    db: DbSession,
+    user: User,
+    channel_access: str | None,
+    may_add: bool | None,
+    channel_ids: list[int] | None,
+) -> None:
+    if channel_access is not None:
+        user.channel_access = channel_access
+    if may_add is not None:
+        user.may_add = may_add
+    if channel_ids is not None:
+        user.channels = list(db.scalars(select(Channel).where(Channel.id.in_(channel_ids))))
 
 
 @router.patch("/{user_id}")
@@ -48,6 +65,7 @@ def update_user(user_id: int, body: UserUpdate, admin: AdminUser, db: DbSession)
         user.password_hash = hash_password(body.password)
         if user.id != admin.id:
             user.sessions.clear()
+    _apply_access(db, user, body.channel_access, body.may_add, body.channel_ids)
     db.commit()
     return UserOut.model_validate(user)
 

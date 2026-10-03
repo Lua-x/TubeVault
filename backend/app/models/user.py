@@ -3,13 +3,23 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import ForeignKey, Index, String, func
+from sqlalchemy import Column, ForeignKey, Index, String, Table, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base, utcnow
 
 if TYPE_CHECKING:
+    from app.models.channel import Channel
     from app.models.video import Video
+
+
+# Channels a restricted user may see.
+user_channels = Table(
+    "user_channels",
+    Base.metadata,
+    Column("user_id", ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
+    Column("channel_id", ForeignKey("channels.id", ondelete="CASCADE"), primary_key=True),
+)
 
 
 class User(Base):
@@ -27,11 +37,28 @@ class User(Base):
     totp_enabled_at: Mapped[datetime | None]
     totp_last_counter: Mapped[int | None]
     recovery_codes: Mapped[list[str]] = mapped_column(default=list)  # SHA-256 hashes
+    # What the user may see and do. Admins always see everything.
+    channel_access: Mapped[str] = mapped_column(String(16), default="all")  # all | selected
+    may_add: Mapped[bool] = mapped_column(default=True)  # add videos, subscribe, downloads
+    channels: Mapped[list[Channel]] = relationship(secondary=user_channels)
 
     sessions: Mapped[list[UserSession]] = relationship(
         back_populates="user", cascade="all, delete-orphan", passive_deletes=True
     )
     added_videos: Mapped[list[Video]] = relationship(back_populates="added_by")
+
+    @property
+    def restricted(self) -> bool:
+        """Only sees the channels chosen for it (e.g. a kids profile)."""
+        return not self.is_admin and self.channel_access == "selected"
+
+    @property
+    def channel_ids(self) -> list[int]:
+        return sorted(channel.id for channel in self.channels)
+
+    @property
+    def can_add(self) -> bool:
+        return self.is_admin or (self.may_add and not self.restricted)
 
     @property
     def two_factor(self) -> bool:

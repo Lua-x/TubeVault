@@ -2,6 +2,7 @@ import { useCallback, useState, type ReactNode } from "react";
 import { Outlet } from "react-router";
 
 import { AddVideoDialog } from "@/components/video/AddVideoDialog";
+import { useCanAdd } from "@/hooks/auth";
 
 import { AddVideoContext } from "./addVideo";
 import { Sidebar } from "./Sidebar";
@@ -10,9 +11,12 @@ import { TabBar } from "./TabBar";
 export function AppShell({ children }: { children?: ReactNode }) {
   const [adding, setAdding] = useState<{ url: string; key: number } | null>(null);
   // Buttons pass their click event; only strings count as a link to fill in.
+  const canAdd = useCanAdd();
   const openAdd = useCallback(
-    (url?: unknown) => setAdding({ url: typeof url === "string" ? url : "", key: Date.now() }),
-    [],
+    (url?: unknown) => {
+      if (canAdd) setAdding({ url: typeof url === "string" ? url : "", key: Date.now() });
+    },
+    [canAdd],
   );
   const closeAdd = useCallback(() => setAdding(null), []);
 

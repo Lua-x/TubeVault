@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+from typing import Any
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
@@ -37,6 +38,18 @@ def _origin_allowed(websocket: WebSocket) -> bool:
     return origin_host in {_hostname(c) for c in candidates if c.strip()}
 
 
+# What a restricted account (e.g. a kids profile) still hears: that something changed,
+# not what – download and subscription events carry titles from every channel.
+RESTRICTED_EVENTS = {"video.updated", "video.deleted", "channels.updated", "ping"}
+
+
+def event_for(event: dict[str, Any], *, restricted: bool) -> dict[str, Any] | None:
+    if not restricted:
+        return event
+    kind = event.get("type")
+    return {"type": kind} if kind in RESTRICTED_EVENTS else None
+
+
 @router.websocket("/ws")
 async def events_socket(websocket: WebSocket) -> None:
     ctx: AppContext = websocket.app.state.ctx
@@ -44,11 +57,13 @@ async def events_socket(websocket: WebSocket) -> None:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 
-    def authenticate() -> bool:
+    def authenticate() -> tuple[bool, bool]:
         with ctx.sessions() as db:
-            return websocket_user(websocket, db, ctx.settings) is not None
+            user = websocket_user(websocket, db, ctx.settings)
+            return user is not None, bool(user and user.restricted)
 
-    if not await asyncio.to_thread(authenticate):
+    authenticated, restricted = await asyncio.to_thread(authenticate)
+    if not authenticated:
         await websocket.close(code=4401)
         return
 
@@ -61,7 +76,9 @@ async def events_socket(websocket: WebSocket) -> None:
                     event = await asyncio.wait_for(queue.get(), timeout=PING_INTERVAL)
                 except TimeoutError:
                     event = {"type": "ping"}
-                await websocket.send_json(event)
+                visible = event_for(event, restricted=restricted)
+                if visible is not None:
+                    await websocket.send_json(visible)
         except (WebSocketDisconnect, RuntimeError):
             pass
         finally:

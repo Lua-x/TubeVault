@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse, Response
 from sqlalchemy import select
 
 from app.core.deps import AdminUser, AppConfig, Context, CurrentUser, DbSession
-from app.models import Video
+from app.models import User, Video
 from app.routers.media import _media_file, _video
 from app.schemas.playback import (
     HardwareOut,
@@ -42,8 +42,8 @@ router = APIRouter(tags=["playback"])
 HLS_CACHE = "private, max-age=3600"
 
 
-def _source(db: DbSession, settings: AppConfig, video_id: int) -> tuple[Video, Source]:
-    video = _video(db, video_id)
+def _source(db: DbSession, settings: AppConfig, video_id: int, user: User) -> tuple[Video, Source]:
+    video = _video(db, video_id, user)
     path = _media_file(settings.media_dir, video.file_path)
     try:
         info = probe(path)
@@ -69,9 +69,9 @@ def _codec(stored: str | None, probed: str | None) -> str | None:
 
 @router.get("/videos/{video_id}/playback")
 def playback_info(
-    video_id: int, _: CurrentUser, db: DbSession, settings: AppConfig
+    video_id: int, user: CurrentUser, db: DbSession, settings: AppConfig
 ) -> PlaybackInfo:
-    video, source = _source(db, settings, video_id)
+    video, source = _source(db, settings, video_id, user)
     info = source.info
     options = load_app_settings(db).transcoding
     return PlaybackInfo(
@@ -89,10 +89,10 @@ def playback_info(
 
 @router.get("/videos/{video_id}/hls/{quality}/index.m3u8")
 def hls_index(
-    video_id: int, quality: str, _: CurrentUser, db: DbSession, settings: AppConfig
+    video_id: int, quality: str, user: CurrentUser, db: DbSession, settings: AppConfig
 ) -> Response:
     _quality(quality)
-    source = _source(db, settings, video_id)[1]
+    source = _source(db, settings, video_id, user)[1]
     return Response(
         hls_playlist(source.info.duration),
         media_type="application/vnd.apple.mpegurl",
@@ -105,13 +105,13 @@ def hls_segment(
     video_id: int,
     quality: str,
     index: int,
-    _: CurrentUser,
+    user: CurrentUser,
     db: DbSession,
     settings: AppConfig,
     ctx: Context,
 ) -> FileResponse:
     _quality(quality)
-    source = _source(db, settings, video_id)[1]
+    source = _source(db, settings, video_id, user)[1]
     # Don't keep a database transaction open while ffmpeg works.
     db.rollback()
     try:
@@ -133,9 +133,9 @@ def _remux_status(job: RemuxJob | None) -> RemuxStatus:
 
 @router.post("/videos/{video_id}/remux")
 def start_remux(
-    video_id: int, _: CurrentUser, db: DbSession, settings: AppConfig, ctx: Context
+    video_id: int, user: CurrentUser, db: DbSession, settings: AppConfig, ctx: Context
 ) -> RemuxStatus:
-    source = _source(db, settings, video_id)[1]
+    source = _source(db, settings, video_id, user)[1]
     try:
         return _remux_status(ctx.transcoder.remux(source))
     except TranscodeError as exc:
@@ -144,17 +144,17 @@ def start_remux(
 
 @router.get("/videos/{video_id}/remux")
 def remux_status(
-    video_id: int, _: CurrentUser, db: DbSession, settings: AppConfig, ctx: Context
+    video_id: int, user: CurrentUser, db: DbSession, settings: AppConfig, ctx: Context
 ) -> RemuxStatus:
-    source = _source(db, settings, video_id)[1]
+    source = _source(db, settings, video_id, user)[1]
     return _remux_status(ctx.transcoder.remux_status(source))
 
 
 @router.get("/videos/{video_id}/remux.mp4")
 def remux_file(
-    video_id: int, _: CurrentUser, db: DbSession, settings: AppConfig, ctx: Context
+    video_id: int, user: CurrentUser, db: DbSession, settings: AppConfig, ctx: Context
 ) -> FileResponse:
-    source = _source(db, settings, video_id)[1]
+    source = _source(db, settings, video_id, user)[1]
     path = ctx.transcoder.remux_file(source)
     if path is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Noch nicht vorbereitet")

@@ -12,6 +12,7 @@ import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Select } from "@/components/ui/Select";
 import { PageSpinner } from "@/components/ui/Spinner";
 import { VideoGrid, VideoGridSkeleton } from "@/components/video/VideoGrid";
+import { useCanAdd } from "@/hooks/auth";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { channelImageUrl } from "@/lib/media";
 
@@ -22,6 +23,7 @@ export function ChannelPage() {
   const [sort, setSort] = useState<VideoSort>("newest");
   const [watched, setWatched] = useState<WatchedFilter>("all");
   const [subscribing, setSubscribing] = useState(false);
+  const canAdd = useCanAdd();
   const videos = useVideoPages({ channelId, sort, watched });
   const { fetchNextPage } = videos;
   const loadMore = useCallback(() => void fetchNextPage(), [fetchNextPage]);
@@ -82,7 +84,7 @@ export function ChannelPage() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            {channel.subscription_id ? (
+            {!canAdd ? null : channel.subscription_id ? (
               <Link
                 to={`/subscriptions/${channel.subscription_id}`}
                 className="inline-flex h-9 items-center gap-2 rounded-full bg-surface px-4 text-[14px] font-medium transition-colors hover:bg-surface-hover"

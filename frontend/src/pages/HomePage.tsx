@@ -11,6 +11,7 @@ import { PageSpinner } from "@/components/ui/Spinner";
 import { Hero } from "@/components/video/Hero";
 import { Row, RowItem } from "@/components/video/Row";
 import { VideoCard } from "@/components/video/VideoCard";
+import { useCanAdd } from "@/hooks/auth";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import type { VideoSummary } from "@/lib/types";
 
@@ -31,6 +32,7 @@ export function HomePage() {
   useDocumentTitle("Start");
   const { data, isLoading } = useHome();
   const openAdd = useOpenAddVideo();
+  const canAdd = useCanAdd();
   const navigate = useNavigate();
 
   if (isLoading || !data) return <PageSpinner />;
@@ -46,22 +48,25 @@ export function HomePage() {
           icon={<Clapperboard className="size-7" strokeWidth={1.5} />}
           title="Willkommen bei TubeVault"
           action={
-            <div className="flex flex-wrap justify-center gap-3">
-              <Button icon={<Plus className="size-4" strokeWidth={2.25} />} onClick={openAdd}>
-                Video hinzufügen
-              </Button>
-              <Button
-                variant="secondary"
-                icon={<Tv className="size-4" strokeWidth={2} />}
-                onClick={() => navigate("/subscriptions")}
-              >
-                Kanal abonnieren
-              </Button>
-            </div>
+            canAdd && (
+              <div className="flex flex-wrap justify-center gap-3">
+                <Button icon={<Plus className="size-4" strokeWidth={2.25} />} onClick={openAdd}>
+                  Video hinzufügen
+                </Button>
+                <Button
+                  variant="secondary"
+                  icon={<Tv className="size-4" strokeWidth={2} />}
+                  onClick={() => navigate("/subscriptions")}
+                >
+                  Kanal abonnieren
+                </Button>
+              </div>
+            )
           }
         >
-          Füge ein einzelnes Video hinzu oder abonniere einen Kanal – neue Videos erscheinen dann
-          automatisch hier.
+          {canAdd
+            ? "Füge ein einzelnes Video hinzu oder abonniere einen Kanal – neue Videos erscheinen dann automatisch hier."
+            : "Hier erscheinen die Videos, die für dich freigegeben sind."}
         </EmptyState>
       ) : (
         <>

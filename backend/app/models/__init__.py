@@ -12,7 +12,7 @@ from app.models.job import (
 from app.models.library import Playlist, PlaylistItem, SponsorSegment, WatchProgress
 from app.models.setting import Setting
 from app.models.subscription import ItemState, Subscription, SubscriptionItem, SubscriptionKind
-from app.models.user import ApiToken, User, UserSession
+from app.models.user import ApiToken, User, UserSession, user_channels
 from app.models.video import Subtitle, Video, VideoStatus
 
 __all__ = [
@@ -38,4 +38,5 @@ __all__ = [
     "Video",
     "VideoStatus",
     "WatchProgress",
+    "user_channels",
 ]

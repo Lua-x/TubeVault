@@ -2,12 +2,15 @@ import { NavLink, useLocation } from "react-router";
 
 import { cn } from "@/lib/cn";
 
-import { TAB_NAV } from "./navigation";
+import { useAuth } from "@/hooks/auth";
+
+import { navFor, TAB_NAV } from "./navigation";
 import { useActiveDownloadCount } from "./useActiveDownloads";
 
 /** iOS-style tab bar on phones. */
 export function TabBar() {
   const active = useActiveDownloadCount();
+  const { user } = useAuth();
   const { pathname } = useLocation();
   return (
     <nav
@@ -15,7 +18,7 @@ export function TabBar() {
       className="glass pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-separator md:hidden"
     >
       <ul className="mx-auto flex max-w-lg">
-        {TAB_NAV.map(({ to, label, icon: Icon, end, also }) => {
+        {navFor(TAB_NAV, user).map(({ to, label, icon: Icon, end, also }) => {
           const extra = also?.some((path) => pathname.startsWith(path)) ?? false;
           return (
             <li key={to} className="flex-1">

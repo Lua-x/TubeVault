@@ -17,6 +17,7 @@ from app.schemas.playlists import (
     PlaylistOrder,
     PlaylistOut,
 )
+from app.services.access import ensure_visible, visible_videos
 from app.services.presenters import video_summaries
 
 router = APIRouter(prefix="/playlists", tags=["playlists"])
@@ -29,10 +30,10 @@ def _get(db: DbSession, user: User, playlist_id: int) -> Playlist:
     return playlist
 
 
-def _ready_videos(db: DbSession, playlist: Playlist) -> list[Video]:
+def _ready_videos(db: DbSession, playlist: Playlist, user: User) -> list[Video]:
     return list(
         db.scalars(
-            select(Video)
+            visible_videos(select(Video), user)
             .join(PlaylistItem, PlaylistItem.video_id == Video.id)
             .where(PlaylistItem.playlist_id == playlist.id, Video.status == VideoStatus.READY)
             .options(selectinload(Video.channel))
@@ -42,7 +43,7 @@ def _ready_videos(db: DbSession, playlist: Playlist) -> list[Video]:
 
 
 def _out(db: DbSession, user: User, playlist: Playlist, video_id: int | None = None) -> PlaylistOut:
-    videos = _ready_videos(db, playlist)
+    videos = _ready_videos(db, playlist, user)
     out = PlaylistOut.model_validate(playlist)
     out.video_count = len(videos)
     out.duration_s = sum(v.duration_s or 0 for v in videos)
@@ -80,7 +81,7 @@ def create_playlist(body: PlaylistIn, user: CurrentUser, db: DbSession) -> Playl
 def get_playlist(playlist_id: int, user: CurrentUser, db: DbSession) -> PlaylistDetail:
     playlist = _get(db, user, playlist_id)
     detail = PlaylistDetail.model_validate(_out(db, user, playlist).model_dump())
-    detail.videos = video_summaries(db, user.id, _ready_videos(db, playlist))
+    detail.videos = video_summaries(db, user.id, _ready_videos(db, playlist, user))
     return detail
 
 
@@ -106,8 +107,7 @@ def add_item(
     playlist_id: int, body: PlaylistItemIn, user: CurrentUser, db: DbSession
 ) -> PlaylistOut:
     playlist = _get(db, user, playlist_id)
-    if db.get(Video, body.video_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Video nicht gefunden")
+    ensure_visible(user, db.get(Video, body.video_id))
     exists = db.scalar(
         select(PlaylistItem.id).where(
             PlaylistItem.playlist_id == playlist.id, PlaylistItem.video_id == body.video_id

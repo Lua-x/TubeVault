@@ -13,6 +13,7 @@ from app.models import (
     ACTIVE_JOB_STATUSES,
     Channel,
     DownloadJob,
+    User,
     Video,
     VideoStatus,
     WatchProgress,
@@ -30,6 +31,7 @@ from app.schemas.videos import (
     WatchState,
 )
 from app.services import sponsorblock
+from app.services.access import ensure_visible, require_can_add, visible_videos
 from app.services.app_settings import load_app_settings
 from app.services.presenters import video_detail, video_summaries
 from app.services.progress import MIN_RESUME_S, save_progress, set_watched
@@ -46,7 +48,7 @@ SortOrder = Literal["relevance", "added", "newest", "oldest", "title"]
 WatchedFilter = Literal["all", "unwatched", "watched", "in_progress"]
 
 
-def _get_video(db: DbSession, video_id: int) -> Video:
+def _get_video(db: DbSession, video_id: int, user: User) -> Video:
     video = db.scalar(
         select(Video)
         .where(Video.id == video_id)
@@ -56,9 +58,7 @@ def _get_video(db: DbSession, video_id: int) -> Video:
             selectinload(Video.sponsor_segments),
         )
     )
-    if video is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Video nicht gefunden")
-    return video
+    return ensure_visible(user, video)
 
 
 def _watch_filter(query: Select[Any], user_id: int, watched: WatchedFilter) -> Any:
@@ -86,7 +86,7 @@ def list_videos(
     limit: int = Query(default=60, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
 ) -> Page[VideoSummary]:
-    query = select(Video).where(Video.status == VideoStatus.READY)
+    query = visible_videos(select(Video), user).where(Video.status == VideoStatus.READY)
     if channel_id is not None:
         query = query.where(Video.channel_id == channel_id)
     query = _watch_filter(query, user.id, watched)
@@ -126,17 +126,17 @@ def list_videos(
 
 @router.get("/{video_id}")
 def get_video(video_id: int, user: CurrentUser, db: DbSession) -> VideoDetail:
-    return video_detail(db, user.id, _get_video(db, video_id))
+    return video_detail(db, user.id, _get_video(db, video_id, user))
 
 
 @router.get("/{video_id}/segments")
-def sponsor_segments(video_id: int, _: CurrentUser, db: DbSession, ctx: Context) -> SegmentsOut:
+def sponsor_segments(video_id: int, user: CurrentUser, db: DbSession, ctx: Context) -> SegmentsOut:
     """SponsorBlock segments to skip; refreshed from SponsorBlock when they are stale.
 
     Offline (or after a failed fetch) the stored segments are used right away, so the
     video page never waits for the internet.
     """
-    video = _get_video(db, video_id)
+    video = _get_video(db, video_id, user)
     options = load_app_settings(db).downloads
     if (
         options.sponsorblock_mode == "skip"
@@ -168,9 +168,7 @@ def sponsor_segments(video_id: int, _: CurrentUser, db: DbSession, ctx: Context)
 def update_progress(
     video_id: int, body: ProgressUpdate, user: CurrentUser, db: DbSession
 ) -> WatchState:
-    video = db.get(Video, video_id)
-    if video is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Video nicht gefunden")
+    video = ensure_visible(user, db.get(Video, video_id))
     return WatchState.model_validate(
         save_progress(db, user.id, video, body.position_s, body.duration_s)
     )
@@ -180,13 +178,13 @@ def update_progress(
 def update_watched(
     video_id: int, body: WatchedUpdate, user: CurrentUser, db: DbSession
 ) -> WatchState:
-    if db.get(Video, video_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Video nicht gefunden")
+    ensure_visible(user, db.get(Video, video_id))
     return WatchState.model_validate(set_watched(db, user.id, video_id, body.watched))
 
 
 @router.post("", status_code=status.HTTP_202_ACCEPTED)
 def add_video(body: AddVideoRequest, user: CurrentUser, db: DbSession, ctx: Context) -> JobOut:
+    require_can_add(user)
     try:
         url, youtube_id = parse_video_url(body.url)
     except InvalidVideoUrlError as exc:
@@ -232,7 +230,7 @@ def add_video(body: AddVideoRequest, user: CurrentUser, db: DbSession, ctx: Cont
 @router.post("/{video_id}/redownload", status_code=status.HTTP_202_ACCEPTED)
 def redownload(video_id: int, user: AdminUser, db: DbSession, ctx: Context) -> JobOut:
     """Download again with the current settings and replace the file, e.g. in better quality."""
-    video = _get_video(db, video_id)
+    video = _get_video(db, video_id, user)
     if video.status is not VideoStatus.READY or not video_file_exists(
         ctx.settings.media_dir, video
     ):
@@ -253,12 +251,12 @@ def redownload(video_id: int, user: AdminUser, db: DbSession, ctx: Context) -> J
 @router.delete("/{video_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_video(
     video_id: int,
-    _: AdminUser,
+    user: AdminUser,
     db: DbSession,
     ctx: Context,
     delete_files: bool = True,
 ) -> None:
-    video = _get_video(db, video_id)
+    video = _get_video(db, video_id, user)
     active = db.scalars(
         select(DownloadJob).where(
             DownloadJob.video_id == video.id, DownloadJob.status.in_(ACTIVE_JOB_STATUSES)

@@ -1,4 +1,4 @@
-import { ChevronRight, ShieldCheck, Trash2 } from "lucide-react";
+import { ChevronRight, ShieldCheck } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router";
 
@@ -6,11 +6,8 @@ import {
   useAppSettings,
   useChangePassword,
   useCreateUser,
-  useDeleteUser,
-  useResetTwoFactor,
   useSaveSettings,
   useSystemInfo,
-  useUpdateUser,
   useUsers,
 } from "@/api/queries";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -18,8 +15,9 @@ import { LibraryGroup, LibraryTaskStatus } from "@/components/settings/LibraryGr
 import { TokensGroup } from "@/components/settings/TokensGroup";
 import { TranscodeGroup } from "@/components/settings/TranscodeGroup";
 import { TwoFactorGroup } from "@/components/settings/TwoFactorGroup";
+import { UserDialog } from "@/components/settings/UserDialog";
 import { Dialog } from "@/components/ui/Dialog";
-import { Button, IconButton } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
 import { Group, Row } from "@/components/ui/Group";
 import { TextField } from "@/components/ui/Input";
 import { ProgressBar } from "@/components/ui/ProgressBar";
@@ -33,7 +31,14 @@ import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { cn } from "@/lib/cn";
 import { formatBytes } from "@/lib/format";
 import { SPONSOR_CATEGORIES, SPONSORBLOCK_MODES } from "@/lib/sponsorblock";
-import type { AppSettings, MaxHeight, Preferences, SponsorCategory, Theme } from "@/lib/types";
+import type {
+  AppSettings,
+  MaxHeight,
+  Preferences,
+  SponsorCategory,
+  Theme,
+  User,
+} from "@/lib/types";
 
 export function SettingsPage() {
   useDocumentTitle("Einstellungen");
@@ -455,14 +460,23 @@ function AccountSection() {
   );
 }
 
+function accessSummary(user: User): string {
+  const parts: string[] = [];
+  if (user.is_admin) parts.push("Administrator");
+  else if (user.restricted) {
+    const count = user.channel_ids.length;
+    parts.push(`Sieht ${count} ${count === 1 ? "Kanal" : "Kanäle"}`);
+  } else parts.push(user.can_add ? "Alle Kanäle" : "Alle Kanäle · nur schauen");
+  if (user.two_factor) parts.push("Zwei-Faktor an");
+  return parts.join(" · ");
+}
+
 function UsersSection() {
   const me = useCurrentUser();
   const { data: users } = useUsers(true);
   const create = useCreateUser();
-  const update = useUpdateUser();
-  const remove = useDeleteUser();
-  const resetTwoFactor = useResetTwoFactor();
   const toast = useToast();
+  const [editing, setEditing] = useState<User | null>(null);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
@@ -487,67 +501,35 @@ function UsersSection() {
     <div className="flex flex-col gap-4">
       <Group title="Benutzer">
         {(users ?? []).map((user) => (
-          <Row key={user.id} className="flex items-center gap-3">
-            <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-surface text-[13px] font-semibold uppercase">
-              {user.username.slice(0, 1)}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[15px]">
-                {user.username}
-                {user.id === me.id && <span className="text-tertiary"> (du)</span>}
-              </p>
-              {user.two_factor && (
-                <p className="text-[12px] text-secondary">
-                  Zwei-Faktor an
-                  {user.id !== me.id && (
-                    <>
-                      {" · "}
-                      <button
-                        type="button"
-                        className="font-medium text-accent hover:underline"
-                        onClick={() => {
-                          if (
-                            window.confirm(
-                              `Zwei-Faktor-Anmeldung für „${user.username}“ zurücksetzen? Danach reicht das Passwort, bis die Person sie neu einrichtet.`,
-                            )
-                          ) {
-                            resetTwoFactor.mutateAsync(user.id).catch(fail);
-                          }
-                        }}
-                      >
-                        zurücksetzen
-                      </button>
-                    </>
-                  )}
-                </p>
-              )}
-            </div>
-            <label className="flex items-center gap-2 text-[13px] text-secondary">
-              <input
-                type="checkbox"
-                className="size-4 accent-[var(--tv-accent)]"
-                checked={user.is_admin}
-                disabled={user.id === me.id}
-                onChange={(e) =>
-                  update.mutateAsync({ id: user.id, is_admin: e.target.checked }).catch(fail)
-                }
-              />
-              Admin
-            </label>
-            <IconButton
-              label={`${user.username} löschen`}
-              disabled={user.id === me.id}
-              onClick={() => {
-                if (window.confirm(`Benutzer „${user.username}“ wirklich löschen?`)) {
-                  remove.mutateAsync(user.id).catch(fail);
-                }
-              }}
+          <Row key={user.id} className="p-0">
+            <button
+              type="button"
+              onClick={() => setEditing(user)}
+              className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-surface/40"
             >
-              <Trash2 className="size-[18px]" strokeWidth={1.75} />
-            </IconButton>
+              <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-surface text-[13px] font-semibold uppercase">
+                {user.username.slice(0, 1)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[15px]">
+                  {user.username}
+                  {user.id === me.id && <span className="text-tertiary"> (du)</span>}
+                </p>
+                <p className="truncate text-[13px] text-secondary">{accessSummary(user)}</p>
+              </div>
+              <ChevronRight className="size-4 shrink-0 text-tertiary" strokeWidth={2} />
+            </button>
           </Row>
         ))}
       </Group>
+      {editing && (
+        <UserDialog
+          key={editing.id}
+          user={editing}
+          isSelf={editing.id === me.id}
+          onClose={() => setEditing(null)}
+        />
+      )}
       <form onSubmit={submit} className="rounded-2xl bg-elevated p-4">
         <p className="mb-3 text-[15px] font-medium">Neuer Benutzer</p>
         <div className="grid gap-3 sm:grid-cols-2">

@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import type { ReactNode } from "react";
 
 import { IconButton } from "@/components/ui/Button";
+import { useCanAdd } from "@/hooks/auth";
 import { cn } from "@/lib/cn";
 
 import { useOpenAddVideo } from "./addVideo";
@@ -29,7 +30,8 @@ export function PageHeader({
   settingsShortcut,
 }: PageHeaderProps) {
   const openAddVideo = useOpenAddVideo();
-  const addAction = add ?? { label: "Video hinzufügen", onClick: openAddVideo };
+  const canAdd = useCanAdd();
+  const addAction = add ?? (canAdd ? { label: "Video hinzufügen", onClick: openAddVideo } : null);
   return (
     <header className="mb-6 flex flex-wrap items-end justify-between gap-x-6 gap-y-4 md:mb-8">
       <div className="flex w-full items-center justify-between gap-4 md:w-auto">
@@ -49,14 +51,16 @@ export function PageHeader({
               <Settings className="size-5" strokeWidth={1.75} />
             </Link>
           )}
-          <IconButton
-            label={addAction.label}
-            onClick={addAction.onClick}
-            variant="secondary"
-            className="text-accent"
-          >
-            <Plus className="size-5" strokeWidth={2.25} />
-          </IconButton>
+          {addAction && (
+            <IconButton
+              label={addAction.label}
+              onClick={addAction.onClick}
+              variant="secondary"
+              className="text-accent"
+            >
+              <Plus className="size-5" strokeWidth={2.25} />
+            </IconButton>
+          )}
         </div>
       </div>
       {actions && (

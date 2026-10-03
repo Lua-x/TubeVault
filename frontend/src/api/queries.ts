@@ -145,8 +145,9 @@ export function useVideo(id: number) {
   });
 }
 
-export function useJobs(live: boolean) {
+export function useJobs(live: boolean, enabled = true) {
   return useQuery({
+    enabled,
     queryKey: keys.jobs,
     queryFn: () => api.get<Page<Job>>("downloads?limit=200"),
     select: (page) => page.items,
@@ -244,8 +245,17 @@ export function useCreateUser() {
 export function useUpdateUser() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...body }: { id: number; is_admin?: boolean; password?: string }) =>
-      api.patch<User>(`users/${id}`, body),
+    mutationFn: ({
+      id,
+      ...body
+    }: {
+      id: number;
+      is_admin?: boolean;
+      password?: string;
+      may_add?: boolean;
+      channel_access?: "all" | "selected";
+      channel_ids?: number[];
+    }) => api.patch<User>(`users/${id}`, body),
     onSuccess: () => client.invalidateQueries({ queryKey: keys.users }),
   });
 }

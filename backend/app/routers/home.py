@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter
-from sqlalchemy import func, select
+from sqlalchemy import ColumnElement, and_, func, select
 from sqlalchemy.orm import selectinload
 
 from app.core.deps import CurrentUser, DbSession
@@ -16,6 +16,7 @@ from app.models import (
     WatchProgress,
 )
 from app.schemas.videos import HomeFeed
+from app.services.access import video_filter
 from app.services.presenters import channel_cards, video_summaries
 from app.services.progress import MIN_RESUME_S
 
@@ -26,7 +27,10 @@ ROW_SIZE = 24
 
 @router.get("/home")
 def home(user: CurrentUser, db: DbSession) -> HomeFeed:
-    ready = Video.status == VideoStatus.READY
+    ready: ColumnElement[bool] = Video.status == VideoStatus.READY
+    visible = video_filter(user)
+    if visible is not None:
+        ready = and_(ready, visible)
     with_channel = selectinload(Video.channel)
 
     continuing = list(

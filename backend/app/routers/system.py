@@ -13,6 +13,7 @@ from app import __version__
 from app.core.deps import AdminUser, AppConfig, Context, CurrentUser, DbSession
 from app.models import Video, VideoStatus
 from app.schemas.system import DiskUsage, SystemInfo
+from app.services.access import visible_videos
 from app.services.ytdlp_updater import current_ytdlp_version
 
 router = APIRouter(tags=["system"])
@@ -41,14 +42,14 @@ def ffmpeg_version() -> str | None:
 
 
 @router.get("/system/info")
-def system_info(_: CurrentUser, db: DbSession, settings: AppConfig) -> SystemInfo:
+def system_info(user: CurrentUser, db: DbSession, settings: AppConfig) -> SystemInfo:
     disk: DiskUsage | None = None
     try:
         usage = shutil.disk_usage(settings.media_dir)
         disk = DiskUsage(total=usage.total, used=usage.used, free=usage.free)
     except OSError:
         pass
-    ready = select(Video).where(Video.status == VideoStatus.READY).subquery()
+    ready = visible_videos(select(Video), user).where(Video.status == VideoStatus.READY).subquery()
     return SystemInfo(
         version=__version__,
         ytdlp_version=current_ytdlp_version(),

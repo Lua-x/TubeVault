@@ -14,6 +14,13 @@ export interface User {
   created_at: string;
   last_login_at: string | null;
   two_factor: boolean;
+  channel_access: "all" | "selected";
+  may_add: boolean;
+  channel_ids: number[];
+  /** Effective: may add videos, subscribe and manage downloads. */
+  can_add: boolean;
+  /** Sees only the channels chosen for it. */
+  restricted: boolean;
 }
 
 export interface AuthStatus {

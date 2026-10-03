@@ -10,7 +10,8 @@ from fastapi.responses import FileResponse, Response
 from sqlalchemy import select
 
 from app.core.deps import AppConfig, CurrentUser, DbSession
-from app.models import Subtitle, Video
+from app.models import Subtitle, User, Video
+from app.services.access import ensure_visible
 from app.services.library import UnsafePathError, resolve_media_path
 
 router = APIRouter(prefix="/videos", tags=["media"])
@@ -38,17 +39,16 @@ def _media_file(media_dir: Path, relative: str | None) -> Path:
     return path
 
 
-def _video(db: DbSession, video_id: int) -> Video:
-    video = db.get(Video, video_id)
-    if video is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Video nicht gefunden")
-    return video
+def _video(db: DbSession, video_id: int, user: User) -> Video:
+    return ensure_visible(user, db.get(Video, video_id))
 
 
 @router.get("/{video_id}/stream")
-def stream_video(video_id: int, _: CurrentUser, db: DbSession, settings: AppConfig) -> FileResponse:
+def stream_video(
+    video_id: int, user: CurrentUser, db: DbSession, settings: AppConfig
+) -> FileResponse:
     """Serves the file with Range support (206 Partial Content), so seeking works."""
-    video = _video(db, video_id)
+    video = _video(db, video_id, user)
     path = _media_file(settings.media_dir, video.file_path)
     media_type = VIDEO_MIME.get(path.suffix.lower(), "application/octet-stream")
     return FileResponse(path, media_type=media_type, headers={"Cache-Control": MEDIA_CACHE})
@@ -56,16 +56,16 @@ def stream_video(video_id: int, _: CurrentUser, db: DbSession, settings: AppConf
 
 @router.get("/{video_id}/download")
 def download_video(
-    video_id: int, _: CurrentUser, db: DbSession, settings: AppConfig
+    video_id: int, user: CurrentUser, db: DbSession, settings: AppConfig
 ) -> FileResponse:
-    video = _video(db, video_id)
+    video = _video(db, video_id, user)
     path = _media_file(settings.media_dir, video.file_path)
     return FileResponse(path, filename=path.name, content_disposition_type="attachment")
 
 
 @router.get("/{video_id}/thumbnail")
-def thumbnail(video_id: int, _: CurrentUser, db: DbSession, settings: AppConfig) -> FileResponse:
-    video = _video(db, video_id)
+def thumbnail(video_id: int, user: CurrentUser, db: DbSession, settings: AppConfig) -> FileResponse:
+    video = _video(db, video_id, user)
     path = _media_file(settings.media_dir, video.thumbnail_path)
     media_type = mimetypes.guess_type(path.name)[0] or "image/jpeg"
     return FileResponse(path, media_type=media_type, headers={"Cache-Control": MEDIA_CACHE})
@@ -73,8 +73,9 @@ def thumbnail(video_id: int, _: CurrentUser, db: DbSession, settings: AppConfig)
 
 @router.get("/{video_id}/subtitles/{subtitle_id}.vtt")
 def subtitle(
-    video_id: int, subtitle_id: int, _: CurrentUser, db: DbSession, settings: AppConfig
+    video_id: int, subtitle_id: int, user: CurrentUser, db: DbSession, settings: AppConfig
 ) -> FileResponse:
+    _video(db, video_id, user)
     sub = db.scalar(
         select(Subtitle).where(Subtitle.id == subtitle_id, Subtitle.video_id == video_id)
     )
@@ -105,7 +106,7 @@ def chapters_to_vtt(chapters: list[dict[str, object]], duration: float | None) -
 
 
 @router.get("/{video_id}/chapters.vtt")
-def chapters(video_id: int, _: CurrentUser, db: DbSession) -> Response:
-    video = _video(db, video_id)
+def chapters(video_id: int, user: CurrentUser, db: DbSession) -> Response:
+    video = _video(db, video_id, user)
     body = chapters_to_vtt(video.chapters or [], float(video.duration_s or 0) or None)
     return Response(body, media_type="text/vtt; charset=utf-8")

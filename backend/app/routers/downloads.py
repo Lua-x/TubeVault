@@ -5,12 +5,12 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import selectinload
 
-from app.core.deps import Context, CurrentUser, DbSession
+from app.core.deps import Context, CurrentUser, DbSession, require_can_add
 from app.models import (
     ACTIVE_JOB_STATUSES,
     FINISHED_JOB_STATUSES,
@@ -26,7 +26,8 @@ from app.services.downloader import cleanup_temp
 from app.services.subscriptions import update_items_for_job
 from app.workers.download_manager import job_payload, load_job
 
-router = APIRouter(prefix="/downloads", tags=["downloads"])
+# View-only accounts and kids profiles don't manage downloads or subscriptions.
+router = APIRouter(prefix="/downloads", tags=["downloads"], dependencies=[Depends(require_can_add)])
 
 
 class QueueState(BaseModel):

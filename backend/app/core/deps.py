@@ -98,6 +98,17 @@ def websocket_user(websocket: WebSocket, db: Session, settings: Settings) -> Use
 
 
 DbSession = Annotated[Session, Depends(get_db)]
+
+
+def require_can_add(user: Annotated[User, Depends(get_current_user)]) -> User:
+    """Adding videos, subscriptions and the download queue (not for view-only accounts)."""
+    if not user.can_add:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "Dein Konto darf keine Videos hinzufügen oder abonnieren."
+        )
+    return user
+
+
 CurrentUser = Annotated[User, Depends(get_current_user)]
 SessionUser = Annotated[User, Depends(require_session)]
 AdminUser = Annotated[User, Depends(require_admin)]

@@ -6,7 +6,7 @@ import { IconButton } from "@/components/ui/Button";
 import { useAuth } from "@/hooks/auth";
 import { cn } from "@/lib/cn";
 
-import { PRIMARY_NAV, SECONDARY_NAV, type NavItem } from "./navigation";
+import { navFor, PRIMARY_NAV, SECONDARY_NAV, type NavItem } from "./navigation";
 import { useActiveDownloadCount } from "./useActiveDownloads";
 
 function SidebarLink({ item, badge }: { item: NavItem; badge?: number }) {
@@ -51,14 +51,16 @@ export function Sidebar({ onAdd }: { onAdd: () => void }) {
         <span className="text-[17px] font-semibold tracking-tight">TubeVault</span>
       </div>
 
-      <button
-        type="button"
-        onClick={onAdd}
-        className="mb-5 flex h-9 items-center gap-2 rounded-full bg-accent px-4 text-[14px] font-medium text-white transition-[background-color,transform] duration-200 ease-out-soft hover:bg-accent-hover active:scale-[0.98]"
-      >
-        <Plus className="size-4" strokeWidth={2.25} />
-        Video hinzufügen
-      </button>
+      {user?.can_add && (
+        <button
+          type="button"
+          onClick={onAdd}
+          className="mb-5 flex h-9 items-center gap-2 rounded-full bg-accent px-4 text-[14px] font-medium text-white transition-[background-color,transform] duration-200 ease-out-soft hover:bg-accent-hover active:scale-[0.98]"
+        >
+          <Plus className="size-4" strokeWidth={2.25} />
+          Video hinzufügen
+        </button>
+      )}
 
       <nav aria-label="Hauptnavigation" className="no-scrollbar -mx-1 flex-1 overflow-y-auto px-1">
         <div className="flex flex-col gap-0.5">
@@ -84,7 +86,7 @@ export function Sidebar({ onAdd }: { onAdd: () => void }) {
         )}
 
         <div className="mt-5 flex flex-col gap-0.5 border-t border-separator pt-4">
-          {SECONDARY_NAV.filter((item) => !item.adminOnly || user?.is_admin).map((item) => (
+          {navFor(SECONDARY_NAV, user).map((item) => (
             <SidebarLink
               key={item.to}
               item={item}

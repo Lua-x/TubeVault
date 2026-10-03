@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.core.deps import Context, CurrentUser, DbSession
+from app.core.deps import Context, CurrentUser, DbSession, require_can_add
 from app.core.errors import clean_message
 from app.models import (
     ACTIVE_JOB_STATUSES,
@@ -33,7 +33,10 @@ from app.services.subscriptions import delete_subscription, subscription_stats
 from app.services.youtube_urls import InvalidVideoUrlError, parse_source_url
 from app.workers.download_manager import job_payload, load_job
 
-router = APIRouter(prefix="/subscriptions", tags=["subscriptions"])
+# View-only accounts and kids profiles don't manage downloads or subscriptions.
+router = APIRouter(
+    prefix="/subscriptions", tags=["subscriptions"], dependencies=[Depends(require_can_add)]
+)
 
 
 def _get(db: DbSession, subscription_id: int) -> Subscription:

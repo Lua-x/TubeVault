@@ -15,10 +15,16 @@ class Credentials(BaseModel):
     password: str = Field(min_length=1, max_length=1024)
 
 
+ChannelAccess = Literal["all", "selected"]
+
+
 class NewUser(BaseModel):
     username: str = Field(pattern=USERNAME_PATTERN)
     password: str = Field(min_length=8, max_length=1024)
     is_admin: bool = False
+    channel_access: ChannelAccess = "all"
+    may_add: bool = True
+    channel_ids: list[int] = Field(default_factory=list, max_length=10000)
 
     @field_validator("username")
     @classmethod
@@ -34,6 +40,9 @@ class SetupRequest(BaseModel):
 class UserUpdate(BaseModel):
     is_admin: bool | None = None
     password: str | None = Field(default=None, min_length=8, max_length=1024)
+    channel_access: ChannelAccess | None = None
+    may_add: bool | None = None
+    channel_ids: list[int] | None = Field(default=None, max_length=10000)
 
 
 class PasswordChange(BaseModel):
@@ -57,6 +66,12 @@ class UserOut(ApiModel):
     created_at: datetime
     last_login_at: datetime | None
     two_factor: bool = False
+    channel_access: ChannelAccess = "all"
+    may_add: bool = True
+    channel_ids: list[int] = Field(default_factory=list)
+    # Effective rights, for the UI: what this account actually may do.
+    can_add: bool = True
+    restricted: bool = False
 
 
 class TwoFactorChallenge(BaseModel):

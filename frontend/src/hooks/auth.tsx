@@ -105,6 +105,11 @@ export function useAuth(): AuthContextValue {
   return ctx;
 }
 
+/** May add videos, subscribe and manage downloads (not view-only accounts). */
+export function useCanAdd(): boolean {
+  return useAuth().user?.can_add ?? false;
+}
+
 export function useCurrentUser(): User {
   const { user } = useAuth();
   if (!user) throw new Error("No user signed in");

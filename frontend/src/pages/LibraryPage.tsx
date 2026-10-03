@@ -12,6 +12,7 @@ import { LoadMore } from "@/components/ui/LoadMore";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Select } from "@/components/ui/Select";
 import { VideoGrid, VideoGridSkeleton } from "@/components/video/VideoGrid";
+import { useCanAdd } from "@/hooks/auth";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
 const SORTS: { value: VideoSort; label: string }[] = [
@@ -52,6 +53,7 @@ export function LibraryPage() {
   });
   const loadMore = useCallback(() => void fetchNextPage(), [fetchNextPage]);
   const openAdd = useOpenAddVideo();
+  const canAdd = useCanAdd();
 
   const setParam = (key: string, value: string, fallback: string) => {
     const next = new URLSearchParams(params);
@@ -127,12 +129,16 @@ export function LibraryPage() {
             icon={<Clapperboard className="size-7" strokeWidth={1.5} />}
             title="Deine Bibliothek ist leer"
             action={
-              <Button icon={<Plus className="size-4" strokeWidth={2.25} />} onClick={openAdd}>
-                Video hinzufügen
-              </Button>
+              canAdd && (
+                <Button icon={<Plus className="size-4" strokeWidth={2.25} />} onClick={openAdd}>
+                  Video hinzufügen
+                </Button>
+              )
             }
           >
-            Füge ein YouTube-Video per Link hinzu oder abonniere einen Kanal.
+            {canAdd
+              ? "Füge ein YouTube-Video per Link hinzu oder abonniere einen Kanal."
+              : "Für dein Konto sind noch keine Videos freigegeben."}
           </EmptyState>
         )
       ) : (

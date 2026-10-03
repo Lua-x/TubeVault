@@ -19,6 +19,20 @@ export interface NavItem {
   /** Further paths that count as "this section" (e.g. the library's sub pages). */
   also?: string[];
   adminOnly?: boolean;
+  /** Hidden for view-only accounts and kids profiles. */
+  requiresAdd?: boolean;
+  /** Only for them, filling the space of the hidden tabs. */
+  onlyViewers?: boolean;
+}
+
+/** The items an account can use. */
+export function navFor(items: NavItem[], user: { is_admin: boolean; can_add: boolean } | null) {
+  return items.filter(
+    (item) =>
+      (!item.adminOnly || user?.is_admin) &&
+      (!item.requiresAdd || user?.can_add) &&
+      (!item.onlyViewers || !user?.can_add),
+  );
 }
 
 export const PRIMARY_NAV: NavItem[] = [
@@ -30,8 +44,8 @@ export const PRIMARY_NAV: NavItem[] = [
 ];
 
 export const SECONDARY_NAV: NavItem[] = [
-  { to: "/subscriptions", label: "Abos", icon: Tv },
-  { to: "/downloads", label: "Downloads", icon: ArrowDownToLine },
+  { to: "/subscriptions", label: "Abos", icon: Tv, requiresAdd: true },
+  { to: "/downloads", label: "Downloads", icon: ArrowDownToLine, requiresAdd: true },
   { to: "/settings", label: "Einstellungen", icon: Settings },
   { to: "/admin", label: "Verwaltung", icon: ShieldCheck, adminOnly: true },
 ];
@@ -41,6 +55,7 @@ export const TAB_NAV: NavItem[] = [
   { to: "/", label: "Start", icon: House, end: true },
   { to: "/library", label: "Bibliothek", icon: Library, also: ["/channels", "/playlists"] },
   { to: "/search", label: "Suche", icon: Search },
-  { to: "/subscriptions", label: "Abos", icon: Tv },
-  { to: "/downloads", label: "Downloads", icon: ArrowDownToLine },
+  { to: "/subscriptions", label: "Abos", icon: Tv, requiresAdd: true },
+  { to: "/downloads", label: "Downloads", icon: ArrowDownToLine, requiresAdd: true },
+  { to: "/playlists", label: "Playlists", icon: ListVideo, onlyViewers: true },
 ];
