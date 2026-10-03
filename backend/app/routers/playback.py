@@ -43,6 +43,7 @@ from app.workers.transcoder import (
     TooManySessionsError,
     TranscodeError,
     Transcoder,
+    Variant,
     detect_hardware,
     run_hwaccel_test,
 )
@@ -209,8 +210,13 @@ def audio_file(
 
 def audio_response(transcoder: Transcoder, source: Source) -> Response:
     """Serves the sound, waiting while it is prepared (also for podcast apps)."""
+    return prepared_response(transcoder, source, "audio")
+
+
+def prepared_response(transcoder: Transcoder, source: Source, variant: Variant) -> Response:
+    """Serves a prepared file (sound or repacked MP4), waiting while it is made."""
     try:
-        job = transcoder.audio(source)
+        job = transcoder.audio(source) if variant == "audio" else transcoder.remux(source)
     except TranscodeError as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
     deadline = time.monotonic() + AUDIO_WAIT_S
@@ -218,14 +224,15 @@ def audio_response(transcoder: Transcoder, source: Source) -> Response:
         time.sleep(0.2)
     if job.state == "failed":
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, job.error or "Fehlgeschlagen")
-    path = transcoder.remux_file(source, "audio")
+    path = transcoder.remux_file(source, variant)
     if path is None:
         return Response(
-            "Die Tonspur wird noch vorbereitet.",
+            "Die Datei wird noch vorbereitet.",
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             headers={"Retry-After": "30"},
         )
-    return FileResponse(path, media_type="audio/mp4", headers={"Cache-Control": HLS_CACHE})
+    media_type = "audio/mp4" if variant == "audio" else "video/mp4"
+    return FileResponse(path, media_type=media_type, headers={"Cache-Control": HLS_CACHE})
 
 
 # --- saving onto a device -------------------------------------------------------------

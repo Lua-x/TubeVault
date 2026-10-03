@@ -319,3 +319,13 @@
   opacity: 0;
   pointer-events: none;
 }
+
+/* "Auf Fernseher abspielen": the icon is an inline SVG; blue while a TV plays. */
+.vjs-tubevault .vjs-tubevault-cast .vjs-icon-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.vjs-tubevault .vjs-tubevault-cast.vjs-tubevault-cast-on {
+  color: #0a84ff;
+}

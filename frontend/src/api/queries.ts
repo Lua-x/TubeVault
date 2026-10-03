@@ -890,3 +890,23 @@ export function useDisablePodcasts() {
     onSuccess: () => client.setQueryData(podcastKey, { enabled: false, base_url: null }),
   });
 }
+
+// --- playing on a TV -----------------------------------------------------------------
+
+export interface CastLink {
+  url: string;
+  path: string;
+  expires_at: string;
+}
+
+/** A signed link to the file that a TV can fetch without a login (valid for hours). */
+export function useCastLink(videoId: number, enabled: boolean) {
+  return useQuery({
+    queryKey: ["videos", "cast", videoId],
+    queryFn: () => api.post<CastLink>(`videos/${videoId}/cast`),
+    enabled,
+    staleTime: 6 * 3600_000,
+    gcTime: 6 * 3600_000,
+    retry: false,
+  });
+}

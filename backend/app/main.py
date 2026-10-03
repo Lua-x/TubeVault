@@ -25,6 +25,7 @@ from app.migrate import run_migrations
 from app.routers import (
     admin,
     auth,
+    cast,
     channels,
     comments,
     downloads,
@@ -189,6 +190,7 @@ def _api_router() -> APIRouter:
         comments,
         media,
         playback,
+        cast,
         channels,
         playlists,
         podcasts,

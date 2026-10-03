@@ -14,6 +14,7 @@ import videojs from "video.js";
 import german from "video.js/dist/lang/de.json";
 
 import { apiUrl } from "@/lib/base";
+import { addCastButton } from "./castButton";
 import { thumbnailUrl } from "@/lib/media";
 import type { SponsorSegment, VideoDetail } from "@/lib/types";
 
@@ -230,6 +231,7 @@ export const VideoPlayer = forwardRef<PlayerHandle, VideoPlayerProps>(
       };
 
       player.ready(() => {
+        addCastButton(player);
         const host = document.createElement("div");
         host.className = "vjs-tubevault-overlay";
         // Keys typed on overlay buttons must not reach the player hotkeys.

@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import videojs from "video.js";
 
-import { usePlayback, useRemux } from "@/api/queries";
+import { useCastLink, usePlayback, useRemux } from "@/api/queries";
 import type { QualityOption } from "@/components/video/QualityMenu";
 import type { PlayerSource } from "@/components/video/VideoPlayer";
 import { apiUrl } from "@/lib/base";
@@ -17,6 +17,8 @@ import type { VideoDetail } from "@/lib/types";
 
 // Safari and every browser on iOS share WebKit, which can't read Matroska.
 const IS_WEBKIT = Boolean(videojs.browser.IS_ANY_SAFARI || videojs.browser.IS_IOS);
+// MP4 originals play from a signed link: the same address then works for a TV.
+const CASTABLE = new Set(["mp4", "m4v", "mov"]);
 // MediaError codes that mean "this browser can't handle the format".
 const FORMAT_ERRORS = new Set([3, 4]);
 
@@ -40,6 +42,8 @@ export function usePlaybackSource(video: VideoDetail) {
     ? new Set([...failed, "remux"])
     : failed;
   const plan = info ? choosePlan(info, choice, effectiveFailed, IS_WEBKIT) : null;
+  const castable = plan?.kind === "direct" && CASTABLE.has(info?.container ?? "");
+  const cast = useCastLink(video.id, castable);
 
   const retrySuffix = attempt > 0 ? `?r=${attempt}` : "";
   let source: PlayerSource | null = null;
@@ -53,10 +57,15 @@ export function usePlaybackSource(video: VideoDetail) {
       };
     }
   } else if (plan?.kind === "direct") {
-    source = {
-      src: apiUrl(`videos/${video.id}/stream${retrySuffix}`),
-      type: directSourceType(info.container),
-    };
+    if (castable && cast.data && attempt === 0) {
+      source = { src: apiUrl(cast.data.path), type: "video/mp4" };
+    } else if (!castable || !cast.isPending) {
+      // Without a link (or after a retry) the regular, cookie-protected address.
+      source = {
+        src: apiUrl(`videos/${video.id}/stream${retrySuffix}`),
+        type: directSourceType(info.container),
+      };
+    }
   } else if (plan?.kind === "remux") {
     if (remux.data?.state === "ready") {
       source = { src: apiUrl(`videos/${video.id}/remux.mp4${retrySuffix}`), type: "video/mp4" };
