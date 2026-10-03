@@ -32,6 +32,7 @@ import type {
   MaintenanceAction,
   NotificationSettings,
   NotificationUpdate,
+  TwoFactorStatus,
   MaxHeight,
   Page,
   PlaybackInfo,
@@ -662,6 +663,41 @@ export function useTestNotifications() {
   return useMutation({
     mutationFn: (body: NotificationUpdate) =>
       api.post<{ detail: string }>("admin/notifications/test", body),
+  });
+}
+
+export function useTwoFactor() {
+  return useQuery({
+    queryKey: ["auth", "2fa"],
+    queryFn: () => api.get<TwoFactorStatus>("auth/2fa"),
+  });
+}
+
+export function useStartTwoFactor() {
+  return useMutation({
+    mutationFn: () => api.post<{ secret: string; uri: string }>("auth/2fa/setup"),
+  });
+}
+
+function useTwoFactorMutation<T>(path: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (code: string) => api.post<T>(path, { code }),
+    onSuccess: () => client.invalidateQueries({ queryKey: ["auth", "2fa"] }),
+  });
+}
+
+export const useEnableTwoFactor = () =>
+  useTwoFactorMutation<{ recovery_codes: string[] }>("auth/2fa/enable");
+export const useDisableTwoFactor = () => useTwoFactorMutation<void>("auth/2fa/disable");
+export const useNewRecoveryCodes = () =>
+  useTwoFactorMutation<{ recovery_codes: string[] }>("auth/2fa/recovery-codes");
+
+export function useResetTwoFactor() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: number) => api.delete(`users/${userId}/2fa`),
+    onSuccess: () => client.invalidateQueries({ queryKey: keys.users }),
   });
 }
 

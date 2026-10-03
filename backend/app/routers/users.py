@@ -10,6 +10,7 @@ from app.core.security import hash_password
 from app.models import User
 from app.schemas.auth import NewUser, UserOut, UserUpdate
 from app.services import auth as auth_service
+from app.services import two_factor
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -60,3 +61,12 @@ def delete_user(user_id: int, admin: AdminUser, db: DbSession) -> None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Du kannst dich nicht selbst löschen.")
     db.delete(user)
     db.commit()
+
+
+@router.delete("/{user_id}/2fa", status_code=status.HTTP_204_NO_CONTENT)
+def reset_two_factor(user_id: int, _: AdminUser, db: DbSession) -> None:
+    """For a lost phone: the user can log in with the password and set it up again."""
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Benutzer nicht gefunden")
+    two_factor.disable(db, user)

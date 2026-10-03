@@ -56,6 +56,37 @@ class UserOut(ApiModel):
     preferences: dict[str, Any]
     created_at: datetime
     last_login_at: datetime | None
+    two_factor: bool = False
+
+
+class TwoFactorChallenge(BaseModel):
+    """Password was right; now the code from the authenticator app is needed."""
+
+    two_factor: Literal[True] = True
+    ticket: str
+
+
+class TwoFactorLogin(BaseModel):
+    ticket: str = Field(min_length=10, max_length=100)
+    code: str = Field(min_length=6, max_length=32)
+
+
+class TwoFactorCode(BaseModel):
+    code: str = Field(min_length=6, max_length=32)
+
+
+class TwoFactorSetup(BaseModel):
+    secret: str
+    uri: str
+
+
+class TwoFactorStatus(BaseModel):
+    enabled: bool
+    recovery_codes_left: int
+
+
+class RecoveryCodes(BaseModel):
+    recovery_codes: list[str]
 
 
 class AuthStatus(BaseModel):

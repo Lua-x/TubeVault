@@ -21,11 +21,21 @@ class User(Base):
     preferences: Mapped[dict[str, Any]] = mapped_column(default=dict)
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
     last_login_at: Mapped[datetime | None]
+    # Two-factor login with an authenticator app. The secret exists from setup on;
+    # it only counts once enabled. last counter: each code works only once.
+    totp_secret: Mapped[str | None] = mapped_column(String(64))
+    totp_enabled_at: Mapped[datetime | None]
+    totp_last_counter: Mapped[int | None]
+    recovery_codes: Mapped[list[str]] = mapped_column(default=list)  # SHA-256 hashes
 
     sessions: Mapped[list[UserSession]] = relationship(
         back_populates="user", cascade="all, delete-orphan", passive_deletes=True
     )
     added_videos: Mapped[list[Video]] = relationship(back_populates="added_by")
+
+    @property
+    def two_factor(self) -> bool:
+        return self.totp_enabled_at is not None and bool(self.totp_secret)
 
 
 # Usernames are unique regardless of case.

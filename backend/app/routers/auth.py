@@ -21,19 +21,26 @@ from app.core.security import (
     needs_rehash,
     verify_password,
 )
-from app.models import ApiToken, UserSession
+from app.models import ApiToken, User, UserSession
 from app.schemas.auth import (
     AuthStatus,
     Credentials,
     PasswordChange,
     Preferences,
+    RecoveryCodes,
     SetupRequest,
     TokenCreate,
     TokenCreated,
     TokenOut,
+    TwoFactorChallenge,
+    TwoFactorCode,
+    TwoFactorLogin,
+    TwoFactorSetup,
+    TwoFactorStatus,
     UserOut,
 )
 from app.services import auth as auth_service
+from app.services import two_factor
 from app.services.tokens import create_token
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -79,7 +86,7 @@ def login(
     db: DbSession,
     settings: AppConfig,
     ctx: Context,
-) -> UserOut:
+) -> UserOut | TwoFactorChallenge:
     throttle = ctx.login_throttle
     key = _client_key(request)
     if throttle.is_blocked(key):
@@ -94,11 +101,50 @@ def login(
     throttle.reset(key)
     if needs_rehash(user.password_hash):
         user.password_hash = hash_password(body.password)
+        db.commit()
+    if user.two_factor:
+        return TwoFactorChallenge(ticket=ctx.login_tickets.issue(user.id))
+    return _start_session(db, user, request, response, settings)
+
+
+def _start_session(
+    db: DbSession, user: User, request: Request, response: Response, settings: AppConfig
+) -> UserOut:
     token = auth_service.create_session(
         db, user, request.headers.get("user-agent"), settings.session_days
     )
     auth_service.set_session_cookie(response, request, token, settings)
     return UserOut.model_validate(user)
+
+
+@router.post("/login/2fa")
+def login_two_factor(
+    body: TwoFactorLogin,
+    request: Request,
+    response: Response,
+    db: DbSession,
+    settings: AppConfig,
+    ctx: Context,
+) -> UserOut:
+    throttle = ctx.login_throttle
+    key = _client_key(request)
+    if throttle.is_blocked(key):
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            "Zu viele fehlgeschlagene Anmeldungen. Bitte in einigen Minuten erneut versuchen.",
+        )
+    user_id = ctx.login_tickets.user_for(body.ticket)
+    user = db.get(User, user_id) if user_id is not None else None
+    if user is None:
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED, "Die Anmeldung ist abgelaufen. Bitte neu anmelden."
+        )
+    if not two_factor.check_code(db, user, body.code):
+        throttle.record_failure(key)
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Der Code stimmt nicht.")
+    throttle.reset(key)
+    ctx.login_tickets.consume(body.ticket)
+    return _start_session(db, user, request, response, settings)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
@@ -131,13 +177,77 @@ def change_password(
     if not verify_password(user.password_hash, body.current_password):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Das aktuelle Passwort ist falsch.")
     user.password_hash = hash_password(body.new_password)
-    # Sign out every other device.
+    _sign_out_others(request, db, user)  # every other device
+
+
+# --- two-factor login ------------------------------------------------------------------
+
+
+def _sign_out_others(request: Request, db: DbSession, user: User) -> None:
     current = request.cookies.get(SESSION_COOKIE)
     current_id = hash_token(current) if current else None
     for session in list(user.sessions):
         if session.id != current_id:
             db.delete(session)
     db.commit()
+
+
+def _two_factor_error(exc: two_factor.TwoFactorError) -> HTTPException:
+    return HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
+
+
+@router.get("/2fa")
+def two_factor_status(user: SessionUser) -> TwoFactorStatus:
+    return TwoFactorStatus(
+        enabled=user.two_factor,
+        recovery_codes_left=len(user.recovery_codes or []) if user.two_factor else 0,
+    )
+
+
+@router.post("/2fa/setup")
+def two_factor_setup(user: SessionUser, db: DbSession) -> TwoFactorSetup:
+    try:
+        secret, uri = two_factor.begin_setup(db, user)
+    except two_factor.TwoFactorError as exc:
+        raise _two_factor_error(exc) from exc
+    return TwoFactorSetup(secret=secret, uri=uri)
+
+
+@router.post("/2fa/enable")
+def two_factor_enable(
+    body: TwoFactorCode, request: Request, user: SessionUser, db: DbSession
+) -> RecoveryCodes:
+    try:
+        codes = two_factor.enable(db, user, body.code)
+    except two_factor.TwoFactorError as exc:
+        raise _two_factor_error(exc) from exc
+    _sign_out_others(request, db, user)  # from now on every login needs the code
+    return RecoveryCodes(recovery_codes=codes)
+
+
+def _require_code(db: DbSession, user: User, code: str, request: Request, ctx: Context) -> None:
+    key = _client_key(request)
+    if ctx.login_throttle.is_blocked(key):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Zu viele falsche Codes.")
+    if not two_factor.check_code(db, user, code):
+        ctx.login_throttle.record_failure(key)
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Der Code stimmt nicht.")
+
+
+@router.post("/2fa/disable", status_code=status.HTTP_204_NO_CONTENT)
+def two_factor_disable(
+    body: TwoFactorCode, request: Request, user: SessionUser, db: DbSession, ctx: Context
+) -> None:
+    _require_code(db, user, body.code, request, ctx)
+    two_factor.disable(db, user)
+
+
+@router.post("/2fa/recovery-codes")
+def two_factor_recovery_codes(
+    body: TwoFactorCode, request: Request, user: SessionUser, db: DbSession, ctx: Context
+) -> RecoveryCodes:
+    _require_code(db, user, body.code, request, ctx)
+    return RecoveryCodes(recovery_codes=two_factor.regenerate_recovery_codes(db, user))
 
 
 # --- API tokens -------------------------------------------------------------------------

@@ -7,6 +7,7 @@ import {
   useChangePassword,
   useCreateUser,
   useDeleteUser,
+  useResetTwoFactor,
   useSaveSettings,
   useSystemInfo,
   useUpdateUser,
@@ -16,6 +17,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { LibraryGroup, LibraryTaskStatus } from "@/components/settings/LibraryGroup";
 import { TokensGroup } from "@/components/settings/TokensGroup";
 import { TranscodeGroup } from "@/components/settings/TranscodeGroup";
+import { TwoFactorGroup } from "@/components/settings/TwoFactorGroup";
 import { Dialog } from "@/components/ui/Dialog";
 import { Button, IconButton } from "@/components/ui/Button";
 import { Group, Row } from "@/components/ui/Group";
@@ -45,6 +47,7 @@ export function SettingsPage() {
         <PlaybackSection />
         {user.is_admin && <DownloadSection />}
         <AccountSection />
+        <TwoFactorGroup />
         <TokensGroup />
         {user.is_admin && <UsersSection />}
         <SystemSection />
@@ -458,6 +461,7 @@ function UsersSection() {
   const create = useCreateUser();
   const update = useUpdateUser();
   const remove = useDeleteUser();
+  const resetTwoFactor = useResetTwoFactor();
   const toast = useToast();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -492,6 +496,31 @@ function UsersSection() {
                 {user.username}
                 {user.id === me.id && <span className="text-tertiary"> (du)</span>}
               </p>
+              {user.two_factor && (
+                <p className="text-[12px] text-secondary">
+                  Zwei-Faktor an
+                  {user.id !== me.id && (
+                    <>
+                      {" · "}
+                      <button
+                        type="button"
+                        className="font-medium text-accent hover:underline"
+                        onClick={() => {
+                          if (
+                            window.confirm(
+                              `Zwei-Faktor-Anmeldung für „${user.username}“ zurücksetzen? Danach reicht das Passwort, bis die Person sie neu einrichtet.`,
+                            )
+                          ) {
+                            resetTwoFactor.mutateAsync(user.id).catch(fail);
+                          }
+                        }}
+                      >
+                        zurücksetzen
+                      </button>
+                    </>
+                  )}
+                </p>
+              )}
             </div>
             <label className="flex items-center gap-2 text-[13px] text-secondary">
               <input

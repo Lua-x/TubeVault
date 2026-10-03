@@ -2,14 +2,16 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createContext, useCallback, useContext, useEffect, useMemo, type ReactNode } from "react";
 
 import { api, request, setUnauthorizedHandler } from "@/lib/api";
-import type { AuthStatus, Preferences, User } from "@/lib/types";
+import type { AuthStatus, Preferences, TwoFactorChallenge, User } from "@/lib/types";
 
 interface AuthContextValue {
   status: AuthStatus | undefined;
   isLoading: boolean;
   error: Error | null;
   user: User | null;
-  login: (username: string, password: string) => Promise<void>;
+  /** Resolves to a ticket when the code from the authenticator app is still needed. */
+  login: (username: string, password: string) => Promise<string | null>;
+  loginWithCode: (ticket: string, code: string) => Promise<void>;
   setup: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<unknown>;
@@ -53,15 +55,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       error: query.error,
       user: query.data?.user ?? null,
       login: async (username, password) => {
-        const user = await request<User>(
+        const result = await request<User | TwoFactorChallenge>(
           "POST",
           "auth/login",
           { username, password },
-          {
-            quiet401: true,
-          },
+          { quiet401: true },
         );
-        setUser(user);
+        if ("two_factor" in result && result.two_factor === true && "ticket" in result) {
+          return result.ticket;
+        }
+        setUser(result as User);
+        return null;
+      },
+      loginWithCode: async (ticket, code) => {
+        setUser(
+          await request<User>("POST", "auth/login/2fa", { ticket, code }, { quiet401: true }),
+        );
       },
       setup: async (username, password) => {
         setUser(await api.post<User>("auth/setup", { username, password }));

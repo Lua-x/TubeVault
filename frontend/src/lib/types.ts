@@ -13,6 +13,7 @@ export interface User {
   preferences: Preferences;
   created_at: string;
   last_login_at: string | null;
+  two_factor: boolean;
 }
 
 export interface AuthStatus {
@@ -506,4 +507,14 @@ export interface NotificationUpdate {
   url: string;
   events: NotificationEvents;
   token: string | null;
+}
+
+export interface TwoFactorChallenge {
+  two_factor: true;
+  ticket: string;
+}
+
+export interface TwoFactorStatus {
+  enabled: boolean;
+  recovery_codes_left: number;
 }

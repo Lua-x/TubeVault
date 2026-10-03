@@ -80,6 +80,25 @@ def reset_password(settings: Settings, username: str) -> int:
     return 0
 
 
+def reset_two_factor(settings: Settings, username: str) -> int:
+    """For a lost phone when no other admin can reset it in the UI."""
+    from app.db import make_engine, make_session_factory
+    from app.migrate import run_migrations
+    from app.services.auth import find_user
+    from app.services.two_factor import disable
+
+    engine = make_engine(settings.db_url)
+    run_migrations(engine)
+    with make_session_factory(engine)() as db:
+        user = find_user(db, username)
+        if user is None:
+            print(f"Benutzer '{username}' nicht gefunden.", file=sys.stderr)
+            return 1
+        disable(db, user)
+    print(f"Zwei-Faktor-Anmeldung für '{username}' ausgeschaltet.")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(prog="tubevault")
     sub = parser.add_subparsers(dest="command")
@@ -88,6 +107,8 @@ def main() -> int:
     update.add_argument("--if-enabled", action="store_true", help="Respect YTDLP_AUTO_UPDATE")
     reset = sub.add_parser("reset-password", help="Set a new password for a user")
     reset.add_argument("username")
+    reset_2fa = sub.add_parser("reset-2fa", help="Turn off two-factor login for a user")
+    reset_2fa.add_argument("username")
     args = parser.parse_args()
 
     settings = Settings()
@@ -96,6 +117,8 @@ def main() -> int:
         return 0
     if args.command == "reset-password":
         return reset_password(settings, args.username)
+    if args.command == "reset-2fa":
+        return reset_two_factor(settings, args.username)
     serve(settings)
     return 0
 
