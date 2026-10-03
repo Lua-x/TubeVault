@@ -44,6 +44,17 @@
 
 ## Funktionen
 
+**Version 0.7 – Hören & Entdecken**
+
+- **Anhören:** Videos und ganze Playlists nur mit Ton, mit Mini-Player, der beim Stöbern
+  weiterläuft, Steuerung auf dem Sperrbildschirm, Geschwindigkeit und Schlaf-Timer – auch
+  „Aufs Gerät“ als reines Audio
+- **Als Podcast:** Kanäle und Playlists als Feed für deine Podcast-App
+- **Kommentare** auf Wunsch mitspeichern und offline lesen – global, pro Abo oder pro Video
+- **Später ansehen** und **Verlauf**, **ähnliche Videos** aus der eigenen Bibliothek
+- Zeitstempel in Beschreibung und Kommentaren springen im Player an die Stelle
+- Suche mit Filtern nach Länge, Upload-Datum und Kanal
+
 **Version 0.6 – Konten & unterwegs**
 
 - **Aufs Gerät laden:** Videos und ganze Playlists in der installierten App speichern und
@@ -450,6 +461,59 @@ Gut zu wissen:
 - Jedes Gerät und jeder Benutzer hat seine eigene Auswahl. Nach dem Abmelden zeigt die App
   ohne Server nichts mehr an.
 
+### Anhören und Podcasts
+
+<img src="docs/screenshots/player-phone-dark.png" width="240" align="right" alt="Der Audio-Player auf dem Smartphone: großes Vorschaubild, Titel, Zeitleiste, Tasten für 15 Sekunden zurück und vor, Geschwindigkeit und Schlaf-Timer mit „Noch 30 Min.“." />
+
+Vieles auf YouTube ist eigentlich zum Zuhören: Gespräche, Vorträge, Hörbücher, Musik.
+**Anhören** auf der Videoseite (oder bei einer Playlist) spielt nur den Ton:
+
+- Ein Mini-Player bleibt unten stehen, während du in der Bibliothek stöberst. Tippen öffnet
+  den großen Player mit Zeitleiste, ±15 Sekunden, vorigem/nächstem Video, Geschwindigkeit
+  (0,75× bis 2×) und **Schlaf-Timer** (nach 5 bis 60 Minuten oder am Ende des Videos).
+- Sperrbildschirm und Kopfhörer-Tasten steuern die Wiedergabe. Der Fortschritt wird
+  gespeichert wie beim Video, und ein startendes Video hält den Ton an.
+- Der Server liefert dafür nur die Tonspur (M4A). Ist sie schon AAC – beim Standard-MP4 der
+  Fall –, wird sie in Sekunden herauskopiert, sonst umgewandelt. Das spart unterwegs Daten.
+- **Aufs Gerät** bietet zusätzlich „Nur Ton“ (etwa 1 MB pro Minute).
+
+Ob der Ton bei gesperrtem Bildschirm weiterläuft, entscheidet der Browser. iOS hält Web-Apps
+im Hintergrund teils an; vom Home-Bildschirm gestartet klappt es meist besser. Ganz
+zuverlässig ist eine Podcast-App – dafür gibt es die Feeds.
+
+**Als Podcast** auf einer Kanal- oder Playlist-Seite (auch bei „Später ansehen“) gibt dir
+eine Feed-Adresse für deine Podcast-App: Neue Videos erscheinen dort als Folgen, nur mit Ton.
+
+- Die Adresse enthält einen persönlichen Schlüssel, weil Podcast-Apps sich nicht anmelden
+  können. Er öffnet nur die Feeds, ihren Ton und ihre Bilder – mit deinen Rechten, ein
+  Kinderprofil bekommt also nur seine Kanäle. Unter **Einstellungen → Podcasts** lässt er
+  sich erneuern oder abschalten. Die Adresse nicht weitergeben.
+- Die App muss deinen Server erreichen. Apps, die Feeds direkt auf dem Gerät abrufen
+  (z. B. AntennaPod), klappen im Heimnetz oder per VPN. Apps, die Feeds über eigene Server
+  holen (z. B. Pocket Casts, Overcast), erreichen nur einen Server, der aus dem Internet
+  erreichbar ist.
+- Hinter einem Reverse Proxy `PUBLIC_URL` setzen, damit die Links im Feed stimmen. Die
+  Feeds sind für Verzeichnisse als privat markiert.
+
+### Kommentare
+
+Unter **Einstellungen → Kommentare** speichert TubeVault zu jedem neuen Video die
+beliebtesten Kommentare samt Antworten (100 bis 5000) – ab Werk ist das aus. Abweichend
+lässt es sich pro Abo und im Dialog „Video hinzufügen“ ein- oder ausschalten; für ein
+vorhandenes Video holt **Kommentare laden** sie nach (braucht Internet). Die Videoseite
+zeigt sie nach „Beliebt“ oder „Neu“, mit angepinnten Kommentaren, Antworten des Kanals und
+Herzen. Statt Profilbildern von YouTube gibt es farbige Initialen – so lädt die Seite auch
+offline nichts von außen. Admins können gespeicherte Kommentare eines Videos wieder löschen.
+
+### Später ansehen und Verlauf
+
+- **Später ansehen** merkt sich Videos mit einem Tipp auf der Videoseite. Die Liste ist eine
+  Playlist wie jede andere – sortierbar, am Stück abspielbar, aufs Gerät ladbar, als Podcast
+  hörbar. Gesehene Videos verschwinden von selbst (abschaltbar unter **Einstellungen →
+  Wiedergabe**).
+- **Verlauf** zeigt alles, was du angefangen oder gesehen hast, nach Tagen. Einträge zu
+  entfernen vergisst auch die Position.
+
 ### Sicherung
 
 In der Datenbank unter `/config` steckt alles außer den Videos selbst: Einstellungen,
@@ -650,7 +714,7 @@ example.com {
   ohne dass das Image neu gebaut werden muss. YouTube ändert häufig Details – ein Neustart
   (`docker compose restart`) bringt die neueste Version.
 - **TubeVault** selbst: `docker compose pull && docker compose up -d`.
-- **Image-Tags:** `latest` ist immer der aktuelle Stand; `0.6` oder `0.6.0` hält dich auf
+- **Image-Tags:** `latest` ist immer der aktuelle Stand; `0.7` oder `0.7.0` hält dich auf
   einer festen Version. Zurück auf eine ältere Version geht nicht, weil die Datenbank beim
   Update migriert wird – TubeVault startet dann mit einem entsprechenden Hinweis nicht.
   Vor großen Updates einfach unter **Verwaltung → Sicherung** eine Sicherung anlegen.
@@ -678,6 +742,9 @@ example.com {
 | Code der Authenticator-App wird abgelehnt | Die Uhr von Server oder Handy geht falsch – TubeVault erlaubt 30 Sekunden Abweichung |
 | Anbieter meldet „invalid redirect_uri“ | Die Weiterleitungsadresse beim Anbieter muss genau der unter **Verwaltung → Anmeldung über OIDC** entsprechen; hinter einem Proxy `PUBLIC_URL` setzen |
 | „Der Anmeldedienst ist nicht erreichbar“ | TubeVault muss `OIDC_ISSUER` selbst erreichen können – im selben Docker-Netz ggf. eine Adresse wählen, die auch der Container auflöst |
+| Podcast-App lädt den Feed nicht | Die App muss den Server erreichen (siehe [Anhören und Podcasts](#anhören-und-podcasts)); hinter einem Proxy `PUBLIC_URL` setzen. Mit selbst signiertem Zertifikat streiken viele Apps |
+| Ton stoppt bei gesperrtem iPhone | iOS hält Web-Apps im Hintergrund teils an. Vom Home-Bildschirm gestartet klappt es meist besser – oder den Kanal „Als Podcast“ in einer Podcast-App hören |
+| Kommentare fehlen | Sie sind ab Werk aus: **Einstellungen → Kommentare**, für vorhandene Videos „Kommentare laden“ |
 | „Aufs Gerät“ fehlt | Es braucht HTTPS; über `http://` mit IP-Adresse gibt der Browser keinen Speicher frei |
 | Gespeicherte Videos sind weg | Website-Daten gelöscht, App entfernt oder das System hat bei knappem Speicher aufgeräumt (v. a. iOS) |
 | Downloads scheitern mit „not a bot“ / HTTP 429 | YouTube bremst. TubeVault versucht es automatisch später erneut (Backoff bis 6 h) |
@@ -734,7 +801,8 @@ und veröffentlicht ein Release.
 TubeVault sendet keine Telemetrie und lädt keine externen Skripte oder Schriften – eine
 Content-Security-Policy erzwingt das auch im Browser. Verbindungen nach außen gehen nur zu:
 
-- **YouTube:** Downloads, Abo-Prüfungen samt RSS-Feeds und das Nachladen besserer Qualität.
+- **YouTube:** Downloads, Abo-Prüfungen samt RSS-Feeds, das Nachladen besserer Qualität und –
+  nur wenn eingeschaltet – Kommentare.
   Nach einem Netzwerkfehler prüft eine kleine Anfrage, ob YouTube erreichbar ist.
 - **PyPI:** yt-dlp-Update beim Start und auf Knopfdruck (abschaltbar), dazu einmal täglich,
   wenn du die Benachrichtigung „yt-dlp-Update verfügbar“ einschaltest.
@@ -745,7 +813,9 @@ Content-Security-Policy erzwingt das auch im Browser. Verbindungen nach außen g
 - **Deinen Anmeldedienst** (OIDC), nur wenn du einen einrichtest.
 
 Mit „Aufs Gerät“ gespeicherte Videos liegen nur im Browser des jeweiligen Geräts; TubeVault
-erfährt davon nichts außer dem Download selbst.
+erfährt davon nichts außer dem Download selbst. Podcast-Feeds holt deine App direkt bei
+deinem Server; der Schlüssel steht in der Adresse und damit auch in den Logs eines
+Reverse Proxys.
 
 ## Lizenz
 
