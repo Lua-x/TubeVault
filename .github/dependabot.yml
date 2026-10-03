@@ -14,6 +14,13 @@ updates:
     directory: /frontend
     schedule:
       interval: weekly
+    ignore:
+      # Types follow the Node version of the Docker build (node:24), not the newest Node.
+      - dependency-name: "@types/node"
+        update-types: [version-update:semver-major]
+      # A new TypeScript major needs typescript-eslint and friends to catch up first.
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
     groups:
       frontend:
         update-types: [minor, patch]
