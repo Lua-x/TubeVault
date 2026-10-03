@@ -1,7 +1,7 @@
 import { WifiOff } from "lucide-react";
 import { motion } from "motion/react";
 import { lazy, Suspense } from "react";
-import { BrowserRouter, Route, Routes, useLocation } from "react-router";
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router";
 
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/Button";
@@ -14,6 +14,7 @@ import { AudioPlayerProvider } from "@/audio/AudioPlayerProvider";
 import { MiniPlayer } from "@/components/audio/MiniPlayer";
 import { OfflineProvider } from "@/offline/OfflineProvider";
 import { lastOwner } from "@/offline/progress";
+import { chosenView, isTvBrowser } from "@/tv/navigation";
 import { ChannelPage } from "@/pages/ChannelPage";
 import { ChannelsPage } from "@/pages/ChannelsPage";
 import { DevicePage } from "@/pages/DevicePage";
@@ -34,6 +35,15 @@ import { SetupPage } from "@/pages/SetupPage";
 import { SubscriptionPage } from "@/pages/SubscriptionPage";
 import { SubscriptionsPage } from "@/pages/SubscriptionsPage";
 
+// The TV view only loads on TVs (or when chosen).
+const TvApp = lazy(() => import("@/tv/TvApp").then((m) => ({ default: m.TvApp })));
+
+/** TVs land in the TV view – unless someone switched to the normal one there. */
+function Home() {
+  if (isTvBrowser() && chosenView() !== "standard") return <Navigate to="/tv" replace />;
+  return <HomePage />;
+}
+
 // The player (video.js) is only loaded when a video is opened.
 const VideoPage = lazy(() => import("@/pages/VideoPage").then((m) => ({ default: m.VideoPage })));
 const DeviceVideoPage = lazy(() =>
@@ -51,7 +61,7 @@ function AnimatedRoutes() {
     >
       <Suspense fallback={<PageSpinner />}>
         <Routes location={location}>
-          <Route path="/" element={<HomePage />} />
+          <Route path="/" element={<Home />} />
           <Route path="/library" element={<LibraryPage />} />
           <Route path="/search" element={<SearchPage />} />
           <Route path="/channels" element={<ChannelsPage />} />
@@ -147,9 +157,24 @@ export function App() {
       <OfflineProvider online owner={user.id}>
         <AudioPlayerProvider>
           <LiveEventsProvider>
-            <AppShell>
-              <AnimatedRoutes />
-            </AppShell>
+            <Routes>
+              <Route
+                path="/tv/*"
+                element={
+                  <Suspense fallback={<PageSpinner />}>
+                    <TvApp />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="*"
+                element={
+                  <AppShell>
+                    <AnimatedRoutes />
+                  </AppShell>
+                }
+              />
+            </Routes>
           </LiveEventsProvider>
         </AudioPlayerProvider>
       </OfflineProvider>

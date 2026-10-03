@@ -101,6 +101,20 @@ function AppearanceSection() {
           ]}
         />
       </Row>
+      <Row className="flex items-center justify-between gap-4">
+        <div>
+          <p className="text-[15px]">TV-Ansicht</p>
+          <p className="text-[13px] text-secondary">
+            Große Kacheln, bedienbar mit der Fernbedienung. Fernseher öffnen sie von selbst.
+          </p>
+        </div>
+        <Link
+          to="/tv"
+          className="inline-flex h-8 shrink-0 items-center rounded-full bg-surface px-4 text-[14px] font-medium hover:bg-surface-hover"
+        >
+          Öffnen
+        </Link>
+      </Row>
     </Group>
   );
 }
