@@ -10,6 +10,8 @@ from app.core.deps import CurrentUser, DbSession
 from app.models import (
     Channel,
     ItemState,
+    Playlist,
+    PlaylistItem,
     SubscriptionItem,
     Video,
     VideoStatus,
@@ -66,6 +68,18 @@ def home(user: CurrentUser, db: DbSession) -> HomeFeed:
         )
     )
 
+    later = list(
+        db.scalars(
+            select(Video)
+            .join(PlaylistItem, PlaylistItem.video_id == Video.id)
+            .join(Playlist, Playlist.id == PlaylistItem.playlist_id)
+            .where(ready, Playlist.user_id == user.id, Playlist.is_watch_later.is_(True))
+            .options(with_channel)
+            .order_by(PlaylistItem.position, PlaylistItem.id)
+            .limit(ROW_SIZE)
+        )
+    )
+
     recent_query = select(Video).where(ready).options(with_channel)
     if from_subscriptions:
         recent_query = recent_query.where(Video.manual.is_(True))
@@ -101,6 +115,7 @@ def home(user: CurrentUser, db: DbSession) -> HomeFeed:
     return HomeFeed(
         hero=hero,
         continue_watching=continuing_out,
+        watch_later=video_summaries(db, user.id, later),
         from_subscriptions=subs_out,
         recently_added=recent_out,
         channels=channel_cards(db, user.id, channels),

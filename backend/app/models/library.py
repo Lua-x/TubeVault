@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import ForeignKey, Index, String, Text, UniqueConstraint, false, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base, utcnow
@@ -31,11 +31,22 @@ class WatchProgress(Base):
 
 class Playlist(Base):
     __tablename__ = "playlists"
+    # Each user has at most one "Später ansehen" list.
+    __table_args__ = (
+        Index(
+            "ix_playlists_watch_later",
+            "user_id",
+            unique=True,
+            sqlite_where=text("is_watch_later = 1"),
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(200))
     description: Mapped[str | None] = mapped_column(Text)
+    # The built-in "Später ansehen" list: can't be renamed or deleted.
+    is_watch_later: Mapped[bool] = mapped_column(default=False, server_default=false())
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
 

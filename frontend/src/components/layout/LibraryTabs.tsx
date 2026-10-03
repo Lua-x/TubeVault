@@ -6,6 +6,8 @@ const TABS = [
   { to: "/library", label: "Videos" },
   { to: "/channels", label: "Kanäle" },
   { to: "/playlists", label: "Playlists" },
+  { to: "/later", label: "Später" },
+  { to: "/history", label: "Verlauf" },
   { to: "/device", label: "Gerät" },
 ];
 

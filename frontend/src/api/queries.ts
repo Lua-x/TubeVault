@@ -434,6 +434,29 @@ export function usePlaylists(videoId?: number) {
   });
 }
 
+/** "Später ansehen": the built-in playlist of the signed-in user. */
+export function useWatchLater() {
+  return useQuery({
+    queryKey: [...keys.playlists, "watch-later"],
+    queryFn: () => api.get<PlaylistDetail>("playlists/watch-later"),
+  });
+}
+
+/** Adds to or removes from "Später ansehen". */
+export function useToggleWatchLater() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ listId, videoId, add }: { listId: number; videoId: number; add: boolean }) =>
+      add
+        ? api.post(`playlists/${listId}/items`, { video_id: videoId })
+        : api.delete(`playlists/${listId}/items/${videoId}`),
+    onSettled: () => {
+      void client.invalidateQueries({ queryKey: keys.playlists });
+      void client.invalidateQueries({ queryKey: keys.home });
+    },
+  });
+}
+
 export function usePlaylist(id: number | null) {
   return useQuery({
     queryKey: keys.playlist(id ?? -1),
@@ -788,5 +811,38 @@ export function useDeleteComments(videoId: number) {
       void client.invalidateQueries({ queryKey: keys.comments(videoId) });
       void client.invalidateQueries({ queryKey: keys.video(videoId) });
     },
+  });
+}
+
+// --- history ------------------------------------------------------------------------
+
+const HISTORY_PAGE = 50;
+
+export function useHistory() {
+  const query = useInfiniteQuery({
+    queryKey: ["videos", "history"],
+    queryFn: ({ pageParam }) =>
+      api.get<Page<VideoSummary>>(`history?offset=${pageParam}&limit=${HISTORY_PAGE}`),
+    initialPageParam: 0,
+    getNextPageParam: (last, pages) => {
+      const loaded = pages.reduce((sum, page) => sum + page.items.length, 0);
+      return last.items.length > 0 && loaded < last.total ? loaded : undefined;
+    },
+  });
+  const items = useMemo(() => {
+    const seen = new Set<number>();
+    return (query.data?.pages ?? [])
+      .flatMap((page) => page.items)
+      .filter((video) => !seen.has(video.id) && seen.add(video.id));
+  }, [query.data]);
+  return { ...query, items, total: query.data?.pages[0]?.total };
+}
+
+export function useForgetHistory() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (videoId: number | null) =>
+      api.delete(videoId == null ? "history" : `history/${videoId}`),
+    onSettled: () => client.invalidateQueries({ queryKey: keys.videos }),
   });
 }

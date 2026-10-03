@@ -22,7 +22,8 @@ import { ImportPage } from "@/pages/ImportPage";
 import { LibraryPage } from "@/pages/LibraryPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
-import { PlaylistPage } from "@/pages/PlaylistPage";
+import { HistoryPage } from "@/pages/HistoryPage";
+import { PlaylistPage, WatchLaterPage } from "@/pages/PlaylistPage";
 import { PlaylistsPage } from "@/pages/PlaylistsPage";
 import { SearchPage } from "@/pages/SearchPage";
 import { SharePage } from "@/pages/SharePage";
@@ -55,6 +56,8 @@ function AnimatedRoutes() {
           <Route path="/channels/:id" element={<ChannelPage />} />
           <Route path="/playlists" element={<PlaylistsPage />} />
           <Route path="/playlists/:id" element={<PlaylistPage />} />
+          <Route path="/later" element={<WatchLaterPage />} />
+          <Route path="/history" element={<HistoryPage />} />
           <Route path="/videos/:id" element={<VideoPage />} />
           <Route path="/subscriptions" element={<SubscriptionsPage />} />
           <Route path="/subscriptions/:id" element={<SubscriptionPage />} />

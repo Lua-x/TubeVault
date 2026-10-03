@@ -50,7 +50,7 @@ export function PlaylistsPage() {
       <LibraryTabs />
       {isLoading ? (
         <PageSpinner />
-      ) : !playlists || playlists.length === 0 ? (
+      ) : !playlists ? (
         <EmptyState
           icon={<ListVideo className="size-7" strokeWidth={1.5} />}
           title="Noch keine Playlists"
@@ -69,9 +69,13 @@ export function PlaylistsPage() {
         <ul className="grid grid-cols-1 gap-x-5 gap-y-8 min-[480px]:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {playlists.map((playlist) => (
             <li key={playlist.id}>
-              <Link to={`/playlists/${playlist.id}`} className="group flex flex-col gap-3">
+              <Link
+                to={playlist.is_watch_later ? "/later" : `/playlists/${playlist.id}`}
+                className="group flex flex-col gap-3"
+              >
                 <PlaylistCover
                   videos={playlist.cover}
+                  watchLater={playlist.is_watch_later}
                   className="w-full shadow-[0_0_0_1px_var(--tv-separator)] transition-[transform,box-shadow] duration-300 ease-out-soft group-hover:scale-[1.03] group-hover:shadow-card"
                 />
                 <div className="px-0.5">
@@ -85,6 +89,12 @@ export function PlaylistsPage() {
             </li>
           ))}
         </ul>
+      )}
+      {playlists && playlists.every((playlist) => playlist.is_watch_later) && (
+        <p className="mt-10 max-w-md px-0.5 text-[15px] text-secondary">
+          Stelle Videos in deiner eigenen Reihenfolge zusammen – sie laufen dann nacheinander. Mit
+          „Neue Playlist“ geht's los.
+        </p>
       )}
       <PlaylistNameDialog
         open={naming}

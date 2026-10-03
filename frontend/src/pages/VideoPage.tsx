@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   Check,
   CircleCheck,
+  Clock,
   Download,
   ExternalLink,
   ListPlus,
@@ -20,7 +21,9 @@ import {
   usePlaylist,
   useSegments,
   useSetWatched,
+  useToggleWatchLater,
   useVideo,
+  useWatchLater,
 } from "@/api/queries";
 import { AddToPlaylistDialog } from "@/components/playlists/AddToPlaylistDialog";
 import { Comments } from "@/components/comments/Comments";
@@ -377,6 +380,42 @@ const actionBase =
 const actionNeutral = "bg-surface hover:bg-surface-hover";
 const actionClass = cn(actionBase, actionNeutral, "px-4");
 
+function WatchLaterButton({ videoId }: { videoId: number }) {
+  const { data: later } = useWatchLater();
+  const toggle = useToggleWatchLater();
+  const toast = useToast();
+  if (!later) return null;
+  const saved = later.videos.some((v) => v.id === videoId);
+  return (
+    <button
+      type="button"
+      aria-pressed={saved}
+      disabled={toggle.isPending}
+      onClick={() =>
+        toggle.mutate(
+          { listId: later.id, videoId, add: !saved },
+          {
+            onSuccess: () => toast(saved ? "Aus „Später ansehen“ entfernt" : "Für später gemerkt"),
+            onError: (err) => toast(err.message, "error"),
+          },
+        )
+      }
+      className={cn(
+        actionBase,
+        "px-4",
+        saved ? "bg-accent/15 text-accent hover:bg-accent/25" : actionNeutral,
+      )}
+    >
+      {saved ? (
+        <Check className="size-4" strokeWidth={2.5} />
+      ) : (
+        <Clock className="size-4" strokeWidth={2} />
+      )}
+      Später ansehen
+    </button>
+  );
+}
+
 interface VideoActionsProps {
   video: VideoDetail;
   onWatchedChange: (watched: boolean) => void;
@@ -439,6 +478,7 @@ function VideoActions({ video, onWatchedChange }: VideoActionsProps) {
         )}
         {watched ? "Gesehen" : "Als gesehen markieren"}
       </button>
+      <WatchLaterButton videoId={video.id} />
       <button type="button" onClick={() => setAddingToPlaylist(true)} className={actionClass}>
         <ListPlus className="size-4" strokeWidth={2} />
         Zur Playlist

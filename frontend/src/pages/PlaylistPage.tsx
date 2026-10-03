@@ -6,6 +6,7 @@ import { Link, useNavigate, useParams } from "react-router";
 import {
   useDeletePlaylist,
   usePlaylist,
+  useWatchLater,
   useRemoveFromPlaylist,
   useReorderPlaylist,
   useUpdatePlaylist,
@@ -46,6 +47,14 @@ export function PlaylistPage() {
   return <PlaylistView key={playlist.id} playlist={playlist} />;
 }
 
+/** "Später ansehen": the built-in playlist, at /later. */
+export function WatchLaterPage() {
+  const { data: playlist, isLoading } = useWatchLater();
+  useDocumentTitle("Später ansehen");
+  if (isLoading || !playlist) return <PageSpinner />;
+  return <PlaylistView key={playlist.id} playlist={playlist} />;
+}
+
 function PlaylistView({ playlist }: { playlist: PlaylistDetail }) {
   const [order, setOrder] = useState(playlist.videos);
   const [syncedFrom, setSyncedFrom] = useState(playlist.videos);
@@ -81,9 +90,15 @@ function PlaylistView({ playlist }: { playlist: PlaylistDetail }) {
       </Link>
 
       <header className="mb-8 flex flex-col gap-6 sm:flex-row sm:items-end">
-        <PlaylistCover videos={playlist.cover} className="w-full shadow-card sm:w-72" />
+        <PlaylistCover
+          videos={playlist.cover}
+          watchLater={playlist.is_watch_later}
+          className="w-full shadow-card sm:w-72"
+        />
         <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-semibold tracking-wide text-accent uppercase">Playlist</p>
+          <p className="text-[13px] font-semibold tracking-wide text-accent uppercase">
+            {playlist.is_watch_later ? "Deine Liste" : "Playlist"}
+          </p>
           <h1 className="mt-1 text-[28px] leading-tight font-bold tracking-tight sm:text-[34px]">
             {playlist.name}
           </h1>
@@ -101,27 +116,33 @@ function PlaylistView({ playlist }: { playlist: PlaylistDetail }) {
               </Button>
             )}
             <SaveAllToDevice videos={order} />
-            <Button
-              variant="secondary"
-              icon={<Pencil className="size-4" strokeWidth={2} />}
-              onClick={() => setRenaming(true)}
-            >
-              Umbenennen
-            </Button>
-            <Button
-              variant="danger"
-              icon={<Trash2 className="size-4" strokeWidth={2} />}
-              onClick={() => setConfirmDelete(true)}
-            >
-              Löschen
-            </Button>
+            {!playlist.is_watch_later && (
+              <>
+                <Button
+                  variant="secondary"
+                  icon={<Pencil className="size-4" strokeWidth={2} />}
+                  onClick={() => setRenaming(true)}
+                >
+                  Umbenennen
+                </Button>
+                <Button
+                  variant="danger"
+                  icon={<Trash2 className="size-4" strokeWidth={2} />}
+                  onClick={() => setConfirmDelete(true)}
+                >
+                  Löschen
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </header>
 
       {order.length === 0 ? (
         <p className="rounded-2xl bg-elevated p-8 text-center text-[15px] text-secondary">
-          Noch leer. Öffne ein Video und wähle „Zur Playlist“.
+          {playlist.is_watch_later
+            ? "Noch leer. Tippe bei einem Video auf „Später ansehen“ – gesehene Videos verschwinden von selbst wieder."
+            : "Noch leer. Öffne ein Video und wähle „Zur Playlist“."}
         </p>
       ) : (
         <Reorder.Group

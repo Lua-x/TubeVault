@@ -19,6 +19,7 @@ from app.schemas.playlists import (
 )
 from app.services.access import ensure_visible, visible_videos
 from app.services.presenters import video_summaries
+from app.services.watch_later import watch_later
 
 router = APIRouter(prefix="/playlists", tags=["playlists"])
 
@@ -53,6 +54,21 @@ def _out(db: DbSession, user: User, playlist: Playlist, video_id: int | None = N
     return out
 
 
+def _editable(playlist: Playlist) -> Playlist:
+    if playlist.is_watch_later:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "„Später ansehen“ lässt sich nicht umbenennen oder löschen.",
+        )
+    return playlist
+
+
+def _detail(db: DbSession, user: User, playlist: Playlist) -> PlaylistDetail:
+    detail = PlaylistDetail.model_validate(_out(db, user, playlist).model_dump())
+    detail.videos = video_summaries(db, user.id, _ready_videos(db, playlist, user))
+    return detail
+
+
 def _touch(playlist: Playlist) -> None:
     playlist.updated_at = datetime.now(UTC)
 
@@ -61,10 +77,11 @@ def _touch(playlist: Playlist) -> None:
 def list_playlists(
     user: CurrentUser, db: DbSession, video_id: int | None = None
 ) -> list[PlaylistOut]:
+    watch_later(db, user.id)  # always there, always first
     playlists = db.scalars(
         select(Playlist)
         .where(Playlist.user_id == user.id)
-        .order_by(Playlist.updated_at.desc(), Playlist.id.desc())
+        .order_by(Playlist.is_watch_later.desc(), Playlist.updated_at.desc(), Playlist.id.desc())
     )
     return [_out(db, user, p, video_id) for p in playlists]
 
@@ -77,19 +94,21 @@ def create_playlist(body: PlaylistIn, user: CurrentUser, db: DbSession) -> Playl
     return _out(db, user, playlist)
 
 
+@router.get("/watch-later")
+def get_watch_later(user: CurrentUser, db: DbSession) -> PlaylistDetail:
+    return _detail(db, user, watch_later(db, user.id))
+
+
 @router.get("/{playlist_id}")
 def get_playlist(playlist_id: int, user: CurrentUser, db: DbSession) -> PlaylistDetail:
-    playlist = _get(db, user, playlist_id)
-    detail = PlaylistDetail.model_validate(_out(db, user, playlist).model_dump())
-    detail.videos = video_summaries(db, user.id, _ready_videos(db, playlist, user))
-    return detail
+    return _detail(db, user, _get(db, user, playlist_id))
 
 
 @router.patch("/{playlist_id}")
 def update_playlist(
     playlist_id: int, body: PlaylistIn, user: CurrentUser, db: DbSession
 ) -> PlaylistOut:
-    playlist = _get(db, user, playlist_id)
+    playlist = _editable(_get(db, user, playlist_id))
     playlist.name = body.name
     playlist.description = body.description
     db.commit()
@@ -98,7 +117,7 @@ def update_playlist(
 
 @router.delete("/{playlist_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_playlist(playlist_id: int, user: CurrentUser, db: DbSession) -> None:
-    db.delete(_get(db, user, playlist_id))
+    db.delete(_editable(_get(db, user, playlist_id)))
     db.commit()
 
 

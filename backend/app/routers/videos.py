@@ -39,6 +39,7 @@ from app.services.search import search_ranking
 from app.services.subscriptions import mark_video_removed
 from app.services.upgrades import has_active_job, queue_upgrade
 from app.services.videos import delete_video_files, video_file_exists
+from app.services.watch_later import remove_when_watched
 from app.services.youtube_urls import InvalidVideoUrlError, parse_video_url
 from app.workers.download_manager import load_job
 
@@ -169,9 +170,14 @@ def update_progress(
     video_id: int, body: ProgressUpdate, user: CurrentUser, db: DbSession
 ) -> WatchState:
     video = ensure_visible(user, db.get(Video, video_id))
-    return WatchState.model_validate(
+    before = db.get(WatchProgress, (user.id, video.id))
+    was_watched = bool(before and before.watched)
+    state = WatchState.model_validate(
         save_progress(db, user.id, video, body.position_s, body.duration_s)
     )
+    if state.watched and not was_watched:
+        remove_when_watched(db, user, video.id)
+    return state
 
 
 @router.put("/{video_id}/watched")
@@ -179,7 +185,10 @@ def update_watched(
     video_id: int, body: WatchedUpdate, user: CurrentUser, db: DbSession
 ) -> WatchState:
     ensure_visible(user, db.get(Video, video_id))
-    return WatchState.model_validate(set_watched(db, user.id, video_id, body.watched))
+    state = WatchState.model_validate(set_watched(db, user.id, video_id, body.watched))
+    if body.watched:
+        remove_when_watched(db, user, video_id)
+    return state
 
 
 @router.post("", status_code=status.HTTP_202_ACCEPTED)

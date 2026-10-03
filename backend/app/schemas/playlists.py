@@ -25,6 +25,7 @@ class PlaylistOut(ApiModel):
     id: int
     name: str
     description: str | None
+    is_watch_later: bool = False
     created_at: datetime
     updated_at: datetime
     video_count: int = 0

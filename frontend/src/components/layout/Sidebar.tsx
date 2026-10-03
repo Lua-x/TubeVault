@@ -43,6 +43,8 @@ export function Sidebar({ onAdd }: { onAdd: () => void }) {
   const { user, logout } = useAuth();
   const active = useActiveDownloadCount();
   const { data: playlists } = usePlaylists();
+  // "Später ansehen" has its own place above.
+  const mine = (playlists ?? []).filter((playlist) => !playlist.is_watch_later);
 
   return (
     <aside className="glass fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-separator px-3 pt-6 pb-4 md:flex">
@@ -69,13 +71,13 @@ export function Sidebar({ onAdd }: { onAdd: () => void }) {
           ))}
         </div>
 
-        {playlists && playlists.length > 0 && (
+        {mine.length > 0 && (
           <div className="mt-5">
             <p className="mb-1 px-3 text-[11px] font-semibold tracking-wide text-tertiary uppercase">
               Meine Playlists
             </p>
             <div className="flex flex-col gap-0.5">
-              {playlists.slice(0, 12).map((playlist) => (
+              {mine.slice(0, 12).map((playlist) => (
                 <SidebarLink
                   key={playlist.id}
                   item={{ to: `/playlists/${playlist.id}`, label: playlist.name, icon: ListVideo }}

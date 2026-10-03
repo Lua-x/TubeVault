@@ -76,6 +76,7 @@ export function HomePage() {
             videos={data.continue_watching}
             to="/library?watched=in_progress"
           />
+          <VideoRow title="Später ansehen" videos={data.watch_later ?? []} to="/later" />
           <VideoRow title="Neu von deinen Abos" videos={data.from_subscriptions} to="/library" />
           <VideoRow
             title={data.from_subscriptions.length ? "Von dir hinzugefügt" : "Zuletzt hinzugefügt"}

@@ -4,6 +4,7 @@ export interface Preferences {
   theme?: Theme;
   sponsorblock_skip?: boolean;
   autoplay_next?: boolean;
+  watch_later_keep_watched?: boolean;
 }
 
 export interface User {
@@ -107,6 +108,7 @@ export interface ChannelDetail extends ChannelCard {
 export interface HomeFeed {
   hero: VideoSummary | null;
   continue_watching: VideoSummary[];
+  watch_later: VideoSummary[];
   from_subscriptions: VideoSummary[];
   recently_added: VideoSummary[];
   channels: ChannelCard[];
@@ -116,6 +118,7 @@ export interface Playlist {
   id: number;
   name: string;
   description: string | null;
+  is_watch_later: boolean;
   created_at: string;
   updated_at: string;
   video_count: number;

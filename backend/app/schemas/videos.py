@@ -111,6 +111,7 @@ class ChannelDetail(ChannelCard):
 class HomeFeed(BaseModel):
     hero: VideoSummary | None
     continue_watching: list[VideoSummary]
+    watch_later: list[VideoSummary] = Field(default_factory=list)
     from_subscriptions: list[VideoSummary]
     recently_added: list[VideoSummary]
     channels: list[ChannelCard]

@@ -57,6 +57,8 @@ class Preferences(BaseModel):
     theme: Literal["system", "dark", "light"] | None = None
     sponsorblock_skip: bool | None = None
     autoplay_next: bool | None = None
+    # Keep videos in "Später ansehen" after watching them (default: they leave the list).
+    watch_later_keep_watched: bool | None = None
 
 
 class UserOut(ApiModel):

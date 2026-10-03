@@ -155,10 +155,13 @@ def test_playlists(admin: TestClient) -> None:
     admin.put(f"/api/playlists/{pid}/order", json={"video_ids": [c, a]})
     assert [v["id"] for v in admin.get(f"/api/playlists/{pid}").json()["videos"]] == [c, a, b]
 
-    membership = admin.get("/api/playlists", params={"video_id": b}).json()
-    assert membership[0]["contains"] is True
+    def contains(video: int) -> bool:
+        playlists = admin.get("/api/playlists", params={"video_id": video}).json()
+        return bool(next(p for p in playlists if p["id"] == pid)["contains"])
+
+    assert contains(b) is True
     admin.delete(f"/api/playlists/{pid}/items/{b}")
-    assert admin.get("/api/playlists", params={"video_id": b}).json()[0]["contains"] is False
+    assert contains(b) is False
 
     renamed = admin.patch(f"/api/playlists/{pid}", json={"name": "Später"}).json()
     assert renamed["name"] == "Später"
@@ -168,10 +171,11 @@ def test_playlists(admin: TestClient) -> None:
     other = TestClient(admin.app, headers=HEADERS)
     other.post("/api/auth/login", json={"username": "lea", "password": "passwort1"})
     assert other.get(f"/api/playlists/{pid}").status_code == 404
-    assert other.get("/api/playlists").json() == []
+    # Only their own "Später ansehen".
+    assert [p["is_watch_later"] for p in other.get("/api/playlists").json()] == [True]
 
     assert admin.delete(f"/api/playlists/{pid}").status_code == 204
-    assert admin.get("/api/playlists").json() == []
+    assert [p["is_watch_later"] for p in admin.get("/api/playlists").json()] == [True]
 
 
 # --- SponsorBlock -------------------------------------------------------------------------

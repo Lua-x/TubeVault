@@ -123,6 +123,14 @@ function PlaybackSection() {
       </Row>
       <Row>
         <Switch
+          label="Gesehene in „Später ansehen“ behalten"
+          description="Sonst verschwindet ein Video von der Liste, sobald du es gesehen hast."
+          checked={preferences.watch_later_keep_watched === true}
+          onChange={(watch_later_keep_watched) => void update({ watch_later_keep_watched })}
+        />
+      </Row>
+      <Row>
+        <Switch
           label="SponsorBlock automatisch überspringen"
           description="Sonst erscheint im Player eine Taste zum Überspringen."
           checked={preferences.sponsorblock_skip !== false}
