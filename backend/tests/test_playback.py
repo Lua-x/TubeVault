@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -297,3 +299,30 @@ def test_audio_command_copies_aac_and_converts_the_rest() -> None:
     assert copy[copy.index("-c:a") + 1] == "copy" and "-vn" in copy
     opus = audio_command(Path("in.webm"), Path("out.m4a"), "opus", ffmpeg="ffmpeg")
     assert opus[opus.index("-c:a") + 1] == "aac"
+
+
+def test_file_jobs_wait_for_a_free_slot(settings: Any, tmp_path: Path) -> None:
+    """Many requests for prepared files at once start at most FILE_JOBS ffmpegs."""
+    from app.services.app_settings import TranscodeOptions
+    from app.workers.transcoder import FILE_JOBS, RemuxJob, Transcoder
+
+    transcoder = Transcoder(settings, TranscodeOptions)
+    jobs = [
+        RemuxJob(key=f"job{i}", target=tmp_path / f"job{i}.m4a", duration=1.0) for i in range(5)
+    ]
+    threads = [
+        threading.Thread(
+            target=transcoder._run_file_job,
+            args=(job, ["sh", "-c", "sleep 0.3"], tmp_path / f"job{i}.partial", "Test"),
+        )
+        for i, job in enumerate(jobs)
+    ]
+    for thread in threads:
+        thread.start()
+    most = 0
+    while any(thread.is_alive() for thread in threads):
+        running = sum(1 for j in jobs if j.process is not None and j.process.poll() is None)
+        most = max(most, running)
+        time.sleep(0.02)
+    assert 1 <= most <= FILE_JOBS
+    assert all(job.process is not None for job in jobs)  # every job ran in the end

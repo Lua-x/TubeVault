@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.core.deps import AppConfig, Context, CurrentUser, DbSession
+from app.core.deps import AppConfig, Context, CurrentUser, DbSession, SessionUser
 from app.core.urls import public_base
 from app.models import Channel, Playlist, PlaylistItem, User, Video, VideoStatus
 from app.routers.media import _media_file
@@ -49,7 +49,7 @@ def podcast_access(request: Request, user: CurrentUser, settings: AppConfig) -> 
 
 @router.post("/podcasts/token")
 def renew_token(
-    request: Request, user: CurrentUser, db: DbSession, settings: AppConfig
+    request: Request, user: SessionUser, db: DbSession, settings: AppConfig
 ) -> PodcastAccess:
     """Creates the podcast address – or a new one, which ends the old one."""
     user.feed_token = new_feed_token()
@@ -58,7 +58,7 @@ def renew_token(
 
 
 @router.delete("/podcasts/token", status_code=status.HTTP_204_NO_CONTENT)
-def disable_token(user: CurrentUser, db: DbSession) -> None:
+def disable_token(user: SessionUser, db: DbSession) -> None:
     user.feed_token = None
     db.commit()
 

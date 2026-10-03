@@ -54,6 +54,8 @@ SEGMENT_TIMEOUT_S = 60.0
 EVICT_IDLE_S = 20.0
 CLEANUP_INTERVAL_S = 600.0
 MAX_CACHE_AGE_S = 30 * 86400.0
+# Repacking, compact copies and sound extraction running at the same time; more wait.
+FILE_JOBS = 2
 # What a cached file holds: the original repacked (None), a compact copy of that height,
 # or only the sound.
 Variant = int | Literal["audio"] | None
@@ -177,6 +179,7 @@ class Transcoder:
         self._options = options
         self._sessions: dict[str, HlsSession] = {}
         self._remuxes: dict[str, RemuxJob] = {}
+        self._file_slots = threading.BoundedSemaphore(FILE_JOBS)
         self._lock = threading.Lock()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -459,33 +462,42 @@ class Transcoder:
             job = RemuxJob(key=key, target=target, duration=source.info.duration)
             self._remuxes[key] = job
         partial = target.with_name(f"{key}.partial{target.suffix}")
-        log_path = target.with_name(f"{key}.log")
-        with log_path.open("wb") as log_file:
-            if variant is None:
-                command = remux_command(source.path, partial, source.info.video_codec)
-            elif variant == "audio":
-                command = audio_command(source.path, partial, source.info.audio_codec)
-            else:
-                command = device_command(source.path, partial, variant, source.info.height)
-            job.process = subprocess.Popen(  # noqa: S603 – arguments built from validated input
-                command,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=log_file,
-                text=True,
-                start_new_session=True,
-            )
-        threading.Thread(
-            target=self._follow_remux, args=(job, partial, log_path), name="remux", daemon=True
-        ).start()
         if variant is None:
+            command = remux_command(source.path, partial, source.info.video_codec)
             label = "Umverpacken"
         elif variant == "audio":
+            command = audio_command(source.path, partial, source.info.audio_codec)
             label = "Tonspur"
         else:
+            command = device_command(source.path, partial, variant, source.info.height)
             label = f"Gerätefassung {variant}p"
-        log.info("%s: Video %s", label, source.video_id)
+        threading.Thread(
+            target=self._run_file_job,
+            args=(job, command, partial, f"{label}: Video {source.video_id}"),
+            name="remux",
+            daemon=True,
+        ).start()
         return job
+
+    def _run_file_job(self, job: RemuxJob, command: list[str], partial: Path, label: str) -> None:
+        """Runs when a slot is free: a podcast app fetching ten episodes at once must not
+        start ten ffmpeg processes on a small server. Waiting jobs report progress 0."""
+        with self._file_slots:
+            if self._stop.is_set():
+                job.state, job.error = "failed", "TubeVault wird beendet"
+                return
+            log.info(label)
+            log_path = job.target.with_name(f"{job.key}.log")
+            with log_path.open("wb") as log_file:
+                job.process = subprocess.Popen(  # noqa: S603 – arguments built from validated input
+                    command,
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.PIPE,
+                    stderr=log_file,
+                    text=True,
+                    start_new_session=True,
+                )
+            self._follow_remux(job, partial, log_path)
 
     def _follow_remux(self, job: RemuxJob, partial: Path, log_path: Path) -> None:
         process = job.process

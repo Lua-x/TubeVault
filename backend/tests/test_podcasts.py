@@ -117,3 +117,10 @@ def test_episode_audio(admin: TestClient) -> None:
     response = TestClient(admin.app).get(_path(f"{base}/audio/{vid}.m4a"))
     assert response.status_code == 200 and response.headers["content-type"] == "audio/mp4"
     assert len(response.content) > 1000
+
+
+def test_api_tokens_cannot_mint_podcast_addresses(admin: TestClient) -> None:
+    token = admin.post("/api/auth/tokens", json={"name": "Skript", "scope": "full"}).json()["token"]
+    script = TestClient(admin.app, headers={"Authorization": f"Bearer {token}"})
+    assert script.post("/api/podcasts/token").status_code == 403
+    assert script.delete("/api/podcasts/token").status_code == 403
