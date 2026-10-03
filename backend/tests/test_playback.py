@@ -16,6 +16,7 @@ from app.services.transcode import (
     available_heights,
     can_copy_into_mp4,
     codec_string,
+    device_size_estimate,
     hls_command,
     hls_playlist,
     parse_probe,
@@ -211,3 +212,54 @@ def test_hardware_endpoints(admin: TestClient) -> None:
     result = admin.post("/api/transcoding/test", json={"hwaccel": "none"}).json()
     assert result["ok"] is True
     assert admin.get("/api/transcoding/sessions").json() == []
+
+
+@needs_ffmpeg
+def test_device_version(admin: TestClient) -> None:
+    vid = _library_video(admin, "devicevideo", suffix=".mkv")
+    options = admin.get(f"/api/videos/{vid}/device").json()
+    assert options["source_height"] == 480 and options["original_size"] > 0
+    assert set(options["estimates"]) == {"480"}  # nothing bigger than the original
+    assert options["estimates"]["480"] > 0 and options["can_remux"] is True
+    total = admin.post("/api/videos/device/estimate", json={"video_ids": [vid, 99999]}).json()
+    assert total["count"] == 1 and set(total["estimates"]) == {"720", "480"}
+
+    assert admin.get(f"/api/videos/{vid}/device/480").json()["state"] == "none"
+    assert admin.get(f"/api/videos/{vid}/device/480/file").status_code == 404
+    assert admin.post(f"/api/videos/{vid}/device/999").status_code == 404
+    assert admin.post(f"/api/videos/{vid}/device/480").json()["state"] in ("running", "ready")
+    wait_for(lambda: admin.get(f"/api/videos/{vid}/device/480").json()["state"] == "ready", 60)
+
+    response = admin.get(f"/api/videos/{vid}/device/480/file")
+    assert response.status_code == 200 and response.headers["content-type"] == "video/mp4"
+    ctx = admin.app.state.ctx  # type: ignore[attr-defined]
+    made = next((ctx.settings.cache_dir / "remux").glob(f"{vid}-*-h480.mp4"))
+    assert "mp4" in _ffprobe(made)["format_name"]
+    out = subprocess.run(  # noqa: S603
+        ["ffprobe", "-v", "error", "-print_format", "json", "-show_streams", str(made)],  # noqa: S607
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    streams = {s["codec_type"]: s for s in json.loads(out)["streams"]}
+    assert streams["video"]["codec_name"] == "h264" and streams["video"]["height"] == 480
+    assert streams["audio"]["codec_name"] == "aac"
+
+
+def test_device_size_estimate() -> None:
+    minute = 60
+    assert device_size_estimate(0, 720) == 0
+    # Without a source to go by: the cap (75 % of 3000 kbit/s) plus 128 kbit/s audio.
+    assert device_size_estimate(minute, 720) == (2250 + 128) * 125 * minute
+    # A 1080p H.264 file at 4 Mbit/s needs less than the cap at 720p …
+    h264 = device_size_estimate(minute, 720, 1080, 4128 * 125 * minute, "h264")
+    assert h264 < device_size_estimate(minute, 720)
+    # … a VP9 file at the same rate needs more in H.264, but never more than the cap.
+    vp9 = device_size_estimate(minute, 720, 1080, 4128 * 125 * minute, "vp9")
+    assert h264 < vp9 <= device_size_estimate(minute, 720)
+    # A calm, tiny source stays tiny – with a floor for the picture.
+    assert device_size_estimate(minute, 480, 480, 200 * 125 * minute, "avc1.4d401e") == (
+        (150 + 128) * 125 * minute
+    )
+    # Never larger than the source height: a 360p source is not scaled up.
+    assert device_size_estimate(minute, 720, 360) == device_size_estimate(minute, 360)

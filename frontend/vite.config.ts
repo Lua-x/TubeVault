@@ -8,7 +8,9 @@ import react from "@vitejs/plugin-react";
 import type { Plugin } from "vite";
 import { defineConfig } from "vitest/config";
 
-/** Stamps public/sw.js with a hash of the build, so each release gets a fresh cache. */
+/** Stamps public/sw.js with a hash of the build, so each release gets a fresh cache,
+ * and the list of built assets – all of them are cached at install, so the app (player
+ * included) starts without the server even if a page was never opened before. */
 function serviceWorkerBuildId(): Plugin {
   return {
     name: "tubevault-sw-build-id",
@@ -21,7 +23,13 @@ function serviceWorkerBuildId(): Plugin {
         .slice(0, 12);
       const file = join(options.dir, "sw.js");
       const source = await readFile(file, "utf8");
-      await writeFile(file, source.replaceAll("__BUILD_ID__", id));
+      const assets = Object.keys(bundle).filter((name) => name.startsWith("assets/"));
+      await writeFile(
+        file,
+        source
+          .replaceAll("__BUILD_ID__", id)
+          .replace("[] /* __ASSETS__ */", JSON.stringify(assets)),
+      );
     },
   };
 }

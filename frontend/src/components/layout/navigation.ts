@@ -1,5 +1,6 @@
 import {
   ArrowDownToLine,
+  HardDriveDownload,
   House,
   Library,
   ListVideo,
@@ -46,6 +47,7 @@ export const PRIMARY_NAV: NavItem[] = [
 export const SECONDARY_NAV: NavItem[] = [
   { to: "/subscriptions", label: "Abos", icon: Tv, requiresAdd: true },
   { to: "/downloads", label: "Downloads", icon: ArrowDownToLine, requiresAdd: true },
+  { to: "/device", label: "Auf diesem Gerät", icon: HardDriveDownload },
   { to: "/settings", label: "Einstellungen", icon: Settings },
   { to: "/admin", label: "Verwaltung", icon: ShieldCheck, adminOnly: true },
 ];
@@ -53,7 +55,12 @@ export const SECONDARY_NAV: NavItem[] = [
 /** Phones: five tabs at most, like iOS. Channels and playlists live under "Library". */
 export const TAB_NAV: NavItem[] = [
   { to: "/", label: "Start", icon: House, end: true },
-  { to: "/library", label: "Bibliothek", icon: Library, also: ["/channels", "/playlists"] },
+  {
+    to: "/library",
+    label: "Bibliothek",
+    icon: Library,
+    also: ["/channels", "/playlists", "/device"],
+  },
   { to: "/search", label: "Suche", icon: Search },
   { to: "/subscriptions", label: "Abos", icon: Tv, requiresAdd: true },
   { to: "/downloads", label: "Downloads", icon: ArrowDownToLine, requiresAdd: true },

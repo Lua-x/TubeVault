@@ -57,6 +57,15 @@ interface VideoPlayerProps {
   onEnded?: () => void;
   /** Rendered inside the player element, so it stays visible in fullscreen. */
   overlay?: ReactNode;
+  /** Saved on this device: poster and tracks come from local (object) URLs. */
+  local?: LocalFiles;
+}
+
+export interface LocalFiles {
+  poster?: string;
+  /** Subtitle id → URL */
+  subtitles: Record<number, string>;
+  chapters?: string;
 }
 
 const SEEK_STEP = 10;
@@ -159,7 +168,7 @@ export const VideoPlayer = forwardRef<PlayerHandle, VideoPlayerProps>(
     const fileKey = `${video.id}:${video.downloaded_at ?? ""}:${video.filesize ?? ""}`;
     useEffect(() => {
       const container = containerRef.current;
-      const { video, startAt, autoplay } = latest.current;
+      const { video, startAt, autoplay, local } = latest.current;
       if (!container) return;
       const element = document.createElement("video-js");
       element.classList.add("vjs-tubevault", "vjs-big-play-centered");
@@ -171,7 +180,7 @@ export const VideoPlayer = forwardRef<PlayerHandle, VideoPlayerProps>(
         fill: true,
         playsinline: true,
         inactivityTimeout: 2500,
-        poster: video.has_thumbnail ? thumbnailUrl(video) : undefined,
+        poster: local ? local.poster : video.has_thumbnail ? thumbnailUrl(video) : undefined,
         playbackRates: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
         language: "de",
         // Errors are handled by the page (fallbacks, our own message), not by a modal.
@@ -229,21 +238,26 @@ export const VideoPlayer = forwardRef<PlayerHandle, VideoPlayerProps>(
         setOverlayHost(host);
 
         for (const sub of video.subtitles) {
+          const src = local
+            ? local.subtitles[sub.id]
+            : apiUrl(`videos/${video.id}/subtitles/${sub.id}.vtt`);
+          if (!src) continue;
           player.addRemoteTextTrack(
             {
               kind: "subtitles",
-              src: apiUrl(`videos/${video.id}/subtitles/${sub.id}.vtt`),
+              src,
               srclang: sub.lang,
               label: sub.label,
             },
             true,
           );
         }
-        if (video.chapters.length > 0) {
+        const chapters = local ? local.chapters : apiUrl(`videos/${video.id}/chapters.vtt`);
+        if (video.chapters.length > 0 && chapters) {
           player.addRemoteTextTrack(
             {
               kind: "chapters",
-              src: apiUrl(`videos/${video.id}/chapters.vtt`),
+              src: chapters,
               srclang: "de",
               label: "Kapitel",
               default: true,

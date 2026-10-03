@@ -30,6 +30,7 @@ from app.services.transcode import (
     MediaInfo,
     Mode,
     can_copy_into_mp4,
+    device_command,
     ffmpeg_binary,
     hls_command,
     hwaccel_test_command,
@@ -406,9 +407,21 @@ class Transcoder:
 
     # --- remux ---------------------------------------------------------------------------
 
+    @staticmethod
+    def _file_key(source: Source, height: int | None) -> str:
+        key = f"{source.video_id}-{file_signature(source.path)}"
+        return key if height is None else f"{key}-h{height}"
+
     def remux(self, source: Source) -> RemuxJob:
         """Starts (or reports) copying the streams into an MP4 in the cache."""
-        key = f"{source.video_id}-{file_signature(source.path)}"
+        return self._file_job(source, None)
+
+    def device(self, source: Source, height: int) -> RemuxJob:
+        """Starts (or reports) a compact H.264 MP4 for saving onto a device."""
+        return self._file_job(source, height)
+
+    def _file_job(self, source: Source, height: int | None) -> RemuxJob:
+        key = self._file_key(source, height)
         target = self.remux_dir / f"{key}.mp4"
         with self._lock:
             job = self._remuxes.get(key)
@@ -421,7 +434,7 @@ class Transcoder:
                 return job
             if job is not None and job.state == "running":
                 return job
-            if not can_copy_into_mp4(source.info):
+            if height is None and not can_copy_into_mp4(source.info):
                 raise TranscodeError("Diese Codecs lassen sich nicht in MP4 kopieren")
             self.remux_dir.mkdir(parents=True, exist_ok=True)
             job = RemuxJob(key=key, target=target, duration=source.info.duration)
@@ -429,8 +442,13 @@ class Transcoder:
         partial = target.with_name(f"{key}.partial.mp4")
         log_path = target.with_name(f"{key}.log")
         with log_path.open("wb") as log_file:
+            command = (
+                remux_command(source.path, partial, source.info.video_codec)
+                if height is None
+                else device_command(source.path, partial, height, source.info.height)
+            )
             job.process = subprocess.Popen(  # noqa: S603 – arguments built from validated input
-                remux_command(source.path, partial, source.info.video_codec),
+                command,
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=log_file,
@@ -440,7 +458,11 @@ class Transcoder:
         threading.Thread(
             target=self._follow_remux, args=(job, partial, log_path), name="remux", daemon=True
         ).start()
-        log.info("Umverpacken: Video %s", source.video_id)
+        log.info(
+            "%s: Video %s",
+            "Umverpacken" if height is None else f"Gerätefassung {height}p",
+            source.video_id,
+        )
         return job
 
     def _follow_remux(self, job: RemuxJob, partial: Path, log_path: Path) -> None:
@@ -461,16 +483,16 @@ class Transcoder:
             partial.unlink(missing_ok=True)
             log.warning("Umverpacken fehlgeschlagen: %s", job.error)
 
-    def remux_status(self, source: Source) -> RemuxJob | None:
-        key = f"{source.video_id}-{file_signature(source.path)}"
+    def remux_status(self, source: Source, height: int | None = None) -> RemuxJob | None:
+        key = self._file_key(source, height)
         with self._lock:
             job = self._remuxes.get(key)
         if job is None and (self.remux_dir / f"{key}.mp4").is_file():
-            return self.remux(source)
+            return self._file_job(source, height)
         return job
 
-    def remux_file(self, source: Source) -> Path | None:
-        target = self.remux_dir / f"{source.video_id}-{file_signature(source.path)}.mp4"
+    def remux_file(self, source: Source, height: int | None = None) -> Path | None:
+        target = self.remux_dir / f"{self._file_key(source, height)}.mp4"
         if not target.is_file():
             return None
         _touch(target)

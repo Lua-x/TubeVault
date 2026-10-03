@@ -99,7 +99,8 @@ class BasePathMiddleware:
 
 # Everything comes from TubeVault itself: no CDNs, fonts or trackers – and the UI keeps
 # working without internet. Inline styles are needed by the player (video.js), blob: by
-# HLS playback (media source + worker).
+# HLS playback (media source + worker) and by videos saved on the device (the player
+# fetches their subtitles and chapters from blob: URLs).
 CONTENT_SECURITY_POLICY = (
     b"default-src 'self'; "
     b"script-src 'self'; "
@@ -107,7 +108,7 @@ CONTENT_SECURITY_POLICY = (
     b"img-src 'self' data: blob:; "
     b"media-src 'self' blob:; "
     b"font-src 'self' data:; "
-    b"connect-src 'self' ws: wss:; "
+    b"connect-src 'self' blob: ws: wss:; "
     b"worker-src 'self' blob:; "
     b"manifest-src 'self'; "
     b"object-src 'none'; "

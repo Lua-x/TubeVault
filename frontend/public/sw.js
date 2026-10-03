@@ -1,8 +1,8 @@
 /* TubeVault service worker.
  *
- * Makes the app installable and starts it instantly: the app shell and the hashed build
- * assets are cached. The API, video streams and thumbnails are never cached – your
- * library always comes live from your server.
+ * Makes the app installable and starts it instantly – also without the server: the
+ * app shell and all hashed build assets are cached. The API, streams and thumbnails are
+ * never cached here; videos saved with "Aufs Gerät" live in their own storage.
  *
  * __BUILD_ID__ is replaced at build time, so every release gets a fresh cache.
  */
@@ -10,12 +10,16 @@ const BUILD_ID = "__BUILD_ID__";
 const CACHE = `tubevault-${BUILD_ID}`;
 const SCOPE = new URL(self.registration.scope);
 const SHELL = new URL("./", SCOPE).href;
+// The build fills in every hashed asset (JS chunks, CSS), so the whole app – the
+// player included – works offline from the first visit on.
+const ASSETS = [] /* __ASSETS__ */;
 const PRECACHE = [
   SHELL,
   "manifest.webmanifest",
   "favicon.svg",
   "icon-192.png",
   "apple-touch-icon.png",
+  ...ASSETS,
 ].map((path) => new URL(path, SCOPE).href);
 const API_PREFIX = new URL("api/", SCOPE).pathname;
 const ASSETS_PREFIX = new URL("assets/", SCOPE).pathname;

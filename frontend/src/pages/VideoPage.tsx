@@ -31,6 +31,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { PageSpinner } from "@/components/ui/Spinner";
 import { PlayerOverlay, type PlayerNotice, type UpNext } from "@/components/video/PlayerOverlay";
 import { PlaybackStatus, QualityMenu } from "@/components/video/QualityMenu";
+import { SaveToDevice } from "@/components/offline/SaveToDevice";
 import { VideoPlayer, type PlayerHandle, type SaveReason } from "@/components/video/VideoPlayer";
 import { useAuth } from "@/hooks/auth";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
@@ -431,6 +432,7 @@ function VideoActions({ video, onWatchedChange }: VideoActionsProps) {
         <ListPlus className="size-4" strokeWidth={2} />
         Zur Playlist
       </button>
+      <SaveToDevice video={video} />
       <a href={apiUrl(`videos/${video.id}/download`)} className={actionClass}>
         <Download className="size-4" strokeWidth={2} />
         Datei laden

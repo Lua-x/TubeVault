@@ -7,9 +7,12 @@ from fastapi.responses import FileResponse, Response
 from sqlalchemy import select
 
 from app.core.deps import AdminUser, AppConfig, Context, CurrentUser, DbSession
-from app.models import User, Video
+from app.models import User, Video, VideoStatus
 from app.routers.media import _media_file, _video
 from app.schemas.playback import (
+    DeviceEstimate,
+    DeviceEstimateRequest,
+    DeviceOptions,
     HardwareOut,
     HwTestOut,
     HwTestRequest,
@@ -17,13 +20,16 @@ from app.schemas.playback import (
     RemuxStatus,
     TranscodeSessionOut,
 )
+from app.services.access import visible_videos
 from app.services.app_settings import load_app_settings
 from app.services.transcode import (
+    DEVICE_HEIGHTS,
     QUALITIES,
     ProbeError,
     available_heights,
     can_copy_into_mp4,
     codec_string,
+    device_size_estimate,
     hls_playlist,
     probe,
     target_height,
@@ -156,6 +162,84 @@ def remux_file(
 ) -> FileResponse:
     source = _source(db, settings, video_id, user)[1]
     path = ctx.transcoder.remux_file(source)
+    if path is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Noch nicht vorbereitet")
+    return FileResponse(path, media_type="video/mp4", headers={"Cache-Control": HLS_CACHE})
+
+
+# --- saving onto a device -------------------------------------------------------------
+
+
+def _device_height(height: int) -> int:
+    if height not in DEVICE_HEIGHTS:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Unbekannte Größe")
+    return height
+
+
+@router.get("/videos/{video_id}/device")
+def device_options(
+    video_id: int, user: CurrentUser, db: DbSession, settings: AppConfig
+) -> DeviceOptions:
+    source = _source(db, settings, video_id, user)[1]
+    info = source.info
+    size = source.path.stat().st_size
+    return DeviceOptions(
+        duration=info.duration,
+        source_height=info.height,
+        original_size=size,
+        estimates={
+            height: device_size_estimate(info.duration, height, info.height, size, info.video_codec)
+            for height in DEVICE_HEIGHTS
+            if not info.height or info.height >= height
+        },
+        can_remux=can_copy_into_mp4(info),
+    )
+
+
+@router.post("/videos/device/estimate")
+def device_estimate(
+    body: DeviceEstimateRequest, user: CurrentUser, db: DbSession
+) -> DeviceEstimate:
+    """Total sizes for saving several videos at once (from the library, no probing)."""
+    query = select(Video).where(Video.id.in_(body.video_ids), Video.status == VideoStatus.READY)
+    videos = db.scalars(visible_videos(query, user)).all()
+    return DeviceEstimate(
+        count=len(videos),
+        original_size=sum(video.filesize or 0 for video in videos),
+        estimates={
+            height: sum(
+                device_size_estimate(
+                    video.duration_s or 0, height, video.height, video.filesize, video.vcodec
+                )
+                for video in videos
+            )
+            for height in DEVICE_HEIGHTS
+        },
+    )
+
+
+@router.post("/videos/{video_id}/device/{height}")
+def start_device_file(
+    video_id: int, height: int, user: CurrentUser, db: DbSession, settings: AppConfig, ctx: Context
+) -> RemuxStatus:
+    source = _source(db, settings, video_id, user)[1]
+    return _remux_status(ctx.transcoder.device(source, _device_height(height)))
+
+
+@router.get("/videos/{video_id}/device/{height}")
+def device_file_status(
+    video_id: int, height: int, user: CurrentUser, db: DbSession, settings: AppConfig, ctx: Context
+) -> RemuxStatus:
+    source = _source(db, settings, video_id, user)[1]
+    return _remux_status(ctx.transcoder.remux_status(source, _device_height(height)))
+
+
+@router.get("/videos/{video_id}/device/{height}/file")
+def device_file(
+    video_id: int, height: int, user: CurrentUser, db: DbSession, settings: AppConfig, ctx: Context
+) -> FileResponse:
+    source = _source(db, settings, video_id, user)[1]
+    path = ctx.transcoder.remux_file(source, _device_height(height))
     if path is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Noch nicht vorbereitet")
     return FileResponse(path, media_type="video/mp4", headers={"Cache-Control": HLS_CACHE})

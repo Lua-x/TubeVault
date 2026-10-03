@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.services.app_settings import HwAccel
 
@@ -28,6 +28,29 @@ class RemuxStatus(BaseModel):
     state: Literal["none", "running", "ready", "failed"]
     progress: float = 0.0
     error: str | None = None
+
+
+class DeviceOptions(BaseModel):
+    """What can be saved onto a device: the original, or a compact H.264 version."""
+
+    duration: float
+    source_height: int | None
+    original_size: int
+    # height → estimated bytes, for sizes up to the original's height
+    estimates: dict[int, int]
+    can_remux: bool  # the original's codecs fit into an MP4 as they are
+
+
+class DeviceEstimateRequest(BaseModel):
+    video_ids: list[int] = Field(max_length=5000)
+
+
+class DeviceEstimate(BaseModel):
+    """Totals for saving several videos at once."""
+
+    count: int
+    original_size: int
+    estimates: dict[int, int]  # height → estimated bytes
 
 
 class TranscodeSessionOut(BaseModel):

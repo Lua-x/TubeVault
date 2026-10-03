@@ -85,12 +85,16 @@ def test_hidden_videos_are_closed_everywhere(admin: TestClient, library: dict[st
         f"/api/videos/{other}/subtitles/{subtitle}.vtt",
         f"/api/videos/{other}/playback",
         f"/api/videos/{other}/hls/720/index.m3u8",
+        f"/api/videos/{other}/device",
+        f"/api/videos/{other}/device/480",
         f"/api/channels/{library['other_channel']}",
         f"/api/channels/{library['other_channel']}/avatar",
     ):
         assert kid.get(path).status_code == 404, path
     assert kid.put(f"/api/videos/{other}/progress", json={"position_s": 5}).status_code == 404
     assert kid.put(f"/api/videos/{other}/watched", json={"watched": True}).status_code == 404
+    estimate = kid.post("/api/videos/device/estimate", json={"video_ids": [other]}).json()
+    assert estimate["count"] == 0 and estimate["original_size"] == 0
 
     playlist = kid.post("/api/playlists", json={"name": "Meine"}).json()
     items = f"/api/playlists/{playlist['id']}/items"

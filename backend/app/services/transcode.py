@@ -307,6 +307,63 @@ def remux_command(
     ]  # fmt: skip
 
 
+DEVICE_HEIGHTS = (720, 480)
+DEVICE_AUDIO_KBPS = 128
+
+
+def device_command(
+    source: Path,
+    target: Path,
+    height: int,
+    source_height: int | None,
+    ffmpeg: str | None = None,
+) -> list[str]:
+    """A compact H.264/AAC MP4 to save on a phone or tablet: plays everywhere, starts
+    instantly (moov atom first). Quality-based (CRF) with a cap, so simple videos stay
+    small and busy ones don't explode."""
+    scale = ["-vf", f"scale=-2:{height}"] if source_height and source_height > height else []
+    rate = video_bitrate(min(height, source_height or height))
+    return [
+        ffmpeg or ffmpeg_binary(),
+        "-hide_banner", "-nostdin", "-loglevel", "error", "-y",
+        "-i", str(source),
+        "-map", "0:v:0", "-map", "0:a:0?", "-sn", "-dn",
+        *scale,
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
+        "-maxrate", f"{rate}k", "-bufsize", f"{rate * 2}k",
+        "-pix_fmt", "yuv420p", "-profile:v", "high",
+        "-c:a", "aac", "-b:a", f"{DEVICE_AUDIO_KBPS}k", "-ac", "2",
+        "-movflags", "+faststart",
+        "-progress", "pipe:1", "-nostats",
+        "-f", "mp4", str(target),
+    ]  # fmt: skip
+
+
+def device_size_estimate(
+    duration: float,
+    height: int,
+    source_height: int | None = None,
+    source_size: int | None = None,
+    source_codec: str | None = None,
+) -> int:
+    """Rough size in bytes of a compact copy.
+
+    The cap is the upper limit; most videos stay well below it. The source shows how
+    many bits the picture really needs: fewer pixels need fewer bits (though not
+    proportionally), and H.264 needs about half again as many as VP9 or AV1.
+    """
+    if duration <= 0:
+        return 0
+    target = min(height, source_height or height)
+    kbps = video_bitrate(target) * 0.75
+    if source_size and source_height:
+        source_kbps = max(source_size * 8 / 1000 / duration - DEVICE_AUDIO_KBPS, 0)
+        efficient = not (source_codec or "").lower().startswith(("h264", "avc"))
+        needed = source_kbps * (target / source_height) ** 1.5 * (1.5 if efficient else 1)
+        kbps = min(kbps, max(needed, 150))
+    return int((kbps + DEVICE_AUDIO_KBPS) * 1000 / 8 * duration)
+
+
 def hwaccel_test_command(hwaccel: str, vaapi_device: str, ffmpeg: str | None = None) -> list[str]:
     """Encodes two seconds of a test pattern with the chosen hardware."""
     base = [

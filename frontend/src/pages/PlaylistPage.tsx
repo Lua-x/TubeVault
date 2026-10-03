@@ -10,6 +10,7 @@ import {
   useReorderPlaylist,
   useUpdatePlaylist,
 } from "@/api/queries";
+import { SaveAllToDevice } from "@/components/offline/SaveAllToDevice";
 import { PlaylistCover } from "@/components/playlists/PlaylistCover";
 import { PlaylistNameDialog } from "@/components/playlists/PlaylistNameDialog";
 import { Button, IconButton } from "@/components/ui/Button";
@@ -99,6 +100,7 @@ function PlaylistView({ playlist }: { playlist: PlaylistDetail }) {
                 {first === order[0] ? "Abspielen" : "Weiterspielen"}
               </Button>
             )}
+            <SaveAllToDevice videos={order} />
             <Button
               variant="secondary"
               icon={<Pencil className="size-4" strokeWidth={2} />}
