@@ -18,8 +18,10 @@ import type {
   BackupState,
   ChannelCard,
   ChannelDetail,
-  CreatedApiToken,
+  CommentsPage,
   Container,
+  CreatedApiToken,
+  DlnaStatus,
   HardwareInfo,
   HomeFeed,
   HwAccel,
@@ -30,11 +32,10 @@ import type {
   LibraryTask,
   LogEntry,
   MaintenanceAction,
+  MaxHeight,
   NotificationSettings,
   NotificationUpdate,
   OidcInfo,
-  TwoFactorStatus,
-  MaxHeight,
   Page,
   PlaybackInfo,
   Playlist,
@@ -48,12 +49,12 @@ import type {
   SystemInfo,
   TokenScope,
   TranscodeSession,
+  TwoFactorStatus,
   User,
   VideoDetail,
-  YtDlpInfo,
   VideoSummary,
   WatchState,
-  CommentsPage,
+  YtDlpInfo,
 } from "@/lib/types";
 
 export const keys = {
@@ -229,7 +230,20 @@ export function useSaveSettings() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (settings: AppSettings) => api.put<AppSettings>("settings", settings),
-    onSuccess: (data) => client.setQueryData(keys.settings, data),
+    onSuccess: (data) => {
+      client.setQueryData(keys.settings, data);
+      void client.invalidateQueries({ queryKey: DLNA_STATUS, exact: true });
+    },
+  });
+}
+
+const DLNA_STATUS = [...keys.settings, "dlna"] as const;
+
+export function useDlnaStatus(enabled: boolean) {
+  return useQuery({
+    queryKey: DLNA_STATUS,
+    queryFn: () => api.get<DlnaStatus>("settings/dlna"),
+    enabled,
   });
 }
 

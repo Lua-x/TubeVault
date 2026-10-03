@@ -13,6 +13,7 @@ from app.services.auth import LoginThrottle
 from app.services.catalog import Catalog
 from app.services.comments import CommentFetcher
 from app.services.connectivity import Connectivity
+from app.services.dlna import DlnaService
 from app.services.importer import Importer
 from app.services.notifications import Notifier
 from app.services.oidc import OidcClient
@@ -43,5 +44,6 @@ class AppContext:
     oidc: OidcClient
     comments: CommentFetcher
     podcasts: AudioPrefetch
+    dlna: DlnaService
     login_throttle: LoginThrottle = field(default_factory=LoginThrottle)
     login_tickets: LoginTickets = field(default_factory=LoginTickets)

@@ -28,6 +28,7 @@ from app.routers import (
     cast,
     channels,
     comments,
+    dlna,
     downloads,
     history,
     home,
@@ -50,6 +51,7 @@ from app.services.backups import apply_staged_restore
 from app.services.catalog import Catalog, YtDlpCatalog
 from app.services.comments import CommentFetcher
 from app.services.connectivity import Connectivity
+from app.services.dlna import DlnaService
 from app.services.downloader import Downloader, YtDlpDownloader
 from app.services.importer import Importer
 from app.services.notifications import Notifier, Sender
@@ -333,6 +335,7 @@ def create_app(
     podcast_prefetch = AudioPrefetch(transcoder)
     manager.on_comments_wanted = comment_fetcher.request
     importer = Importer(settings.media_dir, settings.import_dir, downloader)
+    dlna_service = DlnaService(sessions, settings.port)
     ctx = AppContext(
         settings=settings,
         engine=engine,
@@ -350,6 +353,7 @@ def create_app(
         oidc=OidcClient(settings),
         comments=comment_fetcher,
         podcasts=podcast_prefetch,
+        dlna=dlna_service,
     )
 
     @asynccontextmanager
@@ -359,6 +363,7 @@ def create_app(
         manager.start()
         scheduler.start()
         transcoder.start()
+        await asyncio.to_thread(dlna_service.apply)
         if restored:
             library_tasks.verify_files()  # the backup may know files that are gone now
         else:
@@ -367,6 +372,7 @@ def create_app(
         try:
             yield
         finally:
+            await asyncio.to_thread(dlna_service.stop)
             await asyncio.to_thread(library_tasks.wait, 10.0)
             await asyncio.to_thread(transcoder.stop)
             await asyncio.to_thread(scheduler.stop)
@@ -386,6 +392,8 @@ def create_app(
     )
     app.state.ctx = ctx
     app.include_router(_api_router())
+    # Outside /api: TVs know nothing of logins or CSRF headers (see app/routers/dlna.py).
+    app.include_router(dlna.router)
     _mount_frontend(app, settings)
     app.add_middleware(SecurityMiddleware)
     app.add_middleware(BasePathMiddleware, base_path=settings.base_path)

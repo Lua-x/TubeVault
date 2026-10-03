@@ -12,6 +12,7 @@ import {
   useUsers,
 } from "@/api/queries";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { DlnaGroup } from "@/components/settings/DlnaGroup";
 import { LibraryGroup, LibraryTaskStatus } from "@/components/settings/LibraryGroup";
 import { TokensGroup } from "@/components/settings/TokensGroup";
 import { TranscodeGroup } from "@/components/settings/TranscodeGroup";
@@ -180,6 +181,7 @@ function DownloadSection() {
 
 function DownloadForm({ initial }: { initial: AppSettings }) {
   const save = useSaveSettings();
+  const { data: saved = initial } = useAppSettings();
   const toast = useToast();
   const [draft, setDraft] = useState<AppSettings>(initial);
   const [languages, setLanguages] = useState(initial.downloads.subtitle_languages.join(", "));
@@ -399,6 +401,12 @@ function DownloadForm({ initial }: { initial: AppSettings }) {
         />
         <LibraryTaskStatus />
       </div>
+
+      <DlnaGroup
+        value={draft.dlna}
+        saved={saved.dlna}
+        onChange={(patch) => setDraft({ ...draft, dlna: { ...draft.dlna, ...patch } })}
+      />
 
       <div className="flex justify-end">
         <Button type="submit" loading={save.isPending}>

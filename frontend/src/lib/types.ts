@@ -338,6 +338,20 @@ export interface AppSettings {
   library: LibraryOptions;
   backup: BackupOptions;
   automation: { rss: boolean; upgrade_quality: boolean };
+  dlna: DlnaOptions;
+}
+
+export interface DlnaOptions {
+  enabled: boolean;
+  name: string;
+  /** Whose view TVs get; null = every video. */
+  user_id: number | null;
+}
+
+export interface DlnaStatus {
+  running: boolean;
+  error: string | null;
+  description_url: string | null;
 }
 
 export interface Backup {

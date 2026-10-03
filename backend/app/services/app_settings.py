@@ -105,6 +105,15 @@ class BackupOptions(BaseModel):
     keep: int = Field(default=7, ge=1, le=60)
 
 
+class DlnaOptions(BaseModel):
+    """Smart TVs, consoles and VLC find the library in the home network (no login)."""
+
+    enabled: bool = False
+    name: str = Field(default="TubeVault", min_length=1, max_length=64)
+    # Whose view the TV gets (e.g. a kids profile); None = every video.
+    user_id: int | None = None
+
+
 class AppSettings(BaseModel):
     downloads: DownloadOptions = Field(default_factory=DownloadOptions)
     max_concurrent_downloads: int = Field(default=2, ge=1, le=5)
@@ -112,6 +121,7 @@ class AppSettings(BaseModel):
     library: LibraryOptions = Field(default_factory=LibraryOptions)
     backup: BackupOptions = Field(default_factory=BackupOptions)
     automation: AutomationOptions = Field(default_factory=AutomationOptions)
+    dlna: DlnaOptions = Field(default_factory=DlnaOptions)
 
 
 QUEUE_PAUSED_KEY = "queue_paused"
