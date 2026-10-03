@@ -16,6 +16,12 @@ services:
       # - ADMIN_PASSWORD=change-me-please
       # Optional: serve below a sub-path behind a reverse proxy
       # - BASE_PATH=/tubevault
+      # Optional: login via Authelia, Authentik, Keycloak, … (see README → Anmeldung)
+      # - PUBLIC_URL=https://tube.example.com
+      # - OIDC_ISSUER=https://auth.example.com
+      # - OIDC_CLIENT_ID=tubevault
+      # - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET}
+      # - OIDC_NAME=Authelia
     volumes:
       - ./config:/config
       - ./media:/media

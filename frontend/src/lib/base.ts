@@ -13,3 +13,10 @@ export function websocketUrl(path: string): string {
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   return `${protocol}//${window.location.host}${apiUrl(path)}`;
 }
+
+/** The current page inside the app, without the base path: "/tubevault/library" → "/library". */
+export function appPath(): string {
+  const base = basePath();
+  const path = window.location.pathname;
+  return path.startsWith(base) ? `/${path.slice(base.length)}` : path;
+}

@@ -32,6 +32,7 @@ import type {
   MaintenanceAction,
   NotificationSettings,
   NotificationUpdate,
+  OidcInfo,
   TwoFactorStatus,
   MaxHeight,
   Page,
@@ -709,6 +710,14 @@ export function useResetTwoFactor() {
     mutationFn: (userId: number) => api.delete(`users/${userId}/2fa`),
     onSuccess: () => client.invalidateQueries({ queryKey: keys.users }),
   });
+}
+
+export function useOidcInfo() {
+  return useQuery({ queryKey: ["admin", "oidc"], queryFn: () => api.get<OidcInfo>("admin/oidc") });
+}
+
+export function useUnlinkOidc() {
+  return useMutation({ mutationFn: () => api.post("auth/oidc/unlink") });
 }
 
 // --- API tokens ----------------------------------------------------------------------

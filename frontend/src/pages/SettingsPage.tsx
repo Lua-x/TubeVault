@@ -1,5 +1,5 @@
 import { ChevronRight, ShieldCheck } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router";
 
 import {
@@ -7,6 +7,7 @@ import {
   useChangePassword,
   useCreateUser,
   useSaveSettings,
+  useUnlinkOidc,
   useSystemInfo,
   useUsers,
 } from "@/api/queries";
@@ -28,6 +29,7 @@ import { useAuth, useCurrentUser } from "@/hooks/auth";
 import { useTheme } from "@/hooks/theme";
 import { useToast } from "@/hooks/toast";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { apiUrl } from "@/lib/base";
 import { cn } from "@/lib/cn";
 import { formatBytes } from "@/lib/format";
 import { SPONSOR_CATEGORIES, SPONSORBLOCK_MODES } from "@/lib/sponsorblock";
@@ -411,9 +413,11 @@ function CategoryPicker({
 
 function AccountSection() {
   const change = useChangePassword();
+  const { user, status, refresh } = useAuth();
   const toast = useToast();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
+  const hasPassword = user?.has_password ?? true;
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -421,42 +425,117 @@ function AccountSection() {
       await change.mutateAsync({ current_password: current, new_password: next });
       setCurrent("");
       setNext("");
-      toast("Passwort geändert. Andere Geräte wurden abgemeldet.");
+      toast(
+        hasPassword
+          ? "Passwort geändert. Andere Geräte wurden abgemeldet."
+          : "Passwort festgelegt – du kannst dich jetzt auch damit anmelden.",
+      );
+      void refresh();
     } catch (err) {
       toast(err instanceof Error ? err.message : "Ändern fehlgeschlagen", "error");
     }
   };
 
   return (
-    <form onSubmit={submit}>
-      <Group title="Konto">
-        <Row className="flex flex-col gap-4">
-          <TextField
-            label="Aktuelles Passwort"
-            type="password"
-            autoComplete="current-password"
-            required
-            value={current}
-            onChange={(e) => setCurrent(e.target.value)}
-          />
-          <TextField
-            label="Neues Passwort"
-            type="password"
-            autoComplete="new-password"
-            minLength={8}
-            required
-            hint="Mindestens 8 Zeichen"
-            value={next}
-            onChange={(e) => setNext(e.target.value)}
-          />
-          <div className="flex justify-end">
-            <Button type="submit" variant="secondary" loading={change.isPending}>
-              Passwort ändern
-            </Button>
-          </div>
-        </Row>
-      </Group>
-    </form>
+    <>
+      <form onSubmit={submit}>
+        <Group
+          title="Konto"
+          footer={
+            hasPassword
+              ? undefined
+              : "Dein Konto wurde über den Anmeldedienst angelegt und hat noch kein Passwort."
+          }
+        >
+          <Row className="flex flex-col gap-4">
+            {hasPassword && (
+              <TextField
+                label="Aktuelles Passwort"
+                type="password"
+                autoComplete="current-password"
+                required
+                value={current}
+                onChange={(e) => setCurrent(e.target.value)}
+              />
+            )}
+            <TextField
+              label={hasPassword ? "Neues Passwort" : "Passwort"}
+              type="password"
+              autoComplete="new-password"
+              minLength={8}
+              required
+              hint="Mindestens 8 Zeichen"
+              value={next}
+              onChange={(e) => setNext(e.target.value)}
+            />
+            <div className="flex justify-end">
+              <Button type="submit" variant="secondary" loading={change.isPending}>
+                {hasPassword ? "Passwort ändern" : "Passwort festlegen"}
+              </Button>
+            </div>
+          </Row>
+        </Group>
+      </form>
+      {status?.oidc_name && <OidcGroup name={status.oidc_name} />}
+    </>
+  );
+}
+
+function OidcGroup({ name }: { name: string }) {
+  const { user, refresh } = useAuth();
+  const unlink = useUnlinkOidc();
+  const toast = useToast();
+  const linked = user?.oidc_linked ?? false;
+
+  // Back from the provider: show what happened, then tidy the address.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("oidc") === "linked") toast(`Mit ${name} verbunden`, "success");
+    const error = params.get("oidc_error");
+    if (error) toast(error, "error");
+    if (params.has("oidc") || error) {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, [name, toast]);
+
+  return (
+    <Group
+      title={`Anmeldung über ${name}`}
+      footer={
+        linked
+          ? undefined
+          : `Verbinde dein Konto, um dich künftig mit ${name} anzumelden – ohne Passwort.`
+      }
+    >
+      <Row className="flex items-center justify-between gap-3">
+        <span className="text-[15px]">{linked ? "Verbunden" : "Nicht verbunden"}</span>
+        {linked ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            loading={unlink.isPending}
+            onClick={() =>
+              unlink.mutate(undefined, {
+                onSuccess: () => {
+                  toast("Verbindung getrennt");
+                  void refresh();
+                },
+                onError: (err) => toast(err.message, "error"),
+              })
+            }
+          >
+            Trennen
+          </Button>
+        ) : (
+          <a
+            href={apiUrl("auth/oidc/link")}
+            className="inline-flex h-8 items-center rounded-full bg-accent px-3.5 text-[13px] font-medium text-white hover:bg-accent-hover"
+          >
+            Verbinden
+          </a>
+        )}
+      </Row>
+    </Group>
   );
 }
 

@@ -34,6 +34,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const setUser = useCallback(
     (user: User | null) => {
       client.setQueryData<AuthStatus>(STATUS_KEY, (old) => ({
+        oidc_name: old?.oidc_name ?? null,
+        password_login: old?.password_login ?? true,
         setup_required: user ? false : (old?.setup_required ?? false),
         user,
       }));
@@ -77,8 +79,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       logout: async () => {
         await api.post("auth/logout").catch(() => undefined);
+        const previous = client.getQueryData<AuthStatus>(STATUS_KEY);
         client.clear();
-        client.setQueryData<AuthStatus>(STATUS_KEY, { setup_required: false, user: null });
+        client.setQueryData<AuthStatus>(STATUS_KEY, {
+          oidc_name: previous?.oidc_name ?? null,
+          password_login: previous?.password_login ?? true,
+          setup_required: false,
+          user: null,
+        });
       },
       refresh: () => query.refetch(),
       updatePreferences: async (patch) => {

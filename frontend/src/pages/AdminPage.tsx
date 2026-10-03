@@ -24,6 +24,7 @@ import {
 import { BackupGroup } from "@/components/admin/BackupGroup";
 import { DownloadColumns, StorageBars } from "@/components/admin/Charts";
 import { NotificationsGroup } from "@/components/admin/NotificationsGroup";
+import { OidcInfoGroup } from "@/components/admin/OidcInfoGroup";
 import { RestartingDialog } from "@/components/admin/Restarting";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { LibraryTaskStatus } from "@/components/settings/LibraryGroup";
@@ -77,6 +78,7 @@ export function AdminPage() {
           <div className="flex flex-col gap-9">
             <YtDlpGroup />
             <SystemGroup data={data} />
+            <OidcInfoGroup />
           </div>
           <div className="flex flex-col gap-9">
             <MaintenanceGroup />

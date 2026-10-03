@@ -46,7 +46,8 @@ class UserUpdate(BaseModel):
 
 
 class PasswordChange(BaseModel):
-    current_password: str = Field(min_length=1, max_length=1024)
+    # Empty for accounts without a password yet (created through the OIDC provider).
+    current_password: str = Field(default="", max_length=1024)
     new_password: str = Field(min_length=8, max_length=1024)
 
 
@@ -72,6 +73,8 @@ class UserOut(ApiModel):
     # Effective rights, for the UI: what this account actually may do.
     can_add: bool = True
     restricted: bool = False
+    has_password: bool = True
+    oidc_linked: bool = False
 
 
 class TwoFactorChallenge(BaseModel):
@@ -107,6 +110,9 @@ class RecoveryCodes(BaseModel):
 class AuthStatus(BaseModel):
     setup_required: bool
     user: UserOut | None
+    # Login through an OpenID Connect provider: the name for the button, if set up.
+    oidc_name: str | None = None
+    password_login: bool = True
 
 
 class TokenCreate(BaseModel):

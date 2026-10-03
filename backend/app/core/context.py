@@ -14,6 +14,7 @@ from app.services.catalog import Catalog
 from app.services.connectivity import Connectivity
 from app.services.importer import Importer
 from app.services.notifications import Notifier
+from app.services.oidc import OidcClient
 from app.services.subscriptions import SubscriptionChecker
 from app.services.two_factor import LoginTickets
 from app.workers.download_manager import DownloadManager
@@ -37,5 +38,6 @@ class AppContext:
     importer: Importer
     connectivity: Connectivity
     notifier: Notifier
+    oidc: OidcClient
     login_throttle: LoginThrottle = field(default_factory=LoginThrottle)
     login_tickets: LoginTickets = field(default_factory=LoginTickets)

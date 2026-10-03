@@ -3,17 +3,26 @@ import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/Button";
 import { TextField } from "@/components/ui/Input";
 import { useAuth } from "@/hooks/auth";
+import { apiUrl, appPath } from "@/lib/base";
 
 import { AuthLayout } from "./AuthLayout";
 
 export function LoginPage() {
-  const { login, loginWithCode } = useAuth();
+  const { login, loginWithCode, status } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [ticket, setTicket] = useState<string | null>(null);
   const [code, setCode] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  // An error from the OIDC provider comes back in the address.
+  const [error, setError] = useState<string | null>(() =>
+    new URLSearchParams(window.location.search).get("oidc_error"),
+  );
   const [busy, setBusy] = useState(false);
+  const oidcName = status?.oidc_name;
+  const passwordLogin = status?.password_login ?? true;
+  // Back to the page that asked for the login (inside TubeVault, without the base path).
+  const current = appPath();
+  const returnTo = current === "/login" ? "/" : current;
 
   const fail = (err: unknown) => {
     setError(err instanceof Error ? err.message : "Anmeldung fehlgeschlagen.");
@@ -93,8 +102,42 @@ export function LoginPage() {
     );
   }
 
+  const oidcButton = oidcName && (
+    <a
+      href={`${apiUrl("auth/oidc/login")}?next=${encodeURIComponent(returnTo)}`}
+      className="flex h-12 w-full items-center justify-center rounded-full bg-surface text-[16px] font-medium transition-colors hover:bg-surface-hover"
+    >
+      Mit {oidcName} anmelden
+    </a>
+  );
+
+  if (!passwordLogin) {
+    return (
+      <AuthLayout title="TubeVault" subtitle="Melde dich an, um deine Bibliothek zu öffnen.">
+        <div className="flex flex-col gap-4">
+          {error && (
+            <p role="alert" className="px-1 text-[13px] text-danger">
+              {error}
+            </p>
+          )}
+          {oidcButton}
+        </div>
+      </AuthLayout>
+    );
+  }
+
   return (
     <AuthLayout title="TubeVault" subtitle="Melde dich an, um deine Bibliothek zu öffnen.">
+      {oidcButton && (
+        <div className="mb-6 flex flex-col gap-6">
+          {oidcButton}
+          <div className="flex items-center gap-3 text-[13px] text-tertiary">
+            <span className="h-px flex-1 bg-separator" />
+            oder mit Passwort
+            <span className="h-px flex-1 bg-separator" />
+          </div>
+        </div>
+      )}
       <form onSubmit={submit} className="flex flex-col gap-4">
         <TextField
           label="Benutzername"

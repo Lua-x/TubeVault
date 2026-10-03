@@ -21,11 +21,17 @@ export interface User {
   can_add: boolean;
   /** Sees only the channels chosen for it. */
   restricted: boolean;
+  /** False for accounts created through the OIDC provider until a password is set. */
+  has_password: boolean;
+  oidc_linked: boolean;
 }
 
 export interface AuthStatus {
   setup_required: boolean;
   user: User | null;
+  /** Name for "Mit … anmelden" when an OIDC provider is set up. */
+  oidc_name: string | null;
+  password_login: boolean;
 }
 
 export interface Channel {
@@ -524,4 +530,14 @@ export interface TwoFactorChallenge {
 export interface TwoFactorStatus {
   enabled: boolean;
   recovery_codes_left: number;
+}
+
+export interface OidcInfo {
+  enabled: boolean;
+  name: string;
+  issuer: string | null;
+  redirect_uri: string;
+  auto_create: boolean;
+  admin_group: string | null;
+  password_login: boolean;
 }

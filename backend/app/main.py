@@ -30,6 +30,7 @@ from app.routers import (
     home,
     imports,
     media,
+    oidc,
     playback,
     playlists,
     settings,
@@ -48,6 +49,7 @@ from app.services.downloader import Downloader, YtDlpDownloader
 from app.services.importer import Importer
 from app.services.notifications import Notifier, Sender
 from app.services.notifications import send as send_notification
+from app.services.oidc import OidcClient
 from app.services.rss import FeedFetcher, RssWatcher, fetch_feed_ids
 from app.services.search import ensure_search_index
 from app.services.subscriptions import SubscriptionChecker
@@ -173,6 +175,7 @@ def _api_router() -> APIRouter:
     for module in (
         system,
         auth,
+        oidc,
         users,
         home,
         videos,
@@ -330,6 +333,7 @@ def create_app(
         importer=importer,
         connectivity=connectivity,
         notifier=notifier,
+        oidc=OidcClient(settings),
     )
 
     @asynccontextmanager

@@ -58,7 +58,14 @@ def auth_status(request: Request, db: DbSession, settings: AppConfig) -> AuthSta
     return AuthStatus(
         setup_required=auth_service.user_count(db) == 0,
         user=UserOut.model_validate(user) if user else None,
+        oidc_name=settings.oidc_name if settings.oidc_enabled else None,
+        password_login=password_login_allowed(settings),
     )
+
+
+def password_login_allowed(settings: AppConfig) -> bool:
+    # Without a working provider, switching passwords off would lock everyone out.
+    return settings.password_login or not settings.oidc_enabled
 
 
 @router.post("/setup", status_code=status.HTTP_201_CREATED)
@@ -87,6 +94,10 @@ def login(
     settings: AppConfig,
     ctx: Context,
 ) -> UserOut | TwoFactorChallenge:
+    if not password_login_allowed(settings):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "Die Anmeldung mit Passwort ist abgeschaltet."
+        )
     throttle = ctx.login_throttle
     key = _client_key(request)
     if throttle.is_blocked(key):
@@ -174,7 +185,7 @@ def update_preferences(body: Preferences, user: CurrentUser, db: DbSession) -> U
 def change_password(
     body: PasswordChange, request: Request, user: SessionUser, db: DbSession
 ) -> None:
-    if not verify_password(user.password_hash, body.current_password):
+    if user.has_password and not verify_password(user.password_hash, body.current_password):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Das aktuelle Passwort ist falsch.")
     user.password_hash = hash_password(body.new_password)
     _sign_out_others(request, db, user)  # every other device

@@ -30,6 +30,7 @@ from app.models import (
     Video,
     VideoStatus,
 )
+from app.routers.oidc import redirect_uri as oidc_redirect_uri
 from app.routers.system import ffmpeg_version
 from app.services import backups, notifications
 from app.services.app_settings import load_app_settings
@@ -538,3 +539,30 @@ def test_notifications(
     except notifications.NotifyError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     return {"detail": "Testnachricht gesendet"}
+
+
+# --- login through an OpenID Connect provider ----------------------------------------
+
+
+class OidcInfo(BaseModel):
+    enabled: bool
+    name: str
+    issuer: str | None
+    redirect_uri: str  # to enter at the provider
+    auto_create: bool
+    admin_group: str | None
+    password_login: bool
+
+
+@router.get("/oidc")
+def oidc_info(request: Request, _: AdminUser, ctx: Context) -> OidcInfo:
+    settings = ctx.settings
+    return OidcInfo(
+        enabled=settings.oidc_enabled,
+        name=settings.oidc_name,
+        issuer=settings.oidc_issuer,
+        redirect_uri=oidc_redirect_uri(request, settings),
+        auto_create=settings.oidc_auto_create,
+        admin_group=settings.oidc_admin_group,
+        password_login=settings.password_login or not settings.oidc_enabled,
+    )

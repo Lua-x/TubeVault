@@ -9,7 +9,12 @@ from tests.conftest import HEADERS, FakeDownloader
 
 def test_setup_flow(client: TestClient) -> None:
     status = client.get("/api/auth/status").json()
-    assert status == {"setup_required": True, "user": None}
+    assert status == {
+        "setup_required": True,
+        "user": None,
+        "oidc_name": None,
+        "password_login": True,
+    }
 
     response = client.post("/api/auth/setup", json={"username": "Admin", "password": "geheim123"})
     assert response.status_code == 201
