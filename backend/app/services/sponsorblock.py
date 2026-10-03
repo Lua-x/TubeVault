@@ -9,6 +9,8 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import threading
+import time
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
@@ -34,6 +36,8 @@ CATEGORIES = (
 )
 DEFAULT_CATEGORIES = ["sponsor", "selfpromo", "interaction"]
 TIMEOUT = 10
+INTERACTIVE_TIMEOUT = 3  # while someone waits for the video page
+FAILURE_BACKOFF = 600.0  # seconds before trying a video again after a failed fetch
 # New videos get segments over the first days; refresh those more often.
 REFRESH_RECENT = timedelta(hours=12)
 REFRESH_OLD = timedelta(days=30)
@@ -69,7 +73,9 @@ def parse_response(payload: Any, youtube_id: str, categories: list[str]) -> list
     return sorted(segments, key=lambda s: s.start_s)
 
 
-def fetch_segments(youtube_id: str, categories: list[str]) -> list[Segment]:
+def fetch_segments(
+    youtube_id: str, categories: list[str], timeout: float = TIMEOUT
+) -> list[Segment]:
     prefix = hashlib.sha256(youtube_id.encode()).hexdigest()[:4]
     query = urllib.parse.urlencode(
         {"categories": json.dumps(categories), "actionTypes": json.dumps(["skip", "mute"])}
@@ -79,7 +85,7 @@ def fetch_segments(youtube_id: str, categories: list[str]) -> list[Segment]:
         headers={"User-Agent": "TubeVault", "Accept": "application/json"},
     )
     try:
-        with urllib.request.urlopen(request, timeout=TIMEOUT) as response:  # noqa: S310
+        with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
             payload = json.load(response)
     except urllib.error.HTTPError as exc:
         if exc.code == 404:  # no segments for any video with this prefix
@@ -115,13 +121,27 @@ def is_stale(video: Video, now: datetime | None = None) -> bool:
     return age > (REFRESH_RECENT if recent else REFRESH_OLD)
 
 
-def refresh(db: Session, video: Video, categories: list[str]) -> bool:
+_failures: dict[str, float] = {}
+_failures_lock = threading.Lock()
+
+
+def recently_failed(youtube_id: str) -> bool:
+    with _failures_lock:
+        failed_at = _failures.get(youtube_id)
+    return failed_at is not None and time.monotonic() - failed_at < FAILURE_BACKOFF
+
+
+def refresh(db: Session, video: Video, categories: list[str], timeout: float = TIMEOUT) -> bool:
     """Fetch and store segments. Returns False if SponsorBlock could not be reached."""
     try:
-        segments = fetch_segments(video.youtube_id, categories)
+        segments = fetch_segments(video.youtube_id, categories, timeout)
     except Exception as exc:
         log.info("SponsorBlock nicht erreichbar für %s: %s", video.youtube_id, exc)
+        with _failures_lock:
+            _failures[video.youtube_id] = time.monotonic()
         return False
+    with _failures_lock:
+        _failures.pop(video.youtube_id, None)
     store_segments(db, video, segments)
     db.commit()
     return True

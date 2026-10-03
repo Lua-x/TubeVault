@@ -17,6 +17,7 @@ from app.models import (
     JobStatus,
     Subscription,
     SubscriptionItem,
+    User,
 )
 from app.schemas.subscriptions import (
     SubscriptionCreate,
@@ -53,6 +54,20 @@ def _out(sub: Subscription, stats: dict[str, int], ctx: Context) -> Subscription
     return out
 
 
+CLEANUP_ADMIN_ONLY = "Aufräumregeln löschen Videos und können nur Administratoren ändern."
+
+
+def _check_cleanup_rights(
+    user: User, body: SubscriptionSettings, sub: Subscription | None = None
+) -> None:
+    """Cleanup rules delete files – like deleting videos, that is for admins only."""
+    if user.is_admin:
+        return
+    current = (sub.keep_days, sub.keep_last) if sub else (None, None)
+    if (body.keep_days, body.keep_last) != current:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, CLEANUP_ADMIN_ONLY)
+
+
 def _apply_settings(sub: Subscription, body: SubscriptionSettings) -> None:
     sub.enabled = body.enabled
     sub.check_interval_minutes = body.check_interval_minutes
@@ -83,6 +98,7 @@ def list_subscriptions(_: CurrentUser, db: DbSession, ctx: Context) -> list[Subs
 def create_subscription(
     body: SubscriptionCreate, user: CurrentUser, db: DbSession, ctx: Context
 ) -> SubscriptionOut:
+    _check_cleanup_rights(user, body)
     try:
         kind, url = parse_source_url(body.url)
     except InvalidVideoUrlError as exc:
@@ -144,9 +160,10 @@ def get_subscription(
 
 @router.put("/{subscription_id}")
 def update_subscription(
-    subscription_id: int, body: SubscriptionUpdate, _: CurrentUser, db: DbSession, ctx: Context
+    subscription_id: int, body: SubscriptionUpdate, user: CurrentUser, db: DbSession, ctx: Context
 ) -> SubscriptionOut:
     sub = _get(db, subscription_id)
+    _check_cleanup_rights(user, body, sub)
     was_enabled = sub.enabled
     _apply_settings(sub, body)
     if sub.enabled and not was_enabled:

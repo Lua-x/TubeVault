@@ -1,4 +1,4 @@
-import { ArrowDownToLine, Pause, Play, RotateCcw } from "lucide-react";
+import { ArrowDownToLine, Pause, Play, RotateCcw, WifiOff } from "lucide-react";
 import { AnimatePresence } from "motion/react";
 
 import {
@@ -32,6 +32,7 @@ export function DownloadsPage() {
   const resumeAll = useResumeAll();
   const retryFailed = useRetryFailed();
   const paused = queue?.paused ?? false;
+  const offline = queue?.online === false;
 
   if (isLoading) return <PageSpinner />;
 
@@ -49,11 +50,13 @@ export function DownloadsPage() {
         subtitle={
           paused
             ? "Warteschlange pausiert"
-            : active.length > 0
-              ? `${active.length} aktiv`
-              : live
-                ? "Keine aktiven Downloads"
-                : "Verbindung wird hergestellt …"
+            : offline
+              ? "Keine Internetverbindung"
+              : active.length > 0
+                ? `${active.length} aktiv`
+                : live
+                  ? "Keine aktiven Downloads"
+                  : "Verbindung wird hergestellt …"
         }
         actions={
           paused ? (
@@ -85,6 +88,17 @@ export function DownloadsPage() {
           <Pause className="size-4 shrink-0 text-accent" strokeWidth={2} />
           Die Warteschlange ist pausiert. Neue Downloads starten erst nach dem Fortsetzen –
           angefangene machen dort weiter, wo sie aufgehört haben.
+        </div>
+      )}
+
+      {offline && !paused && (
+        <div
+          role="status"
+          className="mb-8 flex items-center gap-3 rounded-2xl bg-elevated px-4 py-3 text-[14px] text-secondary"
+        >
+          <WifiOff className="size-4 shrink-0 text-accent" strokeWidth={2} />
+          YouTube ist gerade nicht erreichbar. Deine Bibliothek funktioniert wie gewohnt – Downloads
+          und Abo-Prüfungen warten und starten automatisch, sobald das Internet zurück ist.
         </div>
       )}
 

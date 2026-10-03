@@ -30,6 +30,7 @@ from app.models import (
     VideoStatus,
 )
 from app.services.catalog import Catalog, Entry, SourceInfo
+from app.services.connectivity import Connectivity
 from app.services.downloader import VideoMetadata
 from app.services.library import relative_to_media, resolve_media_path
 from app.services.videos import delete_video_files, get_or_create_channel, video_file_exists
@@ -43,6 +44,7 @@ APPROXIMATE_DATE_MARGIN = timedelta(days=7)
 IMAGE_REFRESH = timedelta(days=7)
 FFMPEG = shutil.which("ffmpeg")
 SKIPPED_ON_SUBSCRIBE = "Älter – beim Abonnieren übersprungen"
+OFFLINE_RECHECK = timedelta(minutes=15)
 
 
 def utcnow() -> datetime:
@@ -189,12 +191,14 @@ class SubscriptionChecker:
         events: EventBus,
         catalog: Catalog,
         on_jobs_created: Any = None,
+        connectivity: Connectivity | None = None,
     ) -> None:
         self._settings = settings
         self._sessions = sessions
         self._events = events
         self._catalog = catalog
         self._on_jobs_created = on_jobs_created
+        self._connectivity = connectivity
         self._lock = threading.Lock()
         self._running: set[int] = set()
 
@@ -203,13 +207,19 @@ class SubscriptionChecker:
             return subscription_id in self._running
 
     def check(self, subscription_id: int) -> CheckResult | None:
+        if self._connectivity and self._connectivity.should_wait():
+            self._postpone(subscription_id)
+            return None
         with self._lock:
             if subscription_id in self._running:
                 return None
             self._running.add(subscription_id)
         self._events.publish("subscription.updated", subscription_id=subscription_id)
         try:
-            return self._check(subscription_id)
+            result = self._check(subscription_id)
+            if self._connectivity:
+                self._connectivity.report_success()
+            return result
         except Exception as exc:
             self._record_error(subscription_id, exc)
             return None
@@ -218,8 +228,24 @@ class SubscriptionChecker:
                 self._running.discard(subscription_id)
             self._events.publish("subscription.updated", subscription_id=subscription_id)
 
+    def _postpone(self, subscription_id: int) -> None:
+        """Offline: try again later, without marking the subscription as broken."""
+        with self._sessions() as db:
+            sub = db.get(Subscription, subscription_id)
+            if sub is not None:
+                sub.next_check_at = utcnow() + OFFLINE_RECHECK
+                db.commit()
+
     def _record_error(self, subscription_id: int, exc: Exception) -> None:
         kind = classify_error(exc)
+        if (
+            kind is ErrorKind.NETWORK
+            and self._connectivity is not None
+            and self._connectivity.confirm_offline()
+        ):
+            log.info("Abo %s: keine Internetverbindung, Prüfung später", subscription_id)
+            self._postpone(subscription_id)
+            return
         message = clean_message(exc)
         log.warning("Abo %s konnte nicht geprüft werden (%s): %s", subscription_id, kind, message)
         with self._sessions() as db:

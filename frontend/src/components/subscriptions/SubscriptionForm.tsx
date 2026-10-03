@@ -3,6 +3,7 @@ import { TextField } from "@/components/ui/Input";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Select } from "@/components/ui/Select";
 import { Switch } from "@/components/ui/Switch";
+import { useCurrentUser } from "@/hooks/auth";
 
 import { BACKFILL, HEIGHTS, INTERVALS, KEEP_DAYS, SPONSORBLOCK, type FormValues } from "./options";
 
@@ -16,6 +17,8 @@ interface SubscriptionFormProps {
 export function SubscriptionForm({ values, onChange, mode }: SubscriptionFormProps) {
   const set = <K extends keyof FormValues>(key: K, value: FormValues[K]) =>
     onChange({ ...values, [key]: value });
+  // Cleanup rules delete files, which only admins may do.
+  const canCleanUp = useCurrentUser().is_admin;
   const intervals = INTERVALS.some((i) => String(i.value) === values.interval)
     ? INTERVALS
     : [...INTERVALS, { value: Number(values.interval), label: `Alle ${values.interval} Minuten` }];
@@ -175,12 +178,17 @@ export function SubscriptionForm({ values, onChange, mode }: SubscriptionFormPro
 
       <Group
         title="Aufräumen"
-        footer="Gilt nur für Videos aus diesem Abo. Von Hand hinzugefügte Videos bleiben immer."
+        footer={
+          canCleanUp
+            ? "Gilt nur für Videos aus diesem Abo. Von Hand hinzugefügte Videos bleiben immer."
+            : "Aufräumregeln löschen Videos und können deshalb nur Administratoren ändern."
+        }
       >
         <Row>
           <Select
             inline
             label="Videos löschen"
+            disabled={!canCleanUp}
             value={values.keepDays}
             onChange={(e) => set("keepDays", e.target.value)}
           >
@@ -198,6 +206,7 @@ export function SubscriptionForm({ values, onChange, mode }: SubscriptionFormPro
             inputMode="numeric"
             min={1}
             placeholder="Alle"
+            disabled={!canCleanUp}
             value={values.keepLast}
             onChange={(e) => set("keepLast", e.target.value)}
           />

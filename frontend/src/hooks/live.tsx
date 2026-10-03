@@ -73,6 +73,9 @@ function handleEvent(client: QueryClient, event: LiveEvent) {
         old ? { ...old, paused: event.paused } : old,
       );
       break;
+    case "system.connectivity":
+      void client.invalidateQueries({ queryKey: keys.queue });
+      break;
     case "library.task":
       client.setQueryData(keys.libraryTask, event.task);
       if (event.task.state !== "running") {

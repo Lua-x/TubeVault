@@ -42,6 +42,7 @@ from app.routers import (
 from app.services.app_settings import TranscodeOptions, load_app_settings
 from app.services.auth import bootstrap_admin, purge_expired_sessions
 from app.services.catalog import Catalog, YtDlpCatalog
+from app.services.connectivity import Connectivity
 from app.services.downloader import Downloader, YtDlpDownloader
 from app.services.importer import Importer
 from app.services.search import ensure_search_index
@@ -89,6 +90,26 @@ class BasePathMiddleware:
         await self.app(scope, receive, send)
 
 
+# Everything comes from TubeVault itself: no CDNs, fonts or trackers – and the UI keeps
+# working without internet. Inline styles are needed by the player (video.js), blob: by
+# HLS playback (media source + worker).
+CONTENT_SECURITY_POLICY = (
+    b"default-src 'self'; "
+    b"script-src 'self'; "
+    b"style-src 'self' 'unsafe-inline'; "
+    b"img-src 'self' data: blob:; "
+    b"media-src 'self' blob:; "
+    b"font-src 'self' data:; "
+    b"connect-src 'self' ws: wss:; "
+    b"worker-src 'self' blob:; "
+    b"manifest-src 'self'; "
+    b"object-src 'none'; "
+    b"base-uri 'self'; "
+    b"form-action 'self'; "
+    b"frame-ancestors 'self'"
+)
+
+
 class SecurityMiddleware:
     """CSRF protection for the cookie-based API and a few defensive headers.
 
@@ -123,6 +144,7 @@ class SecurityMiddleware:
                     (b"x-content-type-options", b"nosniff"),
                     (b"referrer-policy", b"same-origin"),
                     (b"x-frame-options", b"SAMEORIGIN"),
+                    (b"content-security-policy", CONTENT_SECURITY_POLICY),
                 ):
                     if name not in existing:
                         headers.append((name, value))
@@ -218,6 +240,7 @@ def create_app(
     *,
     configure_logging: bool = True,
     scheduler_poll_interval: float = 30.0,
+    connectivity: Connectivity | None = None,
 ) -> FastAPI:
     settings = settings or Settings()
     init_storage(settings)
@@ -235,13 +258,33 @@ def create_app(
     events = EventBus()
     catalog = catalog or YtDlpCatalog()
     downloader = downloader or YtDlpDownloader()
-    manager = DownloadManager(settings, sessions, events, downloader)
+    connectivity = connectivity or Connectivity()
+    manager = DownloadManager(settings, sessions, events, downloader, connectivity=connectivity)
     checker = SubscriptionChecker(
-        settings, sessions, events, catalog, on_jobs_created=lambda _ids: manager.wake()
+        settings,
+        sessions,
+        events,
+        catalog,
+        on_jobs_created=lambda _ids: manager.wake(),
+        connectivity=connectivity,
     )
     scheduler = SubscriptionScheduler(
-        settings, sessions, events, checker, catalog, poll_interval=scheduler_poll_interval
+        settings,
+        sessions,
+        events,
+        checker,
+        catalog,
+        poll_interval=scheduler_poll_interval,
+        connectivity=connectivity,
     )
+
+    def connectivity_changed(online: bool) -> None:
+        events.publish("system.connectivity", online=online)
+        if online:
+            manager.wake()
+            scheduler.wake()
+
+    connectivity.on_change = connectivity_changed
     manager.on_download_finished = scheduler.request_cleanup
 
     def transcode_options() -> TranscodeOptions:
@@ -263,6 +306,7 @@ def create_app(
         transcoder=transcoder,
         library_tasks=library_tasks,
         importer=importer,
+        connectivity=connectivity,
     )
 
     @asynccontextmanager

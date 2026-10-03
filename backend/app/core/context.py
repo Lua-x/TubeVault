@@ -11,6 +11,7 @@ from app.config import Settings
 from app.core.events import EventBus
 from app.services.auth import LoginThrottle
 from app.services.catalog import Catalog
+from app.services.connectivity import Connectivity
 from app.services.importer import Importer
 from app.services.subscriptions import SubscriptionChecker
 from app.workers.download_manager import DownloadManager
@@ -32,4 +33,5 @@ class AppContext:
     transcoder: Transcoder
     library_tasks: LibraryTasks
     importer: Importer
+    connectivity: Connectivity
     login_throttle: LoginThrottle = field(default_factory=LoginThrottle)

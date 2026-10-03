@@ -39,12 +39,16 @@ def serve(settings: Settings) -> None:
 
 
 def update_ytdlp(settings: Settings, only_if_enabled: bool) -> None:
-    from app.services.ytdlp_updater import drop_outdated_runtime, update_ytdlp
+    from app.services.ytdlp_updater import drop_outdated_runtime, pypi_reachable, update_ytdlp
 
     setup_logging(settings.log_level, None)
     drop_outdated_runtime(settings.runtime_dir)
     if only_if_enabled and not settings.ytdlp_auto_update:
         logging.getLogger("app").info("YTDLP_AUTO_UPDATE ist aus – kein Update.")
+        return
+    if only_if_enabled and not pypi_reachable():
+        # Offline start: don't wait for pip's retries, the library works without internet.
+        print("Kein Internet – yt-dlp-Update übersprungen.")
         return
     result = update_ytdlp(settings.runtime_dir)
     print(result.message)

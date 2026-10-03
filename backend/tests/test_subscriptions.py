@@ -12,7 +12,14 @@ from app.config import Settings
 from app.models import SubscriptionKind
 from app.services.catalog import Entry, entry_from_info, sort_newest_first
 from app.services.youtube_urls import InvalidVideoUrlError, parse_source_url
-from tests.conftest import FakeCatalog, FakeDownloader, add_and_wait, job_status, wait_for
+from tests.conftest import (
+    HEADERS,
+    FakeCatalog,
+    FakeDownloader,
+    add_and_wait,
+    job_status,
+    wait_for,
+)
 
 TODAY = date.today()
 
@@ -374,3 +381,18 @@ def test_retry_failed(admin: TestClient, downloader: FakeDownloader) -> None:
     assert job["status"] == "failed"
     assert admin.post("/api/downloads/retry-failed").status_code == 200
     wait_for(lambda: job_status(admin, job["id"]) == "completed")
+
+
+def test_only_admins_set_cleanup_rules(admin: TestClient) -> None:
+    admin.post("/api/users", json={"username": "lena", "password": "passwort1"})
+    user = TestClient(admin.app, headers=HEADERS)
+    user.post("/api/auth/login", json={"username": "lena", "password": "passwort1"})
+
+    denied = user.post("/api/subscriptions", json={"url": "@test", "keep_last": 1})
+    assert denied.status_code == 403 and "Administratoren" in denied.json()["detail"]
+    sub = subscribe(user)
+    body = {**user.get(f"/api/subscriptions/{sub['id']}").json(), "include_shorts": True}
+    assert user.put(f"/api/subscriptions/{sub['id']}", json=body).status_code == 200
+    stricter = {**body, "keep_days": 7}
+    assert user.put(f"/api/subscriptions/{sub['id']}", json=stricter).status_code == 403
+    assert admin.put(f"/api/subscriptions/{sub['id']}", json=stricter).status_code == 200

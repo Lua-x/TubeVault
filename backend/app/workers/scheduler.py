@@ -13,6 +13,7 @@ from app.config import Settings
 from app.core.events import EventBus
 from app.models import Subscription
 from app.services.catalog import Catalog
+from app.services.connectivity import Connectivity
 from app.services.subscriptions import (
     SubscriptionChecker,
     refresh_channel_artwork,
@@ -38,8 +39,10 @@ class SubscriptionScheduler:
         checker: SubscriptionChecker,
         catalog: Catalog,
         poll_interval: float = 30.0,
+        connectivity: Connectivity | None = None,
     ) -> None:
         self._settings = settings
+        self._connectivity = connectivity
         self._sessions = sessions
         self._events = events
         self._checker = checker
@@ -128,6 +131,8 @@ class SubscriptionScheduler:
             deleted = run_cleanup(db, self._settings.media_dir)
         for video_id in deleted:
             self._events.publish("video.deleted", video_id=video_id)
+        if self._connectivity and not self._connectivity.online:
+            return deleted  # channel artwork comes from YouTube; try again next hour
         try:
             with self._sessions() as db:
                 if refresh_channel_artwork(db, self._catalog, self._settings.media_dir):

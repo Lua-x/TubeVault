@@ -15,6 +15,7 @@ from app.main import create_app
 from app.models import SubscriptionKind
 from app.services.app_settings import DownloadOptions
 from app.services.catalog import Entry, Listing, SourceInfo, channel_url, playlist_url
+from app.services.connectivity import Connectivity
 from app.services.downloader import (
     DownloadCancelledError,
     DownloadProgress,
@@ -185,11 +186,31 @@ def catalog() -> FakeCatalog:
     return FakeCatalog()
 
 
+class FakeNetwork:
+    """Stands in for the connectivity probe, so tests never contact YouTube."""
+
+    def __init__(self) -> None:
+        self.online = True
+        self.probes = 0
+
+    def probe(self) -> bool:
+        self.probes += 1
+        return self.online
+
+
+@pytest.fixture
+def network() -> FakeNetwork:
+    return FakeNetwork()
+
+
 @pytest.fixture
 def client(
-    settings: Settings, downloader: FakeDownloader, catalog: FakeCatalog
+    settings: Settings, downloader: FakeDownloader, catalog: FakeCatalog, network: FakeNetwork
 ) -> Iterator[TestClient]:
-    app = create_app(settings, downloader, catalog, configure_logging=False)
+    connectivity = Connectivity(probe=network.probe, recheck_s=0)
+    app = create_app(
+        settings, downloader, catalog, configure_logging=False, connectivity=connectivity
+    )
     with TestClient(app, headers=HEADERS) as test_client:
         yield test_client
 

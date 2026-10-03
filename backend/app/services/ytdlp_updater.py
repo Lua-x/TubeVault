@@ -13,12 +13,15 @@ import re
 import shutil
 import subprocess
 import sys
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
 log = logging.getLogger(__name__)
 
 PACKAGES = ("yt-dlp", "yt-dlp-ejs")
+PYPI_PROBE = "https://pypi.org/simple/yt-dlp/"
 
 
 @dataclass
@@ -76,6 +79,18 @@ def drop_outdated_runtime(runtime_dir: Path) -> None:
             bundled,
         )
         shutil.rmtree(site, ignore_errors=True)
+
+
+def pypi_reachable(timeout: float = 5.0) -> bool:
+    """Quick check before pip, so a start without internet isn't delayed by its retries."""
+    request = urllib.request.Request(PYPI_PROBE, method="HEAD", headers={"User-Agent": "TubeVault"})
+    try:
+        with urllib.request.urlopen(request, timeout=timeout):  # noqa: S310 – fixed https URL
+            return True
+    except urllib.error.HTTPError:
+        return True
+    except (OSError, ValueError):
+        return False
 
 
 def update_ytdlp(runtime_dir: Path, timeout: int = 300) -> UpdateResult:

@@ -12,7 +12,7 @@ import time
 from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import or_, select
@@ -24,6 +24,7 @@ from app.core.events import EventBus
 from app.models import (
     ACTIVE_JOB_STATUSES,
     DownloadJob,
+    ErrorKind,
     ItemState,
     JobStage,
     JobStatus,
@@ -36,6 +37,7 @@ from app.schemas.jobs import JobOut
 from app.schemas.videos import VideoSummary
 from app.services import nfo, sponsorblock
 from app.services.app_settings import DownloadOptions, load_app_settings, queue_paused
+from app.services.connectivity import Connectivity
 from app.services.downloader import (
     DownloadCancelledError,
     Downloader,
@@ -51,6 +53,10 @@ from app.services.videos import upsert_video, video_file_exists
 log = logging.getLogger(__name__)
 
 MAX_WORKERS = 5
+OFFLINE_RETRY = timedelta(minutes=1)
+OFFLINE_MESSAGE = (
+    "Keine Internetverbindung – der Download startet automatisch, sobald das Netz zurück ist."
+)
 EVENT_INTERVAL = 0.5
 DB_PROGRESS_INTERVAL = 5.0
 
@@ -87,8 +93,10 @@ class DownloadManager:
         downloader: Downloader,
         poll_interval: float = 2.0,
         on_download_finished: Callable[[], None] | None = None,
+        connectivity: Connectivity | None = None,
     ) -> None:
         self._settings = settings
+        self._connectivity = connectivity
         self._sessions = session_factory
         self._events = events
         self._downloader = downloader
@@ -228,6 +236,8 @@ class DownloadManager:
                     .limit(free)
                 )
             )
+            if jobs and self._connectivity and self._connectivity.should_wait():
+                return  # offline: the jobs stay queued until the internet is back
             for job in jobs:
                 job.status = JobStatus.RUNNING
                 job.stage = JobStage.METADATA
@@ -386,6 +396,8 @@ class DownloadManager:
         update_items_for_job(db, job.id, ItemState.DOWNLOADED, video_id=video.id)
         db.commit()
         log.info("Download fertig: %s (%s)", video.title, video.youtube_id)
+        if self._connectivity:
+            self._connectivity.report_success()
         if self.on_download_finished:
             self.on_download_finished()
         self._publish_job(db, job.id)
@@ -452,7 +464,20 @@ class DownloadManager:
             job.stage = None
             job.speed = None
             job.eta = None
-            if is_retryable(kind) and job.attempts < job.max_attempts:
+            offline = (
+                kind is ErrorKind.NETWORK
+                and self._connectivity is not None
+                and self._connectivity.confirm_offline()
+            )
+            if offline:
+                # Not the video's fault: wait for the connection without using up attempts.
+                job.attempts = max(job.attempts - 1, 0)
+                job.status = JobStatus.QUEUED
+                job.next_attempt_at = utcnow() + OFFLINE_RETRY
+                job.error_message = OFFLINE_MESSAGE
+                self._reset_video(db, job, VideoStatus.PENDING)
+                log.info("Download %s wartet auf die Internetverbindung", job_id)
+            elif is_retryable(kind) and job.attempts < job.max_attempts:
                 delay = retry_delay(kind, job.attempts)
                 job.status = JobStatus.QUEUED
                 job.next_attempt_at = utcnow() + delay

@@ -131,16 +131,27 @@ def get_video(video_id: int, user: CurrentUser, db: DbSession) -> VideoDetail:
 
 
 @router.get("/{video_id}/segments")
-def sponsor_segments(video_id: int, _: CurrentUser, db: DbSession) -> SegmentsOut:
-    """SponsorBlock segments to skip; refreshed from SponsorBlock when they are stale."""
+def sponsor_segments(video_id: int, _: CurrentUser, db: DbSession, ctx: Context) -> SegmentsOut:
+    """SponsorBlock segments to skip; refreshed from SponsorBlock when they are stale.
+
+    Offline (or after a failed fetch) the stored segments are used right away, so the
+    video page never waits for the internet.
+    """
     video = _get_video(db, video_id)
     options = load_app_settings(db).downloads
     if (
         options.sponsorblock_mode == "skip"
         and options.sponsorblock_categories
         and sponsorblock.is_stale(video)
+        and not sponsorblock.recently_failed(video.youtube_id)
+        and not ctx.connectivity.should_wait()
     ):
-        sponsorblock.refresh(db, video, list(options.sponsorblock_categories))
+        sponsorblock.refresh(
+            db,
+            video,
+            list(options.sponsorblock_categories),
+            timeout=sponsorblock.INTERACTIVE_TIMEOUT,
+        )
         db.refresh(video)
     wanted = set(options.sponsorblock_categories)
     return SegmentsOut(

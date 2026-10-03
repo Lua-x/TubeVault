@@ -181,6 +181,9 @@ export interface QueueState {
   paused: boolean;
   running: number;
   queued: number;
+  /** False while the internet is unreachable; downloads then wait instead of failing. */
+  online: boolean;
+  offline_since: string | null;
 }
 
 export type SubscriptionKind = "channel" | "playlist";
@@ -348,6 +351,7 @@ export type LiveEvent =
   | { type: "subscription.updated"; subscription_id: number }
   | { type: "subscription.deleted"; subscription_id: number }
   | { type: "queue.state"; paused: boolean }
+  | { type: "system.connectivity"; online: boolean }
   | { type: "channels.updated" }
   | { type: "library.task"; task: LibraryTask };
 

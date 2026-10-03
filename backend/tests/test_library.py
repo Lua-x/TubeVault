@@ -197,7 +197,7 @@ def test_parse_sponsorblock_response() -> None:
 def test_sponsorblock_skip_mode(admin: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[tuple[str, list[str]]] = []
 
-    def fake_fetch(youtube_id: str, categories: list[str]) -> list[Segment]:
+    def fake_fetch(youtube_id: str, categories: list[str], timeout: float = 10) -> list[Segment]:
         calls.append((youtube_id, categories))
         return parse_response(SB_PAYLOAD, youtube_id, categories)
 

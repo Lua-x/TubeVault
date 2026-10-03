@@ -33,6 +33,8 @@ class QueueState(BaseModel):
     paused: bool
     running: int
     queued: int
+    online: bool = True
+    offline_since: datetime | None = None
 
 
 def _get_job(db: DbSession, job_id: int) -> DownloadJob:
@@ -48,7 +50,7 @@ def _publish(ctx: Context, db: DbSession, job_id: int) -> JobOut:
     return JobOut.model_validate(payload)
 
 
-def _queue_state(db: DbSession) -> QueueState:
+def _queue_state(db: DbSession, ctx: Context) -> QueueState:
     counts = dict(
         db.execute(
             select(DownloadJob.status, func.count())
@@ -60,6 +62,8 @@ def _queue_state(db: DbSession) -> QueueState:
         paused=queue_paused(db),
         running=int(counts.get(JobStatus.RUNNING, 0)),
         queued=int(counts.get(JobStatus.QUEUED, 0)),
+        online=ctx.connectivity.online,
+        offline_since=ctx.connectivity.offline_since,
     )
 
 
@@ -88,8 +92,8 @@ def list_jobs(
 
 
 @router.get("/state")
-def get_state(_: CurrentUser, db: DbSession) -> QueueState:
-    return _queue_state(db)
+def get_state(_: CurrentUser, db: DbSession, ctx: Context) -> QueueState:
+    return _queue_state(db, ctx)
 
 
 @router.post("/pause-all")
@@ -98,7 +102,7 @@ def pause_all(_: CurrentUser, db: DbSession, ctx: Context) -> QueueState:
     set_queue_paused(db, True)
     ctx.downloads.requeue_running()
     ctx.events.publish("queue.state", paused=True)
-    return _queue_state(db)
+    return _queue_state(db, ctx)
 
 
 @router.post("/resume-all")
@@ -106,7 +110,7 @@ def resume_all(_: CurrentUser, db: DbSession, ctx: Context) -> QueueState:
     set_queue_paused(db, False)
     ctx.downloads.wake()
     ctx.events.publish("queue.state", paused=False)
-    return _queue_state(db)
+    return _queue_state(db, ctx)
 
 
 @router.post("/retry-failed")
@@ -118,7 +122,7 @@ def retry_failed(_: CurrentUser, db: DbSession, ctx: Context) -> QueueState:
     for job in jobs:
         _publish(ctx, db, job.id)
     ctx.downloads.wake()
-    return _queue_state(db)
+    return _queue_state(db, ctx)
 
 
 @router.post("/{job_id}/pause")
