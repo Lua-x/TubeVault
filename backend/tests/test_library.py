@@ -7,8 +7,8 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import insert
 
-from app.models import Video, VideoStatus
-from app.services import sponsorblock
+from app.models import Video, VideoStatus, WatchProgress
+from app.services import progress, sponsorblock
 from app.services.app_settings import DownloadOptions
 from app.services.downloader import YtDlpDownloader
 from app.services.search import fts_query
@@ -280,3 +280,25 @@ def test_search_counts_and_pages_through_every_match(admin: TestClient) -> None:
     last = admin.get("/api/videos", params={"q": "massentest", "limit": 60, "offset": 1080}).json()
     assert len(last["items"]) == 20
     assert admin.get("/api/videos", params={"q": "!!!"}).json()["total"] == 0
+
+
+def test_first_saves_racing_each_other(admin: TestClient) -> None:
+    """Two saves for a never-watched video: the losing insert becomes an update."""
+    add_and_wait(admin, "race0000001")
+    vid = admin.get("/api/videos", params={"q": "race0000001"}).json()["items"][0]["id"]
+    uid = admin.get("/api/auth/me").json()["id"]
+    ctx = admin.app.state.ctx  # type: ignore[attr-defined]
+    raced: list[bool] = []
+
+    def change(row: WatchProgress) -> None:
+        if not raced:
+            raced.append(True)
+            with ctx.sessions() as other:  # the other request wins the insert
+                other.add(WatchProgress(user_id=uid, video_id=vid, position_s=5.0))
+                other.commit()
+        row.position_s = 40.0
+
+    with ctx.sessions() as db:
+        row = progress._update(db, uid, vid, change)
+        assert row.position_s == 40.0
+    assert admin.get(f"/api/videos/{vid}").json()["progress"]["position_s"] == 40.0
