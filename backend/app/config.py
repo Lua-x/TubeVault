@@ -10,6 +10,8 @@ from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR"]
+TokenAuth = Literal["client_secret_basic", "client_secret_post"]
+BASIC_AUTH: TokenAuth = "client_secret_basic"
 
 
 class Settings(BaseSettings):
@@ -51,7 +53,7 @@ class Settings(BaseSettings):
     oidc_groups_claim: str = "groups"
     oidc_admin_group: str | None = None
     oidc_auto_create: bool = True
-    oidc_token_auth: Literal["client_secret_basic", "client_secret_post"] = "client_secret_basic"
+    oidc_token_auth: TokenAuth = BASIC_AUTH
     # Off: only the provider – keep a way in (reset-password needs the console).
     password_login: bool = True
 
