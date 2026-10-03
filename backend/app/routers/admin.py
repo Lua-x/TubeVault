@@ -3,20 +3,18 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import platform
 import re
 import shutil
 import sqlite3
-import urllib.request
 from collections import Counter
 from datetime import UTC, date, datetime, timedelta
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
 from app import __version__
@@ -33,7 +31,7 @@ from app.models import (
     VideoStatus,
 )
 from app.routers.system import ffmpeg_version
-from app.services import backups
+from app.services import backups, notifications
 from app.services.app_settings import load_app_settings
 from app.services.catalog import channel_url
 from app.services.search import is_sqlite, rebuild
@@ -43,6 +41,7 @@ from app.services.ytdlp_updater import (
     _version_key,
     bundled_version,
     current_ytdlp_version,
+    latest_ytdlp_version,
     runtime_site_dir,
     update_ytdlp,
 )
@@ -52,7 +51,6 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 log = logging.getLogger(__name__)
 
 TOP_CHANNELS = 8
-PYPI_URL = "https://pypi.org/pypi/yt-dlp/json"
 HISTORY_DAYS = 30
 _LOG_LINE = re.compile(
     r"^(?P<time>\d{4}-\d\d-\d\d \d\d:\d\d:\d\d),\d+ (?P<level>[A-Z]+)\s+(?P<logger>[^:]+): ?"
@@ -261,15 +259,6 @@ def _differs(installed: str | None, loaded: str | None) -> bool:
     return bool(installed and loaded and _version_key(installed) != _version_key(loaded))
 
 
-def _latest_ytdlp() -> str | None:
-    try:
-        with urllib.request.urlopen(PYPI_URL, timeout=10) as response:
-            return str(json.load(response)["info"]["version"])
-    except (OSError, ValueError, KeyError) as exc:
-        log.info("PyPI nicht erreichbar: %s", exc)
-        return None
-
-
 @router.get("/ytdlp")
 def ytdlp(_: AdminUser, ctx: Context, check: bool = False) -> YtDlpInfo:
     loaded = current_ytdlp_version()
@@ -277,7 +266,7 @@ def ytdlp(_: AdminUser, ctx: Context, check: bool = False) -> YtDlpInfo:
     return YtDlpInfo(
         loaded=loaded,
         installed=installed,
-        latest=_latest_ytdlp() if check else None,
+        latest=latest_ytdlp_version() if check else None,
         restart_required=_differs(installed, loaded),
     )
 
@@ -480,3 +469,72 @@ async def restore_upload(request: Request, _: AdminUser, ctx: Context) -> dict[s
         return await asyncio.to_thread(_restore_and_restart, ctx, upload)
     finally:
         upload.unlink(missing_ok=True)
+
+
+# --- notifications -------------------------------------------------------------------
+
+
+class NotificationsOut(BaseModel):
+    service: notifications.Service
+    url: str
+    events: notifications.NotificationEvents
+    has_token: bool  # the token itself never leaves the server
+
+
+class NotificationsIn(BaseModel):
+    service: notifications.Service
+    url: str = ""
+    events: notifications.NotificationEvents = Field(
+        default_factory=notifications.NotificationEvents
+    )
+    # None keeps the stored token, "" removes it.
+    token: str | None = None
+
+
+def _notifications_out(config: notifications.NotificationConfig) -> NotificationsOut:
+    return NotificationsOut(
+        service=config.service, url=config.url, events=config.events, has_token=bool(config.token)
+    )
+
+
+def _merged(db: Any, body: NotificationsIn) -> notifications.NotificationConfig:
+    stored = notifications.load_config(db)
+    try:
+        return notifications.NotificationConfig(
+            service=body.service,
+            url=body.url,
+            events=body.events,
+            token=stored.token if body.token is None else body.token.strip(),
+        )
+    except ValueError as exc:
+        message = exc.errors()[0]["msg"] if hasattr(exc, "errors") else str(exc)
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, message.removeprefix("Value error, ")
+        ) from exc
+
+
+@router.get("/notifications")
+def get_notifications(_: AdminUser, db: DbSession) -> NotificationsOut:
+    return _notifications_out(notifications.load_config(db))
+
+
+@router.put("/notifications")
+def put_notifications(body: NotificationsIn, _: AdminUser, db: DbSession) -> NotificationsOut:
+    config = _merged(db, body)
+    notifications.save_config(db, config)
+    return _notifications_out(config)
+
+
+@router.post("/notifications/test")
+def test_notifications(
+    body: NotificationsIn, _: AdminUser, db: DbSession, ctx: Context
+) -> dict[str, str]:
+    """Send a test message with the settings from the form (saved or not)."""
+    config = _merged(db, body)
+    if not config.active:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Erst Dienst und Adresse angeben.")
+    try:
+        ctx.notifier.test(config)
+    except notifications.NotifyError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    return {"detail": "Testnachricht gesendet"}

@@ -8,6 +8,7 @@ started with; the new one is used after the next (re)start.
 from __future__ import annotations
 
 import importlib.metadata
+import json
 import logging
 import re
 import shutil
@@ -22,6 +23,7 @@ log = logging.getLogger(__name__)
 
 PACKAGES = ("yt-dlp", "yt-dlp-ejs")
 PYPI_PROBE = "https://pypi.org/simple/yt-dlp/"
+PYPI_URL = "https://pypi.org/pypi/yt-dlp/json"
 
 
 @dataclass
@@ -79,6 +81,16 @@ def drop_outdated_runtime(runtime_dir: Path) -> None:
             bundled,
         )
         shutil.rmtree(site, ignore_errors=True)
+
+
+def latest_ytdlp_version() -> str | None:
+    """Newest yt-dlp on PyPI – only asked for on demand, never on a timer by default."""
+    try:
+        with urllib.request.urlopen(PYPI_URL, timeout=10) as response:
+            return str(json.load(response)["info"]["version"])
+    except (OSError, ValueError, KeyError) as exc:
+        log.info("PyPI nicht erreichbar: %s", exc)
+        return None
 
 
 def pypi_reachable(timeout: float = 5.0) -> bool:

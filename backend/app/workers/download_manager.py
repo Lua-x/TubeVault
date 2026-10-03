@@ -47,6 +47,7 @@ from app.services.downloader import (
 )
 from app.services.languages import subtitle_label
 from app.services.library import relative_to_media, video_base_path
+from app.services.notifications import Notifier
 from app.services.subscriptions import FilterRules, update_items_for_job
 from app.services.videos import upsert_video, video_file_exists
 
@@ -94,9 +95,11 @@ class DownloadManager:
         poll_interval: float = 2.0,
         on_download_finished: Callable[[], None] | None = None,
         connectivity: Connectivity | None = None,
+        notifier: Notifier | None = None,
     ) -> None:
         self._settings = settings
         self._connectivity = connectivity
+        self._notifier = notifier
         self._sessions = session_factory
         self._events = events
         self._downloader = downloader
@@ -398,6 +401,17 @@ class DownloadManager:
         log.info("Download fertig: %s (%s)", video.title, video.youtube_id)
         if self._connectivity:
             self._connectivity.report_success()
+        if self._notifier:
+            channel = video.channel.name if video.channel else ""
+            self._notifier.notify(
+                "video_downloaded",
+                "Neues Video",
+                f"{video.title}\n{channel}".strip(),
+                name=video.title,
+                channel=channel,
+                video_id=video.id,
+                youtube_id=video.youtube_id,
+            )
         if self.on_download_finished:
             self.on_download_finished()
         self._publish_job(db, job.id)
@@ -497,6 +511,16 @@ class DownloadManager:
                 self._reset_video(db, job, VideoStatus.FAILED)
                 update_items_for_job(db, job_id, ItemState.FAILED, reason=message[:255])
                 log.error("Download %s endgültig fehlgeschlagen (%s): %s", job_id, kind, message)
+                if self._notifier:
+                    name = job.video.title if job.video else job.youtube_id or job.url
+                    self._notifier.notify(
+                        "download_failed",
+                        "Download fehlgeschlagen",
+                        f"{name}\n{message[:300]}",
+                        name=name,
+                        job_id=job.id,
+                        error=message[:300],
+                    )
                 cleanup_temp(temp_dir)
             db.commit()
             self._publish_job(db, job_id)

@@ -46,6 +46,8 @@ from app.services.catalog import Catalog, YtDlpCatalog
 from app.services.connectivity import Connectivity
 from app.services.downloader import Downloader, YtDlpDownloader
 from app.services.importer import Importer
+from app.services.notifications import Notifier, Sender
+from app.services.notifications import send as send_notification
 from app.services.rss import FeedFetcher, RssWatcher, fetch_feed_ids
 from app.services.search import ensure_search_index
 from app.services.subscriptions import SubscriptionChecker
@@ -244,6 +246,7 @@ def create_app(
     scheduler_poll_interval: float = 30.0,
     connectivity: Connectivity | None = None,
     feeds: FeedFetcher | None = None,
+    notification_sender: Sender | None = None,
 ) -> FastAPI:
     settings = settings or Settings()
     init_storage(settings)
@@ -263,7 +266,10 @@ def create_app(
     catalog = catalog or YtDlpCatalog()
     downloader = downloader or YtDlpDownloader()
     connectivity = connectivity or Connectivity()
-    manager = DownloadManager(settings, sessions, events, downloader, connectivity=connectivity)
+    notifier = Notifier(sessions, notification_sender or send_notification)
+    manager = DownloadManager(
+        settings, sessions, events, downloader, connectivity=connectivity, notifier=notifier
+    )
     checker = SubscriptionChecker(
         settings,
         sessions,
@@ -271,6 +277,7 @@ def create_app(
         catalog,
         on_jobs_created=lambda _ids: manager.wake(),
         connectivity=connectivity,
+        notifier=notifier,
     )
     scheduler = SubscriptionScheduler(
         settings,
@@ -281,6 +288,7 @@ def create_app(
         poll_interval=scheduler_poll_interval,
         connectivity=connectivity,
         rss=RssWatcher(sessions, connectivity, feeds or fetch_feed_ids),
+        notifier=notifier,
     )
 
     def connectivity_changed(online: bool) -> None:
@@ -312,11 +320,13 @@ def create_app(
         library_tasks=library_tasks,
         importer=importer,
         connectivity=connectivity,
+        notifier=notifier,
     )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         events.bind(asyncio.get_running_loop())
+        notifier.start()
         manager.start()
         scheduler.start()
         transcoder.start()
@@ -332,6 +342,7 @@ def create_app(
             await asyncio.to_thread(transcoder.stop)
             await asyncio.to_thread(scheduler.stop)
             await asyncio.to_thread(manager.stop)
+            await asyncio.to_thread(notifier.stop)
             engine.dispose()
 
     app = FastAPI(

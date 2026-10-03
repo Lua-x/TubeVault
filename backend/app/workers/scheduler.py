@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import shutil
 import threading
 from datetime import UTC, datetime, timedelta
 
@@ -16,16 +17,25 @@ from app.services.app_settings import load_app_settings
 from app.services.backups import BackupError, auto_backup_if_due
 from app.services.catalog import Catalog
 from app.services.connectivity import Connectivity
+from app.services.notifications import Notifier
 from app.services.rss import RssWatcher
 from app.services.subscriptions import (
     SubscriptionChecker,
     refresh_channel_artwork,
     run_cleanup,
 )
+from app.services.ytdlp_updater import (
+    _version_key,
+    current_ytdlp_version,
+    latest_ytdlp_version,
+)
 
 log = logging.getLogger(__name__)
 
 CLEANUP_INTERVAL = timedelta(hours=1)
+DISK_LOW_BYTES = 5 * 1024**3
+DISK_LOW_SHARE = 0.05
+YTDLP_CHECK_INTERVAL = timedelta(days=1)
 CHECKS_PER_ROUND = 3
 
 
@@ -44,8 +54,13 @@ class SubscriptionScheduler:
         poll_interval: float = 30.0,
         connectivity: Connectivity | None = None,
         rss: RssWatcher | None = None,
+        notifier: Notifier | None = None,
     ) -> None:
         self._settings = settings
+        self._notifier = notifier
+        self._disk_warned = False
+        self._ytdlp_checked: datetime | None = None
+        self._ytdlp_notified: str | None = None
         self._connectivity = connectivity
         self._rss = rss
         self._sessions = sessions
@@ -139,6 +154,8 @@ class SubscriptionScheduler:
         for video_id in deleted:
             self._events.publish("video.deleted", video_id=video_id)
         self._auto_backup()
+        self._check_disk()
+        self._check_ytdlp()
         if self._connectivity and not self._connectivity.online:
             return deleted  # channel artwork comes from YouTube; try again next hour
         try:
@@ -158,3 +175,56 @@ class SubscriptionScheduler:
             auto_backup_if_due(self._settings, options.keep)
         except BackupError:
             log.exception("Automatische Sicherung fehlgeschlagen")
+
+    def _check_disk(self) -> None:
+        """Warn once when /media runs low; again only after space was freed in between."""
+        if self._notifier is None:
+            return
+        try:
+            usage = shutil.disk_usage(self._settings.media_dir)
+        except OSError:
+            return
+        low = usage.free < DISK_LOW_BYTES or usage.free < usage.total * DISK_LOW_SHARE
+        if low and not self._disk_warned:
+            self._disk_warned = True
+            self._notifier.notify(
+                "disk_low",
+                "Speicherplatz wird knapp",
+                f"Auf /media sind noch {usage.free / 1024**3:.1f} GB frei "
+                f"({usage.free / usage.total:.0%}).",
+                free=usage.free,
+                total=usage.total,
+            )
+        elif usage.free > DISK_LOW_BYTES * 2 and usage.free > usage.total * DISK_LOW_SHARE * 2:
+            self._disk_warned = False
+
+    def _check_ytdlp(self) -> None:
+        """Only when the admin wants to hear about yt-dlp updates: ask PyPI once a day."""
+        if self._notifier is None:
+            return
+        now = utcnow()
+        if self._ytdlp_checked and now - self._ytdlp_checked < YTDLP_CHECK_INTERVAL:
+            return
+        config = self._notifier.config()
+        if not config.active or not config.events.ytdlp_update:
+            return
+        if self._connectivity and not self._connectivity.online:
+            return
+        self._ytdlp_checked = now
+        latest = latest_ytdlp_version()
+        installed = current_ytdlp_version()
+        if (
+            latest
+            and installed
+            and _version_key(latest) > _version_key(installed)
+            and latest != self._ytdlp_notified
+        ):
+            self._ytdlp_notified = latest
+            self._notifier.notify(
+                "ytdlp_update",
+                "yt-dlp-Update verfügbar",
+                f"Version {latest} ist da (installiert: {installed}). "
+                "Aktualisieren unter Verwaltung → yt-dlp.",
+                latest=latest,
+                installed=installed,
+            )

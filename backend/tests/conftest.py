@@ -23,6 +23,7 @@ from app.services.downloader import (
     SubtitleFile,
     VideoMetadata,
 )
+from app.services.notifications import Message, NotificationConfig
 
 HEADERS = {"X-Requested-With": "TubeVault"}
 VIDEO_BYTES = bytes(range(256)) * 40  # 10 KiB of predictable content
@@ -220,6 +221,24 @@ def feeds() -> FakeFeeds:
     return FakeFeeds()
 
 
+class FakeSender:
+    """Records notifications instead of sending them; can be told to fail."""
+
+    def __init__(self) -> None:
+        self.messages: list[Message] = []
+        self.error: Exception | None = None
+
+    def send(self, config: NotificationConfig, message: Message) -> None:
+        if self.error:
+            raise self.error
+        self.messages.append(message)
+
+
+@pytest.fixture
+def sender() -> FakeSender:
+    return FakeSender()
+
+
 @pytest.fixture
 def client(
     settings: Settings,
@@ -227,6 +246,7 @@ def client(
     catalog: FakeCatalog,
     network: FakeNetwork,
     feeds: FakeFeeds,
+    sender: FakeSender,
 ) -> Iterator[TestClient]:
     connectivity = Connectivity(probe=network.probe, recheck_s=0)
     app = create_app(
@@ -236,6 +256,7 @@ def client(
         configure_logging=False,
         connectivity=connectivity,
         feeds=feeds.fetch,
+        notification_sender=sender.send,
     )
     with TestClient(app, headers=HEADERS) as test_client:
         yield test_client

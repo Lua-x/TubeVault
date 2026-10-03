@@ -33,6 +33,7 @@ from app.services.catalog import Catalog, Entry, SourceInfo
 from app.services.connectivity import Connectivity
 from app.services.downloader import VideoMetadata
 from app.services.library import relative_to_media, resolve_media_path
+from app.services.notifications import Notifier
 from app.services.videos import delete_video_files, get_or_create_channel, video_file_exists
 
 log = logging.getLogger(__name__)
@@ -192,8 +193,10 @@ class SubscriptionChecker:
         catalog: Catalog,
         on_jobs_created: Any = None,
         connectivity: Connectivity | None = None,
+        notifier: Notifier | None = None,
     ) -> None:
         self._settings = settings
+        self._notifier = notifier
         self._sessions = sessions
         self._events = events
         self._catalog = catalog
@@ -255,9 +258,19 @@ class SubscriptionChecker:
             delay = timedelta(minutes=min(sub.check_interval_minutes, 60))
             if kind is ErrorKind.RATE_LIMITED:
                 delay = max(delay, retry_delay(kind, 1))
+            is_new = sub.last_check_error is None
             sub.last_check_error = message
             sub.next_check_at = utcnow() + delay
             db.commit()
+            if is_new and self._notifier:  # once per problem, not on every retry
+                self._notifier.notify(
+                    "subscription_error",
+                    "Abo-Prüfung fehlgeschlagen",
+                    f"{sub.title}: {message[:300]}",
+                    name=sub.title,
+                    subscription_id=sub.id,
+                    error=message[:300],
+                )
 
     def _check(self, subscription_id: int) -> CheckResult:
         with self._sessions() as db:

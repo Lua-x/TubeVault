@@ -30,6 +30,8 @@ import type {
   LibraryTask,
   LogEntry,
   MaintenanceAction,
+  NotificationSettings,
+  NotificationUpdate,
   MaxHeight,
   Page,
   PlaybackInfo,
@@ -629,6 +631,29 @@ export function useRestoreBackup() {
       }
       return data as BackupManifest;
     },
+  });
+}
+
+export function useNotifications() {
+  return useQuery({
+    queryKey: ["admin", "notifications"],
+    queryFn: () => api.get<NotificationSettings>("admin/notifications"),
+  });
+}
+
+export function useSaveNotifications() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (body: NotificationUpdate) =>
+      api.put<NotificationSettings>("admin/notifications", body),
+    onSuccess: (data) => client.setQueryData(["admin", "notifications"], data),
+  });
+}
+
+export function useTestNotifications() {
+  return useMutation({
+    mutationFn: (body: NotificationUpdate) =>
+      api.post<{ detail: string }>("admin/notifications/test", body),
   });
 }
 

@@ -477,3 +477,28 @@ export interface ApiToken {
 export interface CreatedApiToken extends ApiToken {
   token: string;
 }
+
+export type NotifyService = "off" | "ntfy" | "gotify" | "webhook";
+
+export interface NotificationEvents {
+  video_downloaded: boolean;
+  download_failed: boolean;
+  subscription_error: boolean;
+  ytdlp_update: boolean;
+  disk_low: boolean;
+}
+
+export interface NotificationSettings {
+  service: NotifyService;
+  url: string;
+  events: NotificationEvents;
+  has_token: boolean;
+}
+
+/** What the form sends: token null keeps the stored one, "" removes it. */
+export interface NotificationUpdate {
+  service: NotifyService;
+  url: string;
+  events: NotificationEvents;
+  token: string | null;
+}
