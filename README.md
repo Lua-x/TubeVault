@@ -44,6 +44,22 @@
 
 ## Funktionen
 
+**Version 0.5 – Offline, sicher, automatisch**
+
+- Ohne Internet läuft alles weiter: Bibliothek, Suche und Wiedergabe brauchen nur deinen
+  Server. Downloads und Abo-Prüfungen warten, statt zu scheitern, und laufen von selbst
+  weiter, sobald das Netz zurück ist
+- Sicherung: täglich automatisch, auf Knopfdruck, zum Herunterladen – und wiederherstellen
+  direkt in der Verwaltung
+- Neue Videos von Abos meist nach Minuten statt Stunden (RSS-Vorab-Check)
+- Bessere Qualität automatisch nachladen, wenn YouTube kurz nach dem Upload nur niedrige
+  Auflösungen hatte – oder von Hand per „Neu laden“
+- Benachrichtigungen an deinen eigenen ntfy- oder Gotify-Server oder per Webhook
+- Große Bibliotheken: endloses Scrollen und eine Suche ohne Trefferlimit, getestet mit
+  10 000 Videos
+- Strengere Sicherheit (Content-Security-Policy, Aufräumregeln nur für Admins) und
+  automatische Updates der Abhängigkeiten per Dependabot
+
 **Version 0.4 – Für jedes Gerät und jeden Mediaserver**
 
 - Wiedergabe auf jedem Gerät: Was der Browser nicht direkt kann, wird umverpackt oder beim
@@ -200,7 +216,7 @@ Eine Vorlage für eine `.env`-Datei liegt in [`.env.example`](.env.example).
 
 | Pfad | Inhalt |
 | ---- | ------ |
-| `/config` | Datenbank (`tubevault.db`), Logs (`logs/`), aktualisiertes yt-dlp (`.runtime/`), Caches |
+| `/config` | Datenbank (`tubevault.db`), Sicherungen (`backups/`), Logs (`logs/`), aktualisiertes yt-dlp (`.runtime/`) |
 | `/media` | Videos, Thumbnails, Untertitel, NFOs – der Unterordner `.tubevault/` enthält nur temporäre Downloads und den Umwandlungs-Cache |
 | `/import` | Optional: vorhandene Videos zum Importieren (darf schreibgeschützt sein, dann „Kopieren“ wählen) |
 
@@ -261,6 +277,64 @@ Unter **Abos → Abonnieren** fügst du einen Kanal (`https://www.youtube.com/@n
   und es nicht von Hand hinzugefügt wurde. Gelöschte Videos lädt das Abo nicht erneut.
 - **Kanäle**: Für Shorts und Livestreams werden die jeweiligen Tabs des Kanals mitgelesen.
   Laufende oder angekündigte Livestreams werden erst nach dem Ende geladen.
+- **Schneller finden:** Alle 15 Minuten schaut TubeVault in den kleinen RSS-Feed jedes Abos
+  (die letzten 15 Uploads). Taucht dort ein unbekanntes Video auf, zieht es die gründliche
+  Prüfung vor – neue Videos sind so meist nach Minuten da, ohne den Kanal ständig komplett
+  abzufragen. Abschaltbar unter **Einstellungen → Automatik**.
+- **Bessere Qualität nachladen:** Kurz nach dem Upload bietet YouTube oft nur niedrige
+  Auflösungen an. Liegt ein Video unter der Zielqualität (Limit des Abos, sonst 1080p), fragt
+  TubeVault in den ersten 7 Tagen bis zu zweimal täglich nach und ersetzt die Datei, sobald es
+  eine bessere gibt. Wiedergabestand und Playlists bleiben, und bis zum Austausch läuft die
+  alte Fassung weiter. Admins können jedes Video auf seiner Seite mit **Neu laden** erneut
+  holen, etwa nach dem Wechsel auf 4K.
+
+### Ohne Internet
+
+TubeVault ist ein Mediaserver zum Offline-Schauen: Bibliothek, Suche, Wiedergabe, Playlists
+und Fortschritt brauchen nur deinen Server, die Oberfläche lädt nichts von außen. Fällt das
+Internet aus,
+
+- warten Downloads, statt nach ein paar Versuchen endgültig zu scheitern, und starten von
+  selbst, sobald das Netz zurück ist (die Download-Seite zeigt das an),
+- werden Abo-Prüfungen, Kanalbilder, SponsorBlock und der RSS-Check still verschoben – ohne
+  Fehlermeldungen an jedem Abo,
+- startet der Container sofort, statt auf das yt-dlp-Update zu warten.
+
+Ob YouTube erreichbar ist, prüft TubeVault nur nach einem Netzwerkfehler, nie regelmäßig.
+
+### Sicherung
+
+In der Datenbank unter `/config` steckt alles außer den Videos selbst: Einstellungen,
+Benutzer, Abos, Playlists und der Wiedergabestand. **Verwaltung → Sicherung**
+
+- legt täglich automatisch eine Sicherung unter `/config/backups` an (die letzten 7 bleiben,
+  einstellbar oder abschaltbar), dazu **Jetzt sichern** von Hand,
+- bietet jede Sicherung als ZIP zum Herunterladen an – bewahre ab und zu eine Kopie woanders
+  auf, sie enthält auch die Benutzerkonten,
+- spielt eine Sicherung aus der Liste oder aus einer Datei zurück. TubeVault prüft sie,
+  sichert vorher den jetzigen Stand und startet neu; danach läuft „Dateien prüfen“, falls
+  die Sicherung Videos kennt, die es nicht mehr gibt.
+
+Die Sicherung entsteht über die Backup-Funktion von SQLite und ist damit auch während
+laufender Downloads konsistent. Videos, Thumbnails und Untertitel liegen in `/media` – die
+sicherst du wie andere große Dateien (z. B. per Snapshot deines NAS).
+
+### Benachrichtigungen
+
+Unter **Verwaltung → Benachrichtigungen** schickt TubeVault Nachrichten an einen Dienst, den
+du betreibst – standardmäßig ist das aus:
+
+- **ntfy:** Adresse samt Thema, z. B. `https://ntfy.example.org/tubevault`, optional mit
+  Zugangstoken
+- **Gotify:** Adresse des Servers und der Token einer Anwendung
+- **Webhook:** beliebige Adresse, z. B. eine Home-Assistant-Automation. TubeVault schickt
+  per POST `{"event": "video_downloaded", "title": "…", "message": "…", "data": {…}}`
+
+Wählbar sind: neue Videos, fehlgeschlagene Downloads, fehlgeschlagene Abo-Prüfungen (einmal
+pro Problem), knapper Speicher (unter 5 % oder 5 GB frei) und yt-dlp-Updates (fragt dafür
+einmal täglich bei PyPI nach, standardmäßig aus). Was innerhalb von 30 Sekunden passiert,
+kommt als eine Nachricht – ein neues Abo mit 50 Videos meldet „50 neue Videos“. Der Token
+wird nur gespeichert, nie wieder angezeigt; **Test senden** prüft die Einstellungen sofort.
 
 ### SponsorBlock
 
@@ -430,7 +504,7 @@ example.com {
 - **Image-Tags:** `latest` ist immer der aktuelle Stand; `0.3` oder `0.3.0` hält dich auf
   einer festen Version. Zurück auf eine ältere Version geht nicht, weil die Datenbank beim
   Update migriert wird – TubeVault startet dann mit einem entsprechenden Hinweis nicht.
-  Sichere vor großen Updates einfach den `config`-Ordner.
+  Vor großen Updates einfach unter **Verwaltung → Sicherung** eine Sicherung anlegen.
 - **Automatisch** mit [Watchtower](https://github.com/containrrr/watchtower), das Container
   aktualisiert, sobald ein neues Image auf GHCR liegt:
 
@@ -457,6 +531,9 @@ example.com {
 | Hardware-Test meldet einen Fehler | `/dev/dri` (Intel/AMD) bzw. die NVIDIA-GPU im Compose-File freigeben; die Meldung im Test nennt den Grund. Ohne GPU wandelt TubeVault in Software um |
 | Umgewandelte Videos ruckeln | Die CPU schafft die Qualität nicht in Echtzeit – Hardware-Beschleunigung einschalten oder im Player eine kleinere Qualität wählen |
 | yt-dlp ist zu alt | **Verwaltung → yt-dlp → Jetzt aktualisieren**, danach **Neu starten** |
+| Downloads hängen bei „Keine Internetverbindung“ | YouTube ist vom Server aus nicht erreichbar (Internet, DNS, Firewall). Sie starten von selbst, sobald es wieder geht |
+| Benachrichtigungen kommen nicht an | **Test senden** zeigt den Grund, z. B. falsche Adresse oder Token. Liegt der Dienst im selben Docker-Netz, den Containernamen statt `localhost` verwenden |
+| Etwas kaputtgespielt | **Verwaltung → Sicherung**: einen früheren Stand wiederherstellen |
 | Logs | `docker logs tubevault` oder `config/logs/tubevault.log` |
 
 ## Entwicklung
@@ -484,8 +561,8 @@ Aufbau:
 ```
 backend/app/
   routers/    HTTP- und WebSocket-Endpunkte
-  services/   yt-dlp, Bibliothek/Dateinamen, Abos, Suche, SponsorBlock, Transcoding,
-              NFO, Import, Auth/Tokens
+  services/   yt-dlp, Bibliothek/Dateinamen, Abos, RSS, Suche, SponsorBlock, Transcoding,
+              NFO, Import, Sicherung, Benachrichtigungen, Online-Status, Auth/Tokens
   workers/    Download-Queue, Abo-Scheduler, Transcoder, Bibliotheksaufgaben
   models/     SQLAlchemy-Modelle, migrations/ (Alembic)
 frontend/src/
@@ -499,12 +576,17 @@ und veröffentlicht ein Release.
 
 ## Datenschutz
 
-TubeVault sendet keine Telemetrie und lädt keine externen Skripte oder Schriften. Verbindungen
-nach außen gehen nur zu YouTube (Downloads), zu PyPI (yt-dlp-Update beim Start und auf
-Knopfdruck in der Verwaltung, abschaltbar)
-und – nur wenn du es einschaltest – zu SponsorBlock. Dabei verlassen nur die ersten vier
-Zeichen eines SHA-256-Hashes der Video-ID den Server; SponsorBlock erfährt also nicht, welches
-Video du schaust.
+TubeVault sendet keine Telemetrie und lädt keine externen Skripte oder Schriften – eine
+Content-Security-Policy erzwingt das auch im Browser. Verbindungen nach außen gehen nur zu:
+
+- **YouTube:** Downloads, Abo-Prüfungen samt RSS-Feeds und das Nachladen besserer Qualität.
+  Nach einem Netzwerkfehler prüft eine kleine Anfrage, ob YouTube erreichbar ist.
+- **PyPI:** yt-dlp-Update beim Start und auf Knopfdruck (abschaltbar), dazu einmal täglich,
+  wenn du die Benachrichtigung „yt-dlp-Update verfügbar“ einschaltest.
+- **SponsorBlock**, nur wenn du es einschaltest. Dabei verlassen nur die ersten vier Zeichen
+  eines SHA-256-Hashes der Video-ID den Server; SponsorBlock erfährt also nicht, welches
+  Video du schaust.
+- **Deinen Benachrichtigungsdienst**, nur wenn du einen einträgst.
 
 ## Lizenz
 
