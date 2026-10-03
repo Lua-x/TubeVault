@@ -300,6 +300,12 @@ export function OfflineProvider({ online, owner, children }: OfflineProviderProp
     [store, folder],
   );
 
+  const thumbnail = useCallback(
+    async (id: number) =>
+      store && entriesRef.current[id]?.has_thumbnail ? store.read(`${folder(id)}/thumb`) : null,
+    [store, folder],
+  );
+
   const value = useMemo<OfflineContextValue>(
     () => ({
       supported: backend !== null,
@@ -312,8 +318,9 @@ export function OfflineProvider({ online, owner, children }: OfflineProviderProp
       cancel,
       remove,
       open,
+      thumbnail,
     }),
-    [backend, owner, ready, entries, tasks, storage, save, cancel, remove, open],
+    [backend, owner, ready, entries, tasks, storage, save, cancel, remove, open, thumbnail],
   );
 
   return <OfflineContext.Provider value={value}>{children}</OfflineContext.Provider>;

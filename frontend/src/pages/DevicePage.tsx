@@ -11,27 +11,23 @@ import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { formatBytes, formatDuration } from "@/lib/format";
 import { QUALITY_LABELS, useOffline, type OfflineEntry } from "@/offline/context";
 import { loadLocalProgress } from "@/offline/progress";
-import { offlineBackend } from "@/offline/storage";
 
 function Poster({ entry }: { entry: OfflineEntry }) {
-  const { open } = useOffline();
+  const { thumbnail } = useOffline();
   const [src, setSrc] = useState<string | null>(null);
   useEffect(() => {
-    if (!entry.has_thumbnail) return;
     let url: string | null = null;
     let cancelled = false;
-    void offlineBackend()
-      ?.read(`v${entry.id}/thumb`)
-      .then((blob) => {
-        if (!blob || cancelled) return;
-        url = URL.createObjectURL(blob);
-        setSrc(url);
-      });
+    void thumbnail(entry.id).then((blob) => {
+      if (!blob || cancelled) return;
+      url = URL.createObjectURL(blob);
+      setSrc(url);
+    });
     return () => {
       cancelled = true;
       if (url) URL.revokeObjectURL(url);
     };
-  }, [entry.id, entry.has_thumbnail, open]);
+  }, [entry.id, thumbnail]);
   return src ? (
     <img src={src} alt="" className="size-full object-cover" />
   ) : (

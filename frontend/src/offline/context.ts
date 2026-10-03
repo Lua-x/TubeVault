@@ -47,6 +47,8 @@ export interface OfflineContextValue {
   remove: (id: number) => Promise<void>;
   /** Object URLs for playing a saved video; call `revoke` when done. */
   open: (id: number) => Promise<OfflineFiles | null>;
+  /** The saved thumbnail, if there is one. */
+  thumbnail: (id: number) => Promise<Blob | null>;
 }
 
 export interface OfflineFiles {

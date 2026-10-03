@@ -93,7 +93,10 @@ function OfflineApp({ retry }: { retry: () => void }) {
           <div className="mx-auto flex max-w-[1680px] items-center justify-between gap-3 text-[14px]">
             <span className="flex items-center gap-2 text-secondary">
               <WifiOff className="size-4 shrink-0" strokeWidth={2} />
-              Keine Verbindung zum Server – hier ist, was auf diesem Gerät liegt.
+              <span>
+                Keine Verbindung zum Server
+                <span className="hidden sm:inline"> – hier ist, was auf diesem Gerät liegt</span>
+              </span>
             </span>
             <Button variant="secondary" size="sm" onClick={retry}>
               Neu verbinden
