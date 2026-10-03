@@ -23,6 +23,7 @@ from app.models import Channel, Setting, Video, VideoStatus
 from app.services import nfo
 from app.services.app_settings import LibraryOptions, load_app_settings
 from app.services.relayout import move_video, prune_empty_dirs
+from app.services.videos import video_file_exists
 
 log = logging.getLogger(__name__)
 
@@ -175,6 +176,41 @@ class LibraryTasks:
         if options.layout == "tubevault":
             label = "Bibliothek ins TubeVault-Schema umziehen"
         return self.run("relayout", label, work)
+
+    def verify_files(self) -> TaskState:
+        """Mark videos whose file is gone as missing – and found ones as ready again."""
+
+        def work(progress: Progress) -> str:
+            missing = found = 0
+            with self._sessions() as db:
+                videos = list(
+                    db.scalars(
+                        select(Video).where(
+                            Video.status.in_([VideoStatus.READY, VideoStatus.MISSING])
+                        )
+                    )
+                )
+                progress.total(len(videos))
+                for video in videos:
+                    exists = video_file_exists(self._settings.media_dir, video)
+                    if video.status is VideoStatus.READY and not exists:
+                        video.status = VideoStatus.MISSING
+                        missing += 1
+                    elif video.status is VideoStatus.MISSING and exists:
+                        video.status = VideoStatus.READY
+                        found += 1
+                    progress.step(video.title)
+                db.commit()
+            if missing or found:
+                self._events.publish("video.updated", video={})
+            parts = [f"{len(videos)} Videos geprüft"]
+            if missing:
+                parts.append(f"{missing} Dateien fehlen")
+            if found:
+                parts.append(f"{found} wieder da")
+            return ", ".join(parts)
+
+        return self.run("verify", "Dateien prüfen", work)
 
     def sync_nfo(self, options: LibraryOptions) -> TaskState:
         """Writes (or removes) NFO files for the whole library."""

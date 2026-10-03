@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import platform
@@ -13,7 +14,8 @@ from collections import Counter
 from datetime import UTC, date, datetime, timedelta
 from typing import Any, Literal
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, Request, status
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import func, select
 
@@ -31,11 +33,11 @@ from app.models import (
     VideoStatus,
 )
 from app.routers.system import ffmpeg_version
+from app.services import backups
 from app.services.app_settings import load_app_settings
 from app.services.catalog import channel_url
 from app.services.search import is_sqlite, rebuild
 from app.services.subscriptions import store_channel_art
-from app.services.videos import video_file_exists
 from app.services.ytdlp_updater import (
     _version_in,
     _version_key,
@@ -328,6 +330,11 @@ LABELS: dict[str, str] = {
 
 @router.post("/maintenance/{action}")
 def maintenance(action: Action, _: AdminUser, ctx: Context) -> dict[str, Any]:
+    if action == "verify":
+        try:
+            return ctx.library_tasks.verify_files().as_dict()
+        except TaskBusyError as exc:
+            raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     if action == "nfo":
         with ctx.sessions() as db:
             options = load_app_settings(db).library
@@ -363,40 +370,113 @@ def maintenance(action: Action, _: AdminUser, ctx: Context) -> dict[str, Any]:
         ctx.events.publish("channels.updated")
         return f"{updated} Kanäle aktualisiert"
 
-    def verify(progress: Progress) -> str:
-        missing = found = 0
-        with ctx.sessions() as db:
-            videos = list(
-                db.scalars(
-                    select(Video).where(Video.status.in_([VideoStatus.READY, VideoStatus.MISSING]))
-                )
-            )
-            progress.total(len(videos))
-            for video in videos:
-                exists = video_file_exists(ctx.settings.media_dir, video)
-                if video.status is VideoStatus.READY and not exists:
-                    video.status = VideoStatus.MISSING
-                    missing += 1
-                elif video.status is VideoStatus.MISSING and exists:
-                    video.status = VideoStatus.READY
-                    found += 1
-                progress.step(video.title)
-            db.commit()
-        if missing or found:
-            ctx.events.publish("video.updated", video={})
-        parts = [f"{len(videos)} Videos geprüft"]
-        if missing:
-            parts.append(f"{missing} Dateien fehlen")
-        if found:
-            parts.append(f"{found} wieder da")
-        return ", ".join(parts)
-
     def cache(progress: Progress) -> str:
         freed = ctx.transcoder.cleanup_cache(limit=0)
         return f"{freed / 1024**2:.0f} MB freigegeben"
 
-    work = {"search-index": search_index, "artwork": artwork, "verify": verify, "cache": cache}
+    work = {"search-index": search_index, "artwork": artwork, "cache": cache}
     try:
         return ctx.library_tasks.run(action, LABELS[action], work[action]).as_dict()
     except TaskBusyError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+
+
+# --- backups -------------------------------------------------------------------------
+
+
+class BackupOut(BaseModel):
+    name: str
+    size: int
+    created_at: datetime
+    auto: bool
+
+
+class BackupState(BaseModel):
+    backups: list[BackupOut]
+    # A restore waiting for the restart (normally only for a moment).
+    staged: dict[str, Any] | None
+
+
+def _backup_out(info: backups.BackupInfo) -> BackupOut:
+    return BackupOut(name=info.name, size=info.size, created_at=info.created_at, auto=info.auto)
+
+
+def _backup_error(exc: backups.BackupError) -> HTTPException:
+    return HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
+
+
+@router.get("/backups")
+def list_backups(_: AdminUser, ctx: Context) -> BackupState:
+    return BackupState(
+        backups=[_backup_out(info) for info in backups.list_backups(ctx.settings)],
+        staged=backups.staged_restore(ctx.settings),
+    )
+
+
+@router.post("/backups", status_code=status.HTTP_201_CREATED)
+def create_backup(_: AdminUser, ctx: Context) -> BackupOut:
+    try:
+        return _backup_out(backups.create_backup(ctx.settings))
+    except backups.BackupError as exc:
+        raise _backup_error(exc) from exc
+
+
+@router.get("/backups/{name}")
+def download_backup(name: str, _: AdminUser, ctx: Context) -> FileResponse:
+    try:
+        path = backups.backup_path(ctx.settings, name)
+    except backups.BackupError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    return FileResponse(path, media_type="application/zip", filename=name)
+
+
+@router.delete("/backups/{name}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_backup(name: str, _: AdminUser, ctx: Context) -> None:
+    try:
+        backups.delete_backup(ctx.settings, name)
+    except backups.BackupError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+
+
+def _restore_and_restart(ctx: Any, archive: Any) -> dict[str, Any]:
+    if ctx.library_tasks.busy():
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "Erst die laufende Aufgabe in der Bibliothek abwarten."
+        )
+    try:
+        manifest = backups.stage_restore(ctx.settings, archive)
+    except backups.BackupError as exc:
+        raise _backup_error(exc) from exc
+    log.warning("Wiederherstellung angefordert – TubeVault startet neu")
+    request_restart()
+    return manifest
+
+
+@router.post("/backups/{name}/restore", status_code=status.HTTP_202_ACCEPTED)
+def restore_backup(name: str, _: AdminUser, ctx: Context) -> dict[str, Any]:
+    try:
+        path = backups.backup_path(ctx.settings, name)
+    except backups.BackupError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    return _restore_and_restart(ctx, path)
+
+
+@router.post("/restore", status_code=status.HTTP_202_ACCEPTED)
+async def restore_upload(request: Request, _: AdminUser, ctx: Context) -> dict[str, Any]:
+    """Restore from an uploaded backup file (sent as the raw request body)."""
+    upload = ctx.settings.config_dir / ".restore-upload.zip"
+    size = 0
+    try:
+        with upload.open("wb") as target:
+            async for chunk in request.stream():
+                size += len(chunk)
+                if size > backups.MAX_UPLOAD_BYTES:
+                    raise HTTPException(
+                        status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Die Datei ist zu groß."
+                    )
+                target.write(chunk)
+        if size == 0:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Keine Datei erhalten.")
+        return await asyncio.to_thread(_restore_and_restart, ctx, upload)
+    finally:
+        upload.unlink(missing_ok=True)

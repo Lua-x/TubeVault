@@ -21,7 +21,9 @@ import {
   useUpdateYtDlp,
   useYtDlp,
 } from "@/api/queries";
+import { BackupGroup } from "@/components/admin/BackupGroup";
 import { DownloadColumns, StorageBars } from "@/components/admin/Charts";
+import { RestartingDialog } from "@/components/admin/Restarting";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { LibraryTaskStatus } from "@/components/settings/LibraryGroup";
 import { Button } from "@/components/ui/Button";
@@ -31,8 +33,8 @@ import { ProgressBar } from "@/components/ui/ProgressBar";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { PageSpinner } from "@/components/ui/Spinner";
 import { useToast } from "@/hooks/toast";
+import { useAwaitRestart } from "@/hooks/useAwaitRestart";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
-import { apiUrl } from "@/lib/base";
 import { cn } from "@/lib/cn";
 import { formatBytes } from "@/lib/format";
 import type { AdminOverview, MaintenanceAction } from "@/lib/types";
@@ -75,7 +77,10 @@ export function AdminPage() {
             <YtDlpGroup />
             <SystemGroup data={data} />
           </div>
-          <MaintenanceGroup />
+          <div className="flex flex-col gap-9">
+            <MaintenanceGroup />
+            <BackupGroup />
+          </div>
         </div>
         <LogViewer />
       </div>
@@ -149,7 +154,7 @@ function YtDlpGroup() {
   const restart = useRestart();
   const toast = useToast();
   const [confirm, setConfirm] = useState(false);
-  const [restarting, setRestarting] = useState(false);
+  const { restarting, begin } = useAwaitRestart();
 
   const newer = data?.latest && data.installed && data.latest !== data.installed;
   const fail = (err: unknown) =>
@@ -159,19 +164,7 @@ function YtDlpGroup() {
     restart.mutate(undefined, {
       onSuccess: () => {
         setConfirm(false);
-        setRestarting(true);
-        // Wait until the server answers again, then load the page fresh.
-        const started = Date.now();
-        const poll = window.setInterval(() => {
-          void fetch(apiUrl("health"), { cache: "no-store" })
-            .then((r) => {
-              if (r.ok && Date.now() - started > 2000) {
-                window.clearInterval(poll);
-                window.location.reload();
-              }
-            })
-            .catch(() => undefined);
-        }, 1000);
+        begin();
       },
       onError: fail,
     });
@@ -242,10 +235,7 @@ function YtDlpGroup() {
           </Button>
         </div>
       </Dialog>
-      <Dialog open={restarting} onClose={() => undefined} title="TubeVault startet neu …">
-        <p className="text-[15px] text-secondary">Einen Moment, die Seite lädt gleich neu.</p>
-        <ProgressBar value={null} className="mt-4" />
-      </Dialog>
+      <RestartingDialog open={restarting} />
     </Group>
   );
 }

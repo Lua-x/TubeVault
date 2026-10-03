@@ -86,11 +86,19 @@ class LibraryOptions(BaseModel):
     write_nfo: bool = True
 
 
+class BackupOptions(BaseModel):
+    """Daily automatic backups of the database to /config/backups."""
+
+    auto: bool = True
+    keep: int = Field(default=7, ge=1, le=60)
+
+
 class AppSettings(BaseModel):
     downloads: DownloadOptions = Field(default_factory=DownloadOptions)
     max_concurrent_downloads: int = Field(default=2, ge=1, le=5)
     transcoding: TranscodeOptions = Field(default_factory=TranscodeOptions)
     library: LibraryOptions = Field(default_factory=LibraryOptions)
+    backup: BackupOptions = Field(default_factory=BackupOptions)
 
 
 QUEUE_PAUSED_KEY = "queue_paused"

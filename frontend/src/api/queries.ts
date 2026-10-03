@@ -7,12 +7,15 @@ import {
 } from "@tanstack/react-query";
 import { useMemo } from "react";
 
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { apiUrl } from "@/lib/base";
 import type {
   AdminOverview,
   ApiToken,
   AppSettings,
+  Backup,
+  BackupManifest,
+  BackupState,
   ChannelCard,
   ChannelDetail,
   CreatedApiToken,
@@ -575,6 +578,57 @@ export function useRestart() {
 export function useMaintenance() {
   return useMutation({
     mutationFn: (action: MaintenanceAction) => api.post<LibraryTask>(`admin/maintenance/${action}`),
+  });
+}
+
+export function useBackups() {
+  return useQuery({
+    queryKey: ["admin", "backups"],
+    queryFn: () => api.get<BackupState>("admin/backups"),
+  });
+}
+
+export function useCreateBackup() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post<Backup>("admin/backups"),
+    onSuccess: () => client.invalidateQueries({ queryKey: ["admin", "backups"] }),
+  });
+}
+
+export function useDeleteBackup() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) => api.delete(`admin/backups/${encodeURIComponent(name)}`),
+    onSuccess: () => client.invalidateQueries({ queryKey: ["admin", "backups"] }),
+  });
+}
+
+/** Restore a stored backup, or an uploaded file. TubeVault restarts right after. */
+export function useRestoreBackup() {
+  return useMutation({
+    mutationFn: async (source: string | File) => {
+      if (typeof source === "string") {
+        return api.post<BackupManifest>(`admin/backups/${encodeURIComponent(source)}/restore`);
+      }
+      const response = await fetch(apiUrl("admin/restore"), {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "X-Requested-With": "TubeVault", "Content-Type": "application/zip" },
+        body: source,
+      }).catch(() => {
+        throw new ApiError(0, "Keine Verbindung zum Server.");
+      });
+      const data: unknown = await response.json().catch(() => null);
+      if (!response.ok) {
+        const detail = (data as { detail?: unknown } | null)?.detail;
+        throw new ApiError(
+          response.status,
+          typeof detail === "string" ? detail : `Unerwarteter Fehler (${response.status}).`,
+        );
+      }
+      return data as BackupManifest;
+    },
   });
 }
 

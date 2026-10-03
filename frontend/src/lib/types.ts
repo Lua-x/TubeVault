@@ -273,11 +273,37 @@ export interface LibraryOptions {
   write_nfo: boolean;
 }
 
+export interface BackupOptions {
+  auto: boolean;
+  keep: number;
+}
+
 export interface AppSettings {
   downloads: DownloadOptions;
   max_concurrent_downloads: number;
   transcoding: TranscodeOptions;
   library: LibraryOptions;
+  backup: BackupOptions;
+}
+
+export interface Backup {
+  name: string;
+  size: number;
+  created_at: string;
+  auto: boolean;
+}
+
+export interface BackupManifest {
+  created_at?: string;
+  version?: string;
+  videos?: number;
+  subscriptions?: number;
+  users?: number;
+}
+
+export interface BackupState {
+  backups: Backup[];
+  staged: BackupManifest | null;
 }
 
 export interface PlaybackInfo {

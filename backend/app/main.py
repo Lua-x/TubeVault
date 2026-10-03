@@ -41,6 +41,7 @@ from app.routers import (
 )
 from app.services.app_settings import TranscodeOptions, load_app_settings
 from app.services.auth import bootstrap_admin, purge_expired_sessions
+from app.services.backups import apply_staged_restore
 from app.services.catalog import Catalog, YtDlpCatalog
 from app.services.connectivity import Connectivity
 from app.services.downloader import Downloader, YtDlpDownloader
@@ -247,6 +248,7 @@ def create_app(
     if configure_logging:
         setup_logging(settings.log_level, settings.logs_dir)
 
+    restored = apply_staged_restore(settings)
     engine = make_engine(settings.db_url)
     run_migrations(engine)
     ensure_search_index(engine)
@@ -315,7 +317,10 @@ def create_app(
         manager.start()
         scheduler.start()
         transcoder.start()
-        library_tasks.backfill_nfo_if_needed()
+        if restored:
+            library_tasks.verify_files()  # the backup may know files that are gone now
+        else:
+            library_tasks.backfill_nfo_if_needed()
         log.info("TubeVault %s läuft auf Port %s%s", __version__, settings.port, settings.base_path)
         try:
             yield

@@ -12,6 +12,8 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.config import Settings
 from app.core.events import EventBus
 from app.models import Subscription
+from app.services.app_settings import load_app_settings
+from app.services.backups import BackupError, auto_backup_if_due
 from app.services.catalog import Catalog
 from app.services.connectivity import Connectivity
 from app.services.subscriptions import (
@@ -131,6 +133,7 @@ class SubscriptionScheduler:
             deleted = run_cleanup(db, self._settings.media_dir)
         for video_id in deleted:
             self._events.publish("video.deleted", video_id=video_id)
+        self._auto_backup()
         if self._connectivity and not self._connectivity.online:
             return deleted  # channel artwork comes from YouTube; try again next hour
         try:
@@ -140,3 +143,13 @@ class SubscriptionScheduler:
         except Exception:
             log.exception("Kanalbilder konnten nicht aktualisiert werden")
         return deleted
+
+    def _auto_backup(self) -> None:
+        with self._sessions() as db:
+            options = load_app_settings(db).backup
+        if not options.auto:
+            return
+        try:
+            auto_backup_if_due(self._settings, options.keep)
+        except BackupError:
+            log.exception("Automatische Sicherung fehlgeschlagen")
