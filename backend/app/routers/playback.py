@@ -42,6 +42,7 @@ from app.workers.transcoder import (
     Source,
     TooManySessionsError,
     TranscodeError,
+    Transcoder,
     detect_hardware,
     run_hwaccel_test,
 )
@@ -203,9 +204,13 @@ def audio_file(
     Waiting here instead of making the player poll keeps playback inside the tap that
     started it, which iOS insists on.
     """
-    source = _source(db, settings, video_id, user)[1]
+    return audio_response(ctx.transcoder, _source(db, settings, video_id, user)[1])
+
+
+def audio_response(transcoder: Transcoder, source: Source) -> Response:
+    """Serves the sound, waiting while it is prepared (also for podcast apps)."""
     try:
-        job = ctx.transcoder.audio(source)
+        job = transcoder.audio(source)
     except TranscodeError as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
     deadline = time.monotonic() + AUDIO_WAIT_S
@@ -213,7 +218,7 @@ def audio_file(
         time.sleep(0.2)
     if job.state == "failed":
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, job.error or "Fehlgeschlagen")
-    path = ctx.transcoder.remux_file(source, "audio")
+    path = transcoder.remux_file(source, "audio")
     if path is None:
         return Response(
             "Die Tonspur wird noch vorbereitet.",

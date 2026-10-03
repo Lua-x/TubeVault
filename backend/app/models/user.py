@@ -43,6 +43,8 @@ class User(Base):
     channels: Mapped[list[Channel]] = relationship(secondary=user_channels)
     # Linked account at the OpenID Connect provider ("sub" claim).
     oidc_subject: Mapped[str | None] = mapped_column(String(255), unique=True, index=True)
+    # Secret part of the podcast feed addresses (read-only, renewable); None = feeds off.
+    feed_token: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)
 
     sessions: Mapped[list[UserSession]] = relationship(
         back_populates="user", cascade="all, delete-orphan", passive_deletes=True

@@ -15,6 +15,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { LibraryGroup, LibraryTaskStatus } from "@/components/settings/LibraryGroup";
 import { TokensGroup } from "@/components/settings/TokensGroup";
 import { TranscodeGroup } from "@/components/settings/TranscodeGroup";
+import { PodcastGroup } from "@/components/podcasts/PodcastGroup";
 import { TwoFactorGroup } from "@/components/settings/TwoFactorGroup";
 import { UserDialog } from "@/components/settings/UserDialog";
 import { Dialog } from "@/components/ui/Dialog";
@@ -56,6 +57,7 @@ export function SettingsPage() {
         {user.is_admin && <DownloadSection />}
         <AccountSection />
         <TwoFactorGroup />
+        <PodcastGroup />
         <TokensGroup />
         {user.is_admin && <UsersSection />}
         <SystemSection />

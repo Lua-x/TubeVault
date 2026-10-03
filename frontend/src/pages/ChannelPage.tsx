@@ -12,6 +12,7 @@ import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Select } from "@/components/ui/Select";
 import { PageSpinner } from "@/components/ui/Spinner";
 import { VideoGrid, VideoGridSkeleton } from "@/components/video/VideoGrid";
+import { PodcastButton } from "@/components/podcasts/PodcastButton";
 import { useCanAdd } from "@/hooks/auth";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { channelImageUrl } from "@/lib/media";
@@ -102,6 +103,7 @@ export function ChannelPage() {
                 Abonnieren
               </Button>
             )}
+            <PodcastButton feed={`channels/${channel.id}.xml`} title={channel.name} />
             {channel.url && (
               <a
                 href={channel.url}

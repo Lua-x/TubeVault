@@ -10,6 +10,7 @@ from fastapi.responses import RedirectResponse
 
 from app.config import Settings
 from app.core.deps import AppConfig, Context, DbSession, SessionUser
+from app.core.urls import public_base
 from app.models import User
 from app.services import auth as auth_service
 from app.services import oidc
@@ -20,13 +21,7 @@ log = logging.getLogger(__name__)
 
 def redirect_uri(request: Request, settings: Settings) -> str:
     """Where the provider sends the browser back – also shown in the admin page."""
-    if settings.public_url:
-        base = settings.public_url.rstrip("/")
-    else:
-        host = request.headers.get("x-forwarded-host", "").split(",")[0].strip()
-        host = host or request.headers.get("host") or request.url.netloc
-        base = f"{request.url.scheme}://{host}{settings.base_path}"
-    return f"{base}/api/auth/oidc/callback"
+    return f"{public_base(request, settings)}/api/auth/oidc/callback"
 
 
 def _app_redirect(settings: Settings, path: str, **query: str) -> RedirectResponse:

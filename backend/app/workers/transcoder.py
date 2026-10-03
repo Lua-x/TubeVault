@@ -74,6 +74,13 @@ def file_signature(path: Path) -> str:
     return hashlib.sha256(raw).hexdigest()[:10]
 
 
+def file_key(video_id: int, path: Path, variant: Variant) -> str:
+    key = f"{video_id}-{file_signature(path)}"
+    if variant is None:
+        return key
+    return f"{key}-audio" if variant == "audio" else f"{key}-h{variant}"
+
+
 def _touch(path: Path) -> None:
     with contextlib.suppress(OSError):
         os.utime(path)
@@ -413,10 +420,7 @@ class Transcoder:
 
     @staticmethod
     def _file_key(source: Source, variant: Variant) -> str:
-        key = f"{source.video_id}-{file_signature(source.path)}"
-        if variant is None:
-            return key
-        return f"{key}-audio" if variant == "audio" else f"{key}-h{variant}"
+        return file_key(source.video_id, source.path, variant)
 
     def _target(self, key: str, variant: Variant) -> Path:
         return self.remux_dir / f"{key}{'.m4a' if variant == 'audio' else '.mp4'}"
@@ -508,6 +512,11 @@ class Transcoder:
         if job is None and self._target(key, variant).is_file():
             return self._file_job(source, variant)
         return job
+
+    def cached_audio(self, video_id: int, path: Path) -> Path | None:
+        """The prepared sound of a file, if there is one – without probing the file."""
+        target = self._target(file_key(video_id, path, "audio"), "audio")
+        return target if target.is_file() else None
 
     def remux_file(self, source: Source, variant: Variant = None) -> Path | None:
         key = self._file_key(source, variant)

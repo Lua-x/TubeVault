@@ -13,6 +13,7 @@ import {
 } from "@/api/queries";
 import { trackFromVideo, useAudioPlayer } from "@/audio/context";
 import { SaveAllToDevice } from "@/components/offline/SaveAllToDevice";
+import { PodcastButton } from "@/components/podcasts/PodcastButton";
 import { PlaylistCover } from "@/components/playlists/PlaylistCover";
 import { PlaylistNameDialog } from "@/components/playlists/PlaylistNameDialog";
 import { Button, IconButton } from "@/components/ui/Button";
@@ -130,6 +131,7 @@ function PlaylistView({ playlist }: { playlist: PlaylistDetail }) {
               </Button>
             )}
             <SaveAllToDevice videos={order} />
+            <PodcastButton feed={`playlists/${playlist.id}.xml`} title={playlist.name} />
             {!playlist.is_watch_later && (
               <>
                 <Button

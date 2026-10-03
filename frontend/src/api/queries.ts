@@ -858,3 +858,35 @@ export function useForgetHistory() {
     onSettled: () => client.invalidateQueries({ queryKey: keys.videos }),
   });
 }
+
+// --- podcast feeds ------------------------------------------------------------------
+
+export interface PodcastAccess {
+  enabled: boolean;
+  base_url: string | null;
+}
+
+const podcastKey = ["podcasts"] as const;
+
+export function usePodcastAccess() {
+  return useQuery({
+    queryKey: podcastKey,
+    queryFn: () => api.get<PodcastAccess>("podcasts"),
+  });
+}
+
+export function useRenewPodcastAddress() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post<PodcastAccess>("podcasts/token"),
+    onSuccess: (access) => client.setQueryData(podcastKey, access),
+  });
+}
+
+export function useDisablePodcasts() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.delete("podcasts/token"),
+    onSuccess: () => client.setQueryData(podcastKey, { enabled: false, base_url: null }),
+  });
+}

@@ -35,6 +35,7 @@ from app.routers import (
     oidc,
     playback,
     playlists,
+    podcasts,
     settings,
     subscriptions,
     system,
@@ -53,6 +54,7 @@ from app.services.importer import Importer
 from app.services.notifications import Notifier, Sender
 from app.services.notifications import send as send_notification
 from app.services.oidc import OidcClient
+from app.services.podcasts import AudioPrefetch
 from app.services.rss import FeedFetcher, RssWatcher, fetch_feed_ids
 from app.services.search import ensure_search_index
 from app.services.subscriptions import SubscriptionChecker
@@ -189,6 +191,7 @@ def _api_router() -> APIRouter:
         playback,
         channels,
         playlists,
+        podcasts,
         subscriptions,
         downloads,
         imports,
@@ -325,6 +328,7 @@ def create_app(
     manager.on_file_replaced = transcoder.purge
     library_tasks = LibraryTasks(settings, sessions, events)
     comment_fetcher = CommentFetcher(sessions, downloader, events, connectivity)
+    podcast_prefetch = AudioPrefetch(transcoder)
     manager.on_comments_wanted = comment_fetcher.request
     importer = Importer(settings.media_dir, settings.import_dir, downloader)
     ctx = AppContext(
@@ -343,6 +347,7 @@ def create_app(
         notifier=notifier,
         oidc=OidcClient(settings),
         comments=comment_fetcher,
+        podcasts=podcast_prefetch,
     )
 
     @asynccontextmanager
@@ -365,6 +370,7 @@ def create_app(
             await asyncio.to_thread(scheduler.stop)
             await asyncio.to_thread(manager.stop)
             comment_fetcher.shutdown()
+            podcast_prefetch.shutdown()
             await asyncio.to_thread(notifier.stop)
             engine.dispose()
 
