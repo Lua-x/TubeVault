@@ -1,13 +1,14 @@
 import { Clapperboard, Plus, Search } from "lucide-react";
-import { useDeferredValue, useState } from "react";
+import { useCallback, useDeferredValue, useState } from "react";
 import { useSearchParams } from "react-router";
 
-import { useVideos, type VideoSort, type WatchedFilter } from "@/api/queries";
+import { useVideoPages, type VideoSort, type WatchedFilter } from "@/api/queries";
 import { useOpenAddVideo } from "@/components/layout/addVideo";
 import { LibraryTabs } from "@/components/layout/LibraryTabs";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { LoadMore } from "@/components/ui/LoadMore";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Select } from "@/components/ui/Select";
 import { VideoGrid, VideoGridSkeleton } from "@/components/video/VideoGrid";
@@ -34,12 +35,22 @@ export function LibraryPage() {
   const sort = (params.get("sort") as VideoSort | null) ?? "added";
   const watched = (params.get("watched") as WatchedFilter | null) ?? "all";
   const deferredQuery = useDeferredValue(query.trim());
-  const { data, isLoading, isError, error } = useVideos({
+  const {
+    items: videos,
+    total,
+    isLoading,
+    isError,
+    error,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+    pageCount,
+  } = useVideoPages({
     q: deferredQuery || undefined,
     sort: deferredQuery ? undefined : sort,
     watched,
-    limit: 200,
   });
+  const loadMore = useCallback(() => void fetchNextPage(), [fetchNextPage]);
   const openAdd = useOpenAddVideo();
 
   const setParam = (key: string, value: string, fallback: string) => {
@@ -49,13 +60,11 @@ export function LibraryPage() {
     setParams(next, { replace: true });
   };
 
-  const videos = data?.items ?? [];
-
   return (
     <>
       <PageHeader
         title="Bibliothek"
-        subtitle={data ? `${data.total} ${data.total === 1 ? "Video" : "Videos"}` : undefined}
+        subtitle={total !== undefined ? `${total} ${total === 1 ? "Video" : "Videos"}` : undefined}
         settingsShortcut
         actions={
           <>
@@ -127,7 +136,15 @@ export function LibraryPage() {
           </EmptyState>
         )
       ) : (
-        <VideoGrid videos={videos} />
+        <>
+          <VideoGrid videos={videos} />
+          <LoadMore
+            hasMore={hasNextPage}
+            loading={isFetchingNextPage}
+            onLoad={loadMore}
+            pageCount={pageCount}
+          />
+        </>
       )}
     </>
   );

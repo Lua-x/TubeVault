@@ -1,12 +1,13 @@
 import { ArrowLeft, Check, ExternalLink, Plus } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Link, useParams } from "react-router";
 
-import { useChannel, useVideos, type VideoSort, type WatchedFilter } from "@/api/queries";
+import { useChannel, useVideoPages, type VideoSort, type WatchedFilter } from "@/api/queries";
 import { ChannelAvatar } from "@/components/subscriptions/ChannelAvatar";
 import { SubscribeDialog } from "@/components/subscriptions/SubscribeDialog";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { LoadMore } from "@/components/ui/LoadMore";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Select } from "@/components/ui/Select";
 import { PageSpinner } from "@/components/ui/Spinner";
@@ -21,7 +22,9 @@ export function ChannelPage() {
   const [sort, setSort] = useState<VideoSort>("newest");
   const [watched, setWatched] = useState<WatchedFilter>("all");
   const [subscribing, setSubscribing] = useState(false);
-  const videos = useVideos({ channelId, sort, watched, limit: 200 });
+  const videos = useVideoPages({ channelId, sort, watched });
+  const { fetchNextPage } = videos;
+  const loadMore = useCallback(() => void fetchNextPage(), [fetchNextPage]);
   useDocumentTitle(channel?.name);
 
   if (isLoading) return <PageSpinner />;
@@ -137,8 +140,16 @@ export function ChannelPage() {
       </div>
       {videos.isLoading ? (
         <VideoGridSkeleton />
-      ) : videos.data && videos.data.items.length > 0 ? (
-        <VideoGrid videos={videos.data.items} hideChannel />
+      ) : videos.items.length > 0 ? (
+        <>
+          <VideoGrid videos={videos.items} hideChannel />
+          <LoadMore
+            hasMore={videos.hasNextPage}
+            loading={videos.isFetchingNextPage}
+            onLoad={loadMore}
+            pageCount={videos.pageCount}
+          />
+        </>
       ) : (
         <p className="py-10 text-center text-[15px] text-secondary">
           Keine Videos in dieser Ansicht.

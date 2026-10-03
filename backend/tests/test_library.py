@@ -5,7 +5,9 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import insert
 
+from app.models import Video, VideoStatus
 from app.services import sponsorblock
 from app.services.app_settings import DownloadOptions
 from app.services.downloader import YtDlpDownloader
@@ -254,3 +256,27 @@ def test_preferences_are_merged(admin: TestClient) -> None:
     admin.put("/api/auth/me/preferences", json={"theme": "light"})
     prefs = admin.put("/api/auth/me/preferences", json={"sponsorblock_skip": False}).json()
     assert prefs["preferences"] == {"theme": "light", "sponsorblock_skip": False}
+
+
+def test_search_counts_and_pages_through_every_match(admin: TestClient) -> None:
+    ctx = admin.app.state.ctx  # type: ignore[attr-defined]
+    with ctx.sessions() as db:
+        db.execute(
+            insert(Video),
+            [
+                {
+                    "youtube_id": f"mass{n:07d}",
+                    "title": f"Massentest Folge {n}",
+                    "status": VideoStatus.READY,
+                    "file_path": f"x/mass{n}.mp4",
+                    "chapters": [],
+                }
+                for n in range(1100)
+            ],
+        )
+        db.commit()
+    first = admin.get("/api/videos", params={"q": "massentest", "limit": 60}).json()
+    assert first["total"] == 1100 and len(first["items"]) == 60
+    last = admin.get("/api/videos", params={"q": "massentest", "limit": 60, "offset": 1080}).json()
+    assert len(last["items"]) == 20
+    assert admin.get("/api/videos", params={"q": "!!!"}).json()["total"] == 0

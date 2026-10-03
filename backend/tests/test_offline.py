@@ -131,6 +131,8 @@ def test_startup_update_skips_without_internet(
     from app.services import ytdlp_updater
 
     monkeypatch.setattr(ytdlp_updater, "pypi_reachable", lambda: False)
+    # The CLI sets up console logging; keep it from outliving capsys.
+    monkeypatch.setattr(cli, "setup_logging", lambda *_args: None)
 
     def no_pip(_dir: Any) -> None:
         raise AssertionError("pip must not run offline")

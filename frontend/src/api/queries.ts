@@ -1,4 +1,11 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { useMemo } from "react";
 
 import { api } from "@/lib/api";
 import { apiUrl } from "@/lib/base";
@@ -75,19 +82,53 @@ export interface VideoListParams {
   watched?: WatchedFilter;
 }
 
-export function useVideos(params: VideoListParams, enabled = true) {
+function videoSearch(params: VideoListParams, offset = 0): URLSearchParams {
   const search = new URLSearchParams();
   if (params.q) search.set("q", params.q);
   if (params.sort) search.set("sort", params.sort);
   if (params.channelId) search.set("channel_id", String(params.channelId));
   if (params.watched && params.watched !== "all") search.set("watched", params.watched);
   search.set("limit", String(params.limit ?? 120));
+  if (offset) search.set("offset", String(offset));
+  return search;
+}
+
+export function useVideos(params: VideoListParams, enabled = true) {
   return useQuery({
     queryKey: keys.videoList(params),
-    queryFn: () => api.get<Page<VideoSummary>>(`videos?${search}`),
+    queryFn: () => api.get<Page<VideoSummary>>(`videos?${videoSearch(params)}`),
     placeholderData: keepPreviousData,
     enabled,
   });
+}
+
+const PAGE_SIZE = 60;
+
+/** The whole list, loaded page by page while scrolling (libraries can be huge). */
+export function useVideoPages(params: Omit<VideoListParams, "limit">, enabled = true) {
+  const query = useInfiniteQuery({
+    queryKey: [...keys.videoList(params), "pages"],
+    queryFn: ({ pageParam }) =>
+      api.get<Page<VideoSummary>>(
+        `videos?${videoSearch({ ...params, limit: PAGE_SIZE }, pageParam)}`,
+      ),
+    initialPageParam: 0,
+    getNextPageParam: (last, pages) => {
+      const loaded = pages.reduce((sum, page) => sum + page.items.length, 0);
+      return last.items.length > 0 && loaded < last.total ? loaded : undefined;
+    },
+    placeholderData: keepPreviousData,
+    enabled,
+  });
+  const { data } = query;
+  const items = useMemo(() => {
+    // New downloads shift the offsets; never show a video twice.
+    const seen = new Set<number>();
+    return (data?.pages ?? [])
+      .flatMap((page) => page.items)
+      .filter((video) => !seen.has(video.id) && seen.add(video.id));
+  }, [data]);
+  return { ...query, items, total: data?.pages[0]?.total, pageCount: data?.pages.length ?? 0 };
 }
 
 export function useVideo(id: number) {

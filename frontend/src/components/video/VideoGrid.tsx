@@ -24,7 +24,8 @@ export function VideoGrid({
           transition={{
             duration: 0.3,
             ease: [0.22, 1, 0.36, 1],
-            delay: Math.min(index, 12) * 0.03,
+            // Stagger the first screen only; cards loaded while scrolling appear at once.
+            delay: index < 12 ? index * 0.03 : 0,
           }}
         >
           <VideoCard video={video} hideChannel={hideChannel} />

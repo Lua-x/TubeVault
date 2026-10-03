@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query, status
-from sqlalchemy import ColumnElement, Select, case, func, or_, select
+from sqlalchemy import CTE, ColumnElement, Select, func, or_, select
 from sqlalchemy.orm import aliased, selectinload
 
 from app.core.deps import AdminUser, Context, CurrentUser, DbSession
@@ -33,7 +33,7 @@ from app.services import sponsorblock
 from app.services.app_settings import load_app_settings
 from app.services.presenters import video_detail, video_summaries
 from app.services.progress import MIN_RESUME_S, save_progress, set_watched
-from app.services.search import search_ids
+from app.services.search import search_ranking
 from app.services.subscriptions import mark_video_removed
 from app.services.videos import delete_video_files, video_file_exists
 from app.services.youtube_urls import InvalidVideoUrlError, parse_video_url
@@ -90,10 +90,10 @@ def list_videos(
         query = query.where(Video.channel_id == channel_id)
     query = _watch_filter(query, user.id, watched)
 
-    ranked: list[int] | None = None
+    search: CTE | None = None
     if q and q.strip():
-        ranked = search_ids(db.connection(), q)
-        if ranked is None:  # no full-text index (not SQLite)
+        search = search_ranking(db.connection(), q)
+        if search is None:  # no full-text index (not SQLite)
             pattern = f"%{q.strip().lower()}%"
             query = query.outerjoin(Channel).where(
                 or_(
@@ -103,8 +103,8 @@ def list_videos(
                 )
             )
         else:
-            query = query.where(Video.id.in_(ranked or [-1]))
-    sort = sort or ("relevance" if ranked else "added")
+            query = query.join(search, search.c.id == Video.id)
+    sort = sort or ("relevance" if search is not None else "added")
 
     total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
     orders: dict[str, tuple[ColumnElement[Any], ...]] = {
@@ -113,10 +113,8 @@ def list_videos(
         "oldest": (Video.upload_date.asc(), Video.id.asc()),
         "title": (func.lower(Video.title).asc(), Video.id.asc()),
     }
-    if sort == "relevance" and ranked:
-        order: tuple[ColumnElement[Any], ...] = (
-            case({vid: rank for rank, vid in enumerate(ranked)}, value=Video.id),
-        )
+    if sort == "relevance" and search is not None:
+        order: tuple[ColumnElement[Any], ...] = (search.c.rank.asc(), Video.id.desc())
     else:
         order = orders.get(sort, orders["added"])
     videos = db.scalars(

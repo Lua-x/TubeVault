@@ -9,13 +9,12 @@ from __future__ import annotations
 import logging
 import re
 
-from sqlalchemy import Connection, Engine, text
+from sqlalchemy import CTE, Connection, Engine, Float, Integer, text
 
 log = logging.getLogger(__name__)
 
 FTS_TABLE = "videos_fts"
 MAX_TOKENS = 12
-MAX_RESULTS = 1000
 
 _DDL = [
     "CREATE VIRTUAL TABLE IF NOT EXISTS videos_fts USING fts5("
@@ -100,18 +99,24 @@ def fts_query(raw: str) -> str | None:
     return " AND ".join(f'"{token}"*' for token in tokens)
 
 
-def search_ids(conn: Connection, raw: str, limit: int = MAX_RESULTS) -> list[int] | None:
-    """Matching video ids, best first. None if full-text search is unavailable."""
+def search_ranking(conn: Connection, raw: str) -> CTE | None:
+    """Matching videos as (id, rank) – lower rank is better. None without full-text search.
+
+    A query instead of a list of ids, so counting, sorting and paging happen in the
+    database – for any number of matches. MATERIALIZED makes SQLite search the index
+    once; otherwise it may pick the videos table as the outer loop and search the index
+    again for every single video (seconds instead of milliseconds for broad terms).
+    """
     if not is_sqlite(conn):
         return None
-    query = fts_query(raw)
-    if query is None:
-        return []
-    rows = conn.execute(
+    query = fts_query(raw) or '""'  # nothing searchable: an empty phrase matches nothing
+    return (
         text(
-            "SELECT rowid FROM videos_fts WHERE videos_fts MATCH :query "
-            "ORDER BY bm25(videos_fts, 10.0, 1.0, 5.0) LIMIT :limit"
-        ),
-        {"query": query, "limit": limit},
+            "SELECT rowid AS id, bm25(videos_fts, 10.0, 1.0, 5.0) AS rank "
+            "FROM videos_fts WHERE videos_fts MATCH :query"
+        )
+        .bindparams(query=query)
+        .columns(id=Integer, rank=Float)
+        .cte("search")
+        .prefix_with("MATERIALIZED")
     )
-    return [int(row[0]) for row in rows]

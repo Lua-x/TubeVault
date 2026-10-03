@@ -1,10 +1,11 @@
 import { History, Search, X } from "lucide-react";
-import { useDeferredValue, useEffect, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 
-import { useChannels, useVideos } from "@/api/queries";
+import { useChannels, useVideoPages } from "@/api/queries";
 import { ChannelTile } from "@/components/channels/ChannelTile";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { LoadMore } from "@/components/ui/LoadMore";
 import { Spinner } from "@/components/ui/Spinner";
 import { Row, RowItem } from "@/components/video/Row";
 import { VideoGrid } from "@/components/video/VideoGrid";
@@ -43,7 +44,10 @@ export function SearchPage() {
   const [recent, setRecent] = useState(loadRecent);
   const input = useRef<HTMLInputElement>(null);
   const deferred = useDeferredValue(query.trim());
-  const { data: videos, isFetching } = useVideos({ q: deferred, limit: 60 }, deferred.length > 0);
+  const videos = useVideoPages({ q: deferred }, deferred.length > 0);
+  const { fetchNextPage } = videos;
+  const loadMore = useCallback(() => void fetchNextPage(), [fetchNextPage]);
+  const isFetching = videos.isFetching && !videos.isFetchingNextPage;
   const { data: channels } = useChannels();
 
   useEffect(() => {
@@ -61,7 +65,7 @@ export function SearchPage() {
   const matchingChannels = deferred
     ? (channels ?? []).filter((c) => words.every((w) => normalize(c.name).includes(w)))
     : [];
-  const results = videos?.items ?? [];
+  const results = videos.items;
 
   return (
     <>
@@ -145,10 +149,20 @@ export function SearchPage() {
           <div className="mb-4 flex items-center gap-3">
             <h2 className="text-[20px] font-semibold tracking-tight">Videos</h2>
             {isFetching && <Spinner className="size-4 text-tertiary" />}
-            {videos && <span className="text-[14px] text-tertiary">{videos.total}</span>}
+            {videos.total !== undefined && (
+              <span className="text-[14px] text-tertiary">{videos.total}</span>
+            )}
           </div>
           {results.length > 0 ? (
-            <VideoGrid videos={results} />
+            <>
+              <VideoGrid videos={results} />
+              <LoadMore
+                hasMore={videos.hasNextPage}
+                loading={videos.isFetchingNextPage}
+                onLoad={loadMore}
+                pageCount={videos.pageCount}
+              />
+            </>
           ) : (
             !isFetching && (
               <p className="py-10 text-center text-[15px] text-secondary">
