@@ -250,15 +250,23 @@ function DownloadForm({ initial }: { initial: AppSettings }) {
         </Row>
       </Group>
 
-      <Group
-        title="Abos"
-        footer="Schaut alle 15 Minuten in den RSS-Feed jedes Abos. Neue Videos sind so meist nach Minuten statt Stunden da – die gründliche Prüfung läuft weiter im eingestellten Intervall."
-      >
+      <Group title="Automatik">
         <Row>
           <Switch
             label="Neue Videos schneller finden"
-            checked={draft.subscriptions.rss}
-            onChange={(rss) => setDraft({ ...draft, subscriptions: { rss } })}
+            description="Schaut alle 15 Minuten in den RSS-Feed jedes Abos – die gründliche Prüfung läuft weiter im eingestellten Intervall."
+            checked={draft.automation.rss}
+            onChange={(rss) => setDraft({ ...draft, automation: { ...draft.automation, rss } })}
+          />
+        </Row>
+        <Row>
+          <Switch
+            label="Bessere Qualität nachladen"
+            description="Kurz nach dem Upload hat YouTube oft nur niedrige Auflösungen. TubeVault schaut in den ersten 7 Tagen nach und ersetzt die Datei, sobald es eine bessere gibt."
+            checked={draft.automation.upgrade_quality}
+            onChange={(upgrade_quality) =>
+              setDraft({ ...draft, automation: { ...draft.automation, upgrade_quality } })
+            }
           />
         </Row>
       </Group>

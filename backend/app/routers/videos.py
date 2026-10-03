@@ -35,6 +35,7 @@ from app.services.presenters import video_detail, video_summaries
 from app.services.progress import MIN_RESUME_S, save_progress, set_watched
 from app.services.search import search_ranking
 from app.services.subscriptions import mark_video_removed
+from app.services.upgrades import has_active_job, queue_upgrade
 from app.services.videos import delete_video_files, video_file_exists
 from app.services.youtube_urls import InvalidVideoUrlError, parse_video_url
 from app.workers.download_manager import load_job
@@ -219,6 +220,27 @@ def add_video(body: AddVideoRequest, user: CurrentUser, db: DbSession, ctx: Cont
         requested_by_id=user.id,
     )
     db.add(job)
+    db.commit()
+    fresh = load_job(db, job.id)
+    assert fresh is not None
+    payload = JobOut.model_validate(fresh)
+    ctx.events.publish("job.updated", job=payload.model_dump(mode="json"))
+    ctx.downloads.wake()
+    return payload
+
+
+@router.post("/{video_id}/redownload", status_code=status.HTTP_202_ACCEPTED)
+def redownload(video_id: int, user: AdminUser, db: DbSession, ctx: Context) -> JobOut:
+    """Download again with the current settings and replace the file, e.g. in better quality."""
+    video = _get_video(db, video_id)
+    if video.status is not VideoStatus.READY or not video_file_exists(
+        ctx.settings.media_dir, video
+    ):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Die Videodatei fehlt.")
+    if has_active_job(db, video):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Dieses Video wird bereits heruntergeladen.")
+    job = queue_upgrade(db, video, requested_by=user.id)
+    job.priority = 0
     db.commit()
     fresh = load_job(db, job.id)
     assert fresh is not None

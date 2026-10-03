@@ -24,6 +24,7 @@ from app.services.subscriptions import (
     refresh_channel_artwork,
     run_cleanup,
 )
+from app.services.upgrades import QualityUpgrades
 from app.services.ytdlp_updater import (
     _version_key,
     current_ytdlp_version,
@@ -55,9 +56,11 @@ class SubscriptionScheduler:
         connectivity: Connectivity | None = None,
         rss: RssWatcher | None = None,
         notifier: Notifier | None = None,
+        upgrades: QualityUpgrades | None = None,
     ) -> None:
         self._settings = settings
         self._notifier = notifier
+        self._upgrades = upgrades
         self._disk_warned = False
         self._ytdlp_checked: datetime | None = None
         self._ytdlp_notified: str | None = None
@@ -156,6 +159,11 @@ class SubscriptionScheduler:
         self._auto_backup()
         self._check_disk()
         self._check_ytdlp()
+        if self._upgrades:
+            try:
+                self._upgrades.run_round()
+            except Exception:
+                log.exception("Prüfung auf bessere Qualität fehlgeschlagen")
         if self._connectivity and not self._connectivity.online:
             return deleted  # channel artwork comes from YouTube; try again next hour
         try:

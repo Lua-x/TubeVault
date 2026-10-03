@@ -6,13 +6,16 @@ anything that was running when the process stopped is queued again on start.
 
 from __future__ import annotations
 
+import glob
 import logging
+import os
 import threading
 import time
 from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import or_, select
@@ -49,6 +52,7 @@ from app.services.languages import subtitle_label
 from app.services.library import relative_to_media, video_base_path
 from app.services.notifications import Notifier
 from app.services.subscriptions import FilterRules, update_items_for_job
+from app.services.upgrades import UPGRADE_KEY
 from app.services.videos import upsert_video, video_file_exists
 
 log = logging.getLogger(__name__)
@@ -60,6 +64,28 @@ OFFLINE_MESSAGE = (
 )
 EVENT_INTERVAL = 0.5
 DB_PROGRESS_INTERVAL = 5.0
+
+
+def staged_base(final_base: Path) -> Path:
+    """Where a better version is downloaded first: next to the old file, `….new`."""
+    return final_base.with_name(f"{final_base.name}.new")
+
+
+def promote_staged(result: DownloadResult, staged: Path, final: Path) -> DownloadResult:
+    """Give the freshly downloaded files their final names, replacing the old ones."""
+
+    def move(path: Path) -> Path:
+        assert path.name.startswith(staged.name)
+        target = path.with_name(final.name + path.name[len(staged.name) :])
+        os.replace(path, target)
+        return target
+
+    result.file_path = move(result.file_path)
+    if result.thumbnail_path is not None:
+        result.thumbnail_path = move(result.thumbnail_path)
+    for subtitle in result.subtitles:
+        subtitle.path = move(subtitle.path)
+    return result
 
 
 def utcnow() -> datetime:
@@ -105,6 +131,8 @@ class DownloadManager:
         self._downloader = downloader
         self._poll_interval = poll_interval
         self.on_download_finished = on_download_finished
+        # Called with the video id after a file was replaced by a better version.
+        self.on_file_replaced: Callable[[int], None] | None = None
         self._executor: ThreadPoolExecutor | None = None
         self._thread: threading.Thread | None = None
         self._wake = threading.Event()
@@ -280,8 +308,10 @@ class DownloadManager:
             requested_by = job.requested_by_id
             manual = job.subscription_id is None
             app_settings = load_app_settings(db)
+            job_options = dict(job.options or {})
+            upgrade = bool(job_options.pop(UPGRADE_KEY, False))
             options = DownloadOptions.model_validate(
-                app_settings.downloads.model_dump() | (job.options or {})
+                app_settings.downloads.model_dump() | job_options
             )
             library = app_settings.library
             sub = db.get(Subscription, job.subscription_id) if job.subscription_id else None
@@ -304,20 +334,33 @@ class DownloadManager:
                 assert job is not None
                 job.video_id = video.id
                 job.youtube_id = meta.youtube_id
-                if video.status is VideoStatus.READY and video_file_exists(
+                replacing: list[Path] = []
+                exists = video.status is VideoStatus.READY and video_file_exists(
                     self._settings.media_dir, video
-                ):
+                )
+                if exists and not upgrade:
                     self._finish(db, job, video, note="Bereits in der Bibliothek")
                     return
-                video.status = VideoStatus.DOWNLOADING
+                if exists and video.file_path:
+                    # Better quality: download next to the old file, which stays playable
+                    # (and untouched if anything fails), then swap.
+                    final_base = Path(video.file_path).with_suffix("")
+                    replacing = self._video_files(video)
+                else:
+                    video.status = VideoStatus.DOWNLOADING
+                    channel_folder = video.channel.folder_name if video.channel else "Unknown"
+                    final_base = video_base_path(
+                        channel_folder,
+                        meta.upload_date,
+                        meta.title,
+                        meta.youtube_id,
+                        library.layout,
+                    )
                 job.stage = JobStage.DOWNLOADING
-                channel_folder = video.channel.folder_name if video.channel else "Unknown"
                 db.commit()
                 self._publish_job(db, job_id)
 
-            relative_base = video_base_path(
-                channel_folder, meta.upload_date, meta.title, meta.youtube_id, library.layout
-            )
+            relative_base = staged_base(final_base) if replacing else final_base
             result = self._downloader.download(
                 meta,
                 media_dir=self._settings.media_dir,
@@ -329,6 +372,8 @@ class DownloadManager:
             )
             if cancel.is_set():
                 raise DownloadCancelledError
+            if replacing:
+                result = promote_staged(result, relative_base, final_base)
 
             with self._session() as db:
                 job = db.get(DownloadJob, job_id)
@@ -336,6 +381,12 @@ class DownloadManager:
                 stored = db.get(Video, job.video_id)
                 assert stored is not None
                 self._store_result(db, stored, result)
+                if replacing:
+                    kept = {p.resolve() for p in self._video_files(stored)}
+                    for old_file in replacing:
+                        if old_file.resolve() not in kept:
+                            old_file.unlink(missing_ok=True)
+                    log.info("In besserer Qualität ersetzt: %s (%sp)", stored.title, stored.height)
                 if options.sponsorblock_mode == "skip" and options.sponsorblock_categories:
                     sponsorblock.refresh(db, stored, list(options.sponsorblock_categories))
                 if library.write_nfo:
@@ -344,7 +395,9 @@ class DownloadManager:
                         nfo.write_day_siblings(db, self._settings.media_dir, stored, library.layout)
                     except OSError:
                         log.warning("NFO für %s fehlt", stored.youtube_id, exc_info=True)
-                self._finish(db, job, stored)
+                self._finish(db, job, stored, upgraded=bool(replacing))
+            if replacing and self.on_file_replaced:
+                self.on_file_replaced(stored.id)  # converted copies of the old file are stale
             cleanup_temp(temp_dir)
 
         except DownloadCancelledError:
@@ -387,7 +440,14 @@ class DownloadManager:
         video.status = VideoStatus.READY
         video.downloaded_at = utcnow()
 
-    def _finish(self, db: Session, job: DownloadJob, video: Video, note: str | None = None) -> None:
+    def _finish(
+        self,
+        db: Session,
+        job: DownloadJob,
+        video: Video,
+        note: str | None = None,
+        upgraded: bool = False,
+    ) -> None:
         job.status = JobStatus.COMPLETED
         job.stage = None
         job.progress = 1.0
@@ -401,7 +461,7 @@ class DownloadManager:
         log.info("Download fertig: %s (%s)", video.title, video.youtube_id)
         if self._connectivity:
             self._connectivity.report_success()
-        if self._notifier:
+        if self._notifier and not upgraded:
             channel = video.channel.name if video.channel else ""
             self._notifier.notify(
                 "video_downloaded",
@@ -448,6 +508,7 @@ class DownloadManager:
                 job.status = JobStatus.CANCELLED
                 job.finished_at = utcnow()
                 update_items_for_job(db, job_id, ItemState.REMOVED, reason="Abgebrochen")
+                self._discard_staged(db, job)
             else:
                 # Paused or re-queued: keep the partial files and don't count the attempt.
                 job.status = JobStatus.PAUSED if reason == "pause" else JobStatus.QUEUED
@@ -510,6 +571,7 @@ class DownloadManager:
                 job.finished_at = utcnow()
                 self._reset_video(db, job, VideoStatus.FAILED)
                 update_items_for_job(db, job_id, ItemState.FAILED, reason=message[:255])
+                self._discard_staged(db, job)
                 log.error("Download %s endgültig fehlgeschlagen (%s): %s", job_id, kind, message)
                 if self._notifier:
                     name = job.video.title if job.video else job.youtube_id or job.url
@@ -524,6 +586,21 @@ class DownloadManager:
                 cleanup_temp(temp_dir)
             db.commit()
             self._publish_job(db, job_id)
+
+    def _video_files(self, video: Video) -> list[Path]:
+        """Video, thumbnail and subtitle files of a video, as absolute paths."""
+        relative = [video.file_path, video.thumbnail_path, *(s.file_path for s in video.subtitles)]
+        return [self._settings.media_dir / path for path in relative if path]
+
+    def _discard_staged(self, db: Session, job: DownloadJob) -> None:
+        if not (job.options or {}).get(UPGRADE_KEY) or job.video_id is None:
+            return
+        video = db.get(Video, job.video_id)
+        if video is None or not video.file_path:
+            return
+        staged = self._settings.media_dir / staged_base(Path(video.file_path).with_suffix(""))
+        for leftover in staged.parent.glob(f"{glob.escape(staged.name)}*"):
+            leftover.unlink(missing_ok=True)
 
     @staticmethod
     def _reset_video(db: Session, job: DownloadJob, status: VideoStatus) -> None:

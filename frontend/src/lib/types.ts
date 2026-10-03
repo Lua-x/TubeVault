@@ -174,7 +174,12 @@ export interface Job {
   started_at: string | null;
   finished_at: string | null;
   video: VideoSummary | null;
-  subscription: { id: number; title: string } | null;
+  subscription: {
+    id: number;
+    title: string;
+  } | null;
+  /** Replaces an existing file with a better version; the video stays playable. */
+  upgrade: boolean;
 }
 
 export interface QueueState {
@@ -284,7 +289,7 @@ export interface AppSettings {
   transcoding: TranscodeOptions;
   library: LibraryOptions;
   backup: BackupOptions;
-  subscriptions: { rss: boolean };
+  automation: { rss: boolean; upgrade_quality: boolean };
 }
 
 export interface Backup {

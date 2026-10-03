@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
+
+from pydantic import Field, computed_field
 
 from app.models import ErrorKind, JobStage, JobStatus
 from app.schemas.common import ApiModel
@@ -33,3 +36,10 @@ class JobOut(ApiModel):
     finished_at: datetime | None
     video: VideoSummary | None
     subscription: JobSubscription | None
+    options: dict[str, Any] = Field(default_factory=dict, exclude=True)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def upgrade(self) -> bool:
+        """Replaces an existing file with a better version (the video stays playable)."""
+        return bool(self.options.get("upgrade"))

@@ -95,8 +95,9 @@ export function JobRow({ job }: { job: Job }) {
         <p className="line-clamp-2 text-[15px] leading-snug font-medium break-all sm:break-normal">
           {title}
         </p>
-        {(job.video?.channel || job.subscription) && (
+        {(job.video?.channel || job.subscription || job.upgrade) && (
           <p className="truncate text-[13px] text-secondary">
+            {job.upgrade && <span className="text-accent">Bessere Qualität · </span>}
             {job.video?.channel?.name}
             {job.subscription && job.subscription.title !== job.video?.channel?.name && (
               <span className="text-tertiary">

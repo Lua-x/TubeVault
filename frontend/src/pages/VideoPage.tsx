@@ -6,6 +6,7 @@ import {
   Download,
   ExternalLink,
   ListPlus,
+  RefreshCw,
   Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -15,6 +16,7 @@ import {
   keys,
   reportProgress,
   useDeleteVideo,
+  useRedownloadVideo,
   usePlaylist,
   useSegments,
   useSetWatched,
@@ -372,7 +374,9 @@ function VideoActions({ video, onWatchedChange }: VideoActionsProps) {
   const { user } = useAuth();
   const [confirming, setConfirming] = useState(false);
   const [addingToPlaylist, setAddingToPlaylist] = useState(false);
+  const [redownloading, setRedownloading] = useState(false);
   const remove = useDeleteVideo();
+  const redownload = useRedownloadVideo();
   const setWatched = useSetWatched();
   const toast = useToast();
   const navigate = useNavigate();
@@ -443,6 +447,12 @@ function VideoActions({ video, onWatchedChange }: VideoActionsProps) {
         </a>
       )}
       {user?.is_admin && (
+        <button type="button" onClick={() => setRedownloading(true)} className={actionClass}>
+          <RefreshCw className="size-4" strokeWidth={2} />
+          Neu laden
+        </button>
+      )}
+      {user?.is_admin && (
         <button
           type="button"
           aria-label="Video löschen"
@@ -458,6 +468,36 @@ function VideoActions({ video, onWatchedChange }: VideoActionsProps) {
         onClose={() => setAddingToPlaylist(false)}
         videoId={video.id}
       />
+      <Dialog open={redownloading} onClose={() => setRedownloading(false)} title="Video neu laden?">
+        <p className="text-[15px] text-secondary">
+          TubeVault lädt „{video.title}“ mit den aktuellen Einstellungen noch einmal
+          {video.height ? ` (jetzt: ${formatResolution(video.height)})` : ""} – etwa in besserer
+          Qualität – und ersetzt die Datei, sobald der Download fertig ist. Bis dahin läuft die
+          jetzige Fassung weiter; Wiedergabestand und Playlists bleiben erhalten.
+        </p>
+        <div className="mt-6 flex justify-end gap-3">
+          <Button variant="secondary" onClick={() => setRedownloading(false)}>
+            Abbrechen
+          </Button>
+          <Button
+            loading={redownload.isPending}
+            onClick={() =>
+              redownload.mutate(video.id, {
+                onSuccess: () => {
+                  setRedownloading(false);
+                  toast("Wird neu geladen – den Fortschritt siehst du unter Downloads");
+                },
+                onError: (err) => {
+                  setRedownloading(false);
+                  toast(err.message, "error");
+                },
+              })
+            }
+          >
+            Neu laden
+          </Button>
+        </div>
+      </Dialog>
       <Dialog open={confirming} onClose={() => setConfirming(false)} title="Video löschen?">
         <p className="text-[15px] text-secondary">
           „{video.title}“ wird mit Thumbnail und Untertiteln von der Festplatte entfernt.

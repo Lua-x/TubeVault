@@ -182,6 +182,14 @@ export function useDeleteVideo() {
   });
 }
 
+export function useRedownloadVideo() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.post<Job>(`videos/${id}/redownload`),
+    onSettled: () => client.invalidateQueries({ queryKey: keys.jobs }),
+  });
+}
+
 function useJobAction(action: (id: number) => Promise<unknown>) {
   const client = useQueryClient();
   return useMutation({

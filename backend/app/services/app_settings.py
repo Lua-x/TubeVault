@@ -86,9 +86,12 @@ class LibraryOptions(BaseModel):
     write_nfo: bool = True
 
 
-class SubscriptionOptions(BaseModel):
+class AutomationOptions(BaseModel):
     # Look at the channels' RSS feeds every 15 minutes to find new uploads sooner.
     rss: bool = True
+    # Right after an upload YouTube often only has low resolutions; fetch the better
+    # version within the first days.
+    upgrade_quality: bool = True
 
 
 class BackupOptions(BaseModel):
@@ -104,7 +107,7 @@ class AppSettings(BaseModel):
     transcoding: TranscodeOptions = Field(default_factory=TranscodeOptions)
     library: LibraryOptions = Field(default_factory=LibraryOptions)
     backup: BackupOptions = Field(default_factory=BackupOptions)
-    subscriptions: SubscriptionOptions = Field(default_factory=SubscriptionOptions)
+    automation: AutomationOptions = Field(default_factory=AutomationOptions)
 
 
 QUEUE_PAUSED_KEY = "queue_paused"

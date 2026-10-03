@@ -39,6 +39,7 @@ class FakeDownloader:
         self.downloads = 0
         # Per video ID: fields to override in the metadata (is_short, upload_date, …).
         self.meta_overrides: dict[str, dict[str, Any]] = {}
+        self.height = 1080  # resolution of the "downloaded" file
 
     def fetch_metadata(self, url: str) -> VideoMetadata:
         youtube_id = url.rsplit("=", 1)[-1]
@@ -94,8 +95,8 @@ class FakeDownloader:
             file_path=video,
             thumbnail_path=thumb,
             subtitles=[SubtitleFile(lang="de", is_auto=False, path=sub)],
-            width=1920,
-            height=1080,
+            width=self.height * 16 // 9,
+            height=self.height,
             vcodec="avc1.640028",
             acodec="mp4a.40.2",
         )

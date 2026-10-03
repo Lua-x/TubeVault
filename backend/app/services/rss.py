@@ -85,7 +85,7 @@ class RssWatcher:
             return []
         now = utcnow()
         with self._sessions() as db:
-            if not load_app_settings(db).subscriptions.rss:
+            if not load_app_settings(db).automation.rss:
                 return []
             subs = [
                 sub

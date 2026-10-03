@@ -85,12 +85,12 @@ def test_rss_can_be_turned_off_and_waits_offline(
     watcher, _sub_id, url = _setup(admin, catalog, feeds)
     feeds.ids[url] = ["vid00000009"]
     body = admin.get("/api/settings").json()
-    body["subscriptions"] = {"rss": False}
+    body["automation"]["rss"] = False
     assert admin.put("/api/settings", json=body).status_code == 200
     calls = len(feeds.calls)
     assert watcher.run_round() == [] and len(feeds.calls) == calls
 
-    body["subscriptions"] = {"rss": True}
+    body["automation"]["rss"] = True
     admin.put("/api/settings", json=body)
     network.online = False
     admin.app.state.ctx.connectivity.confirm_offline()  # type: ignore[attr-defined]

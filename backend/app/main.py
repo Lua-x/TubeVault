@@ -51,6 +51,7 @@ from app.services.notifications import send as send_notification
 from app.services.rss import FeedFetcher, RssWatcher, fetch_feed_ids
 from app.services.search import ensure_search_index
 from app.services.subscriptions import SubscriptionChecker
+from app.services.upgrades import QualityUpgrades
 from app.workers.download_manager import DownloadManager
 from app.workers.library_tasks import LibraryTasks
 from app.workers.scheduler import SubscriptionScheduler
@@ -289,6 +290,13 @@ def create_app(
         connectivity=connectivity,
         rss=RssWatcher(sessions, connectivity, feeds or fetch_feed_ids),
         notifier=notifier,
+        upgrades=QualityUpgrades(
+            sessions,
+            settings.media_dir,
+            downloader,
+            connectivity,
+            on_queued=lambda _ids: manager.wake(),
+        ),
     )
 
     def connectivity_changed(online: bool) -> None:
@@ -305,6 +313,7 @@ def create_app(
             return load_app_settings(db).transcoding
 
     transcoder = Transcoder(settings, transcode_options)
+    manager.on_file_replaced = transcoder.purge
     library_tasks = LibraryTasks(settings, sessions, events)
     importer = Importer(settings.media_dir, settings.import_dir, downloader)
     ctx = AppContext(
