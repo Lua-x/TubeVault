@@ -53,6 +53,7 @@ import type {
   YtDlpInfo,
   VideoSummary,
   WatchState,
+  CommentsPage,
 } from "@/lib/types";
 
 export const keys = {
@@ -69,6 +70,7 @@ export const keys = {
   remux: (id: number) => ["videos", "remux", id] as const,
   videoList: (params: VideoListParams) => ["videos", "list", params] as const,
   video: (id: number) => ["videos", "detail", id] as const,
+  comments: (id: number) => ["videos", "comments", id] as const,
   jobs: ["jobs"] as const,
   queue: ["queue"] as const,
   subscriptions: ["subscriptions"] as const,
@@ -167,6 +169,7 @@ export interface AddVideoInput {
   url: string;
   container?: Container;
   max_height?: MaxHeight;
+  comments?: boolean;
 }
 
 export function useAddVideo() {
@@ -740,5 +743,50 @@ export function useDeleteToken() {
   return useMutation({
     mutationFn: (id: number) => api.delete(`auth/tokens/${id}`),
     onSuccess: () => client.invalidateQueries({ queryKey: ["tokens"] }),
+  });
+}
+
+const COMMENTS_PAGE = 20;
+
+export function useComments(videoId: number, sort: "top" | "new") {
+  const query = useInfiniteQuery({
+    queryKey: [...keys.comments(videoId), sort],
+    queryFn: ({ pageParam }) =>
+      api.get<CommentsPage>(
+        `videos/${videoId}/comments?sort=${sort}&offset=${pageParam}&limit=${COMMENTS_PAGE}`,
+      ),
+    initialPageParam: 0,
+    getNextPageParam: (last, pages) => {
+      const loaded = pages.reduce((sum, page) => sum + page.items.length, 0);
+      return last.items.length > 0 && loaded < last.total ? loaded : undefined;
+    },
+    placeholderData: keepPreviousData,
+    // While YouTube is being asked, look again every few seconds.
+    refetchInterval: (q) => (q.state.data?.pages[0]?.fetching ? 2000 : false),
+  });
+  const first = query.data?.pages[0];
+  const items = useMemo(
+    () => (query.data?.pages ?? []).flatMap((page) => page.items),
+    [query.data],
+  );
+  return { ...query, items, info: first };
+}
+
+export function useFetchComments(videoId: number) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post<CommentsPage>(`videos/${videoId}/comments`),
+    onSuccess: () => client.invalidateQueries({ queryKey: keys.comments(videoId) }),
+  });
+}
+
+export function useDeleteComments(videoId: number) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.delete(`videos/${videoId}/comments`),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: keys.comments(videoId) });
+      void client.invalidateQueries({ queryKey: keys.video(videoId) });
+    },
   });
 }

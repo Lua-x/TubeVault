@@ -174,6 +174,19 @@ export function SubscriptionForm({ values, onChange, mode }: SubscriptionFormPro
             ))}
           </Select>
         </Row>
+        <Row className="flex items-center justify-between gap-4">
+          <span className="text-[15px]">Kommentare speichern</span>
+          <SegmentedControl
+            label="Kommentare speichern"
+            value={values.comments}
+            onChange={(comments) => set("comments", comments)}
+            options={[
+              { value: "default", label: "Standard" },
+              { value: "yes", label: "An" },
+              { value: "no", label: "Aus" },
+            ]}
+          />
+        </Row>
       </Group>
 
       <Group

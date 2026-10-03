@@ -34,6 +34,7 @@ export function AddVideoDialog({ open, onClose, initialUrl }: AddVideoDialogProp
   const [advanced, setAdvanced] = useState(false);
   const [container, setContainer] = useState<ContainerChoice>("default");
   const [quality, setQuality] = useState("");
+  const [comments, setComments] = useState<"default" | "yes" | "no">("default");
   const add = useAddVideo();
   const toast = useToast();
   const navigate = useNavigate();
@@ -50,6 +51,7 @@ export function AddVideoDialog({ open, onClose, initialUrl }: AddVideoDialogProp
         url: url.trim(),
         container: container === "default" ? undefined : container,
         max_height: quality ? (Number(quality) as MaxHeight) : undefined,
+        comments: comments === "default" ? undefined : comments === "yes",
       });
       toast("Download gestartet");
       setUrl("");
@@ -75,7 +77,7 @@ export function AddVideoDialog({ open, onClose, initialUrl }: AddVideoDialogProp
           value={url}
           onChange={(event) => setUrl(event.target.value)}
           error={add.error?.message}
-          hint="Link zu einem einzelnen YouTube-Video. Kanäle und Playlists folgen in Version 0.2."
+          hint="Link zu einem einzelnen YouTube-Video. Kanäle und Playlists abonnierst du unter „Abos“."
         />
 
         <div>
@@ -118,6 +120,19 @@ export function AddVideoDialog({ open, onClose, initialUrl }: AddVideoDialogProp
                   </option>
                 ))}
               </Select>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-[15px]">Kommentare</span>
+                <SegmentedControl
+                  label="Kommentare speichern"
+                  value={comments}
+                  onChange={setComments}
+                  options={[
+                    { value: "default", label: "Standard" },
+                    { value: "yes", label: "An" },
+                    { value: "no", label: "Aus" },
+                  ]}
+                />
+              </div>
             </div>
           )}
         </div>

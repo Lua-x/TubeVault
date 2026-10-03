@@ -60,6 +60,12 @@ function handleEvent(client: QueryClient, event: LiveEvent) {
       void client.invalidateQueries({ queryKey: keys.playlists });
       void client.invalidateQueries({ queryKey: keys.system });
       break;
+    case "video.comments":
+      void client.invalidateQueries({
+        queryKey: event.video_id ? keys.comments(event.video_id) : ["videos", "comments"],
+      });
+      if (event.video_id) void client.invalidateQueries({ queryKey: keys.video(event.video_id) });
+      break;
     case "channels.updated":
       void client.invalidateQueries({ queryKey: keys.channels });
       void client.invalidateQueries({ queryKey: keys.home });

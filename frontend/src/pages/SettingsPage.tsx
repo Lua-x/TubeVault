@@ -35,6 +35,7 @@ import { formatBytes } from "@/lib/format";
 import { SPONSOR_CATEGORIES, SPONSORBLOCK_MODES } from "@/lib/sponsorblock";
 import type {
   AppSettings,
+  DownloadOptions,
   MaxHeight,
   Preferences,
   SponsorCategory,
@@ -305,6 +306,38 @@ function DownloadForm({ initial }: { initial: AppSettings }) {
             onChange={(e) => setLanguages(e.target.value)}
           />
         </Row>
+      </Group>
+
+      <Group
+        title="Kommentare"
+        footer="Werden nach dem Video in einem eigenen Schritt geladen – klappt das nicht, ist das Video trotzdem da. Pro Abo und beim Hinzufügen lässt es sich abweichend einstellen."
+      >
+        <Row>
+          <Switch
+            label="Kommentare speichern"
+            description="Die beliebtesten Kommentare samt Antworten, zum Lesen ohne YouTube."
+            checked={downloads.comments}
+            onChange={(comments) => update({ comments })}
+          />
+        </Row>
+        {downloads.comments && (
+          <Row>
+            <Select
+              inline
+              label="Höchstens"
+              value={String(downloads.max_comments)}
+              onChange={(e) =>
+                update({ max_comments: Number(e.target.value) as DownloadOptions["max_comments"] })
+              }
+            >
+              {[100, 500, 1000, 5000].map((n) => (
+                <option key={n} value={n}>
+                  {n.toLocaleString("de-DE")} Kommentare
+                </option>
+              ))}
+            </Select>
+          </Row>
+        )}
       </Group>
 
       <Group title="SponsorBlock" footer={SPONSORBLOCK_FOOTER[downloads.sponsorblock_mode]}>

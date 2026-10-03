@@ -15,6 +15,7 @@ SETTINGS_KEY = "app"
 Container = Literal["mp4", "mkv"]
 MaxHeight = Literal[2160, 1440, 1080, 720, 480, 360]
 SponsorBlockMode = Literal["off", "skip", "cut"]
+MaxComments = Literal[100, 500, 1000, 5000]
 SponsorBlockCategory = Literal[
     "sponsor", "selfpromo", "interaction", "intro", "outro", "preview", "music_offtopic", "filler"
 ]
@@ -38,6 +39,9 @@ class DownloadOptions(BaseModel):
     sponsorblock_categories: list[SponsorBlockCategory] = Field(
         default_factory=lambda: _default_categories()
     )
+    # Save the top comments (with replies) to read them offline. Off unless wanted.
+    comments: bool = False
+    max_comments: MaxComments = 500
 
     @field_validator("subtitle_languages")
     @classmethod

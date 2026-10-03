@@ -60,6 +60,7 @@ export interface FormValues {
   container: "default" | "mp4" | "mkv";
   preferH264: "default" | "yes" | "no";
   sponsorblock: "" | SponsorBlockMode;
+  comments: "default" | "yes" | "no";
   keepDays: string;
   keepLast: string;
 }
@@ -77,6 +78,7 @@ export const DEFAULT_VALUES: FormValues = {
   container: "default",
   preferH264: "default",
   sponsorblock: "",
+  comments: "default",
   keepDays: "",
   keepLast: "",
 };
@@ -98,6 +100,7 @@ export function toSettings(values: FormValues): SubscriptionSettings {
   if (values.container !== "default") options.container = values.container;
   if (values.preferH264 !== "default") options.prefer_h264 = values.preferH264 === "yes";
   if (values.sponsorblock) options.sponsorblock_mode = values.sponsorblock;
+  if (values.comments !== "default") options.comments = values.comments === "yes";
   return {
     enabled: values.enabled,
     check_interval_minutes: Number(values.interval),
@@ -127,6 +130,7 @@ export function fromSubscription(sub: Subscription): FormValues {
     container: options.container ?? "default",
     preferH264: options.prefer_h264 == null ? "default" : options.prefer_h264 ? "yes" : "no",
     sponsorblock: options.sponsorblock_mode ?? "",
+    comments: options.comments == null ? "default" : options.comments ? "yes" : "no",
     keepDays: sub.keep_days ? String(sub.keep_days) : "",
     keepLast: sub.keep_last ? String(sub.keep_last) : "",
   };

@@ -40,7 +40,7 @@ def _origin_allowed(websocket: WebSocket) -> bool:
 
 # What a restricted account (e.g. a kids profile) still hears: that something changed,
 # not what – download and subscription events carry titles from every channel.
-RESTRICTED_EVENTS = {"video.updated", "video.deleted", "channels.updated", "ping"}
+RESTRICTED_EVENTS = {"video.updated", "video.deleted", "video.comments", "channels.updated", "ping"}
 
 
 def event_for(event: dict[str, Any], *, restricted: bool) -> dict[str, Any] | None:

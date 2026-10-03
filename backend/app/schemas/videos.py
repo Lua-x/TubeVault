@@ -78,6 +78,8 @@ class VideoDetail(VideoSummary):
     downloaded_at: datetime | None
     sponsorblock_cut: bool
     sponsor_segments: list[SponsorSegmentOut]
+    comments_fetched_at: datetime | None
+    comment_count: int | None
 
 
 class SegmentsOut(BaseModel):
@@ -118,3 +120,4 @@ class AddVideoRequest(BaseModel):
     url: str = Field(min_length=1, max_length=1024)
     container: Container | None = None
     max_height: MaxHeight | None = None
+    comments: bool | None = None

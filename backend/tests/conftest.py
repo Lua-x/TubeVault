@@ -3,7 +3,7 @@ from __future__ import annotations
 import threading
 import time
 from collections.abc import Callable, Iterator
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +17,8 @@ from app.services.app_settings import DownloadOptions
 from app.services.catalog import Entry, Listing, SourceInfo, channel_url, playlist_url
 from app.services.connectivity import Connectivity
 from app.services.downloader import (
+    CommentData,
+    CommentsResult,
     DownloadCancelledError,
     DownloadProgress,
     DownloadResult,
@@ -40,6 +42,8 @@ class FakeDownloader:
         # Per video ID: fields to override in the metadata (is_short, upload_date, …).
         self.meta_overrides: dict[str, dict[str, Any]] = {}
         self.height = 1080  # resolution of the "downloaded" file
+        self.comment_calls: list[tuple[str, int]] = []
+        self.comment_error: Exception | None = None
 
     def fetch_metadata(self, url: str) -> VideoMetadata:
         youtube_id = url.rsplit("=", 1)[-1]
@@ -99,6 +103,21 @@ class FakeDownloader:
             height=self.height,
             vcodec="avc1.640028",
             acodec="mp4a.40.2",
+        )
+
+    def fetch_comments(self, url: str, limit: int) -> CommentsResult:
+        self.comment_calls.append((url, limit))
+        if self.comment_error is not None:
+            raise self.comment_error
+        day = datetime(2024, 5, 2, tzinfo=UTC)
+        return CommentsResult(
+            comments=[
+                CommentData("c1", None, "Anna", "Super Video! 1:05 ist mein Highlight", 120, day),
+                CommentData("c1.r1", "c1", "Test Channel", "Danke!", 30, day, True, True),
+                CommentData("c2", None, "Ben", "Zweiter Kommentar", 5, day.replace(day=3)),
+                CommentData("c3", None, "Cleo", "Angepinnt", 1, day.replace(day=1), is_pinned=True),
+            ],
+            total=1234,
         )
 
 

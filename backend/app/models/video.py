@@ -11,6 +11,7 @@ from app.db import Base, utcnow
 
 if TYPE_CHECKING:
     from app.models.channel import Channel
+    from app.models.comment import Comment
     from app.models.library import SponsorSegment
     from app.models.user import User
 
@@ -69,6 +70,9 @@ class Video(Base):
     downloaded_at: Mapped[datetime | None]
     # SponsorBlock: when segments were last fetched, and whether they were cut from the file.
     sponsorblock_fetched_at: Mapped[datetime | None]
+    # Comments are optional: when they were saved, and how many YouTube counted.
+    comments_fetched_at: Mapped[datetime | None]
+    comment_count: Mapped[int | None]
     sponsorblock_cut: Mapped[bool] = mapped_column(default=False)
     updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
 
@@ -82,6 +86,9 @@ class Video(Base):
     )
     sponsor_segments: Mapped[list[SponsorSegment]] = relationship(
         cascade="all, delete-orphan", passive_deletes=True, order_by="SponsorSegment.start_s"
+    )
+    comments: Mapped[list[Comment]] = relationship(
+        back_populates="video", cascade="all, delete-orphan", passive_deletes=True
     )
 
     @property

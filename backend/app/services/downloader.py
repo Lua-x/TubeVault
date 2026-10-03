@@ -11,7 +11,7 @@ import logging
 import shutil
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
@@ -81,6 +81,26 @@ class DownloadResult:
     duration_s: int | None = None
 
 
+@dataclass(slots=True)
+class CommentData:
+    youtube_id: str
+    parent_id: str | None  # None for top-level comments
+    author: str
+    text: str
+    like_count: int | None = None
+    published_at: datetime | None = None
+    author_is_uploader: bool = False
+    author_is_verified: bool = False
+    is_pinned: bool = False
+    is_favorited: bool = False
+
+
+@dataclass(slots=True)
+class CommentsResult:
+    comments: list[CommentData]
+    total: int | None = None  # how many comments YouTube counts for the video
+
+
 ProgressCallback = Callable[[DownloadProgress], None]
 CancelCheck = Callable[[], bool]
 
@@ -99,6 +119,8 @@ class Downloader(Protocol):
         on_progress: ProgressCallback,
         is_cancelled: CancelCheck,
     ) -> DownloadResult: ...
+
+    def fetch_comments(self, url: str, limit: int) -> CommentsResult: ...
 
 
 # --- helpers ------------------------------------------------------------------
@@ -211,6 +233,37 @@ def metadata_from_info(info: dict[str, Any]) -> VideoMetadata:
         chapters=_parse_chapters(info.get("chapters")),
         raw=info,
     )
+
+
+def comments_from_info(info: dict[str, Any]) -> CommentsResult:
+    comments: list[CommentData] = []
+    for raw in info.get("comments") or []:
+        comment_id = str(raw.get("id") or "")
+        if not comment_id:
+            continue
+        parent = raw.get("parent")
+        timestamp = raw.get("timestamp")
+        likes = raw.get("like_count")
+        comments.append(
+            CommentData(
+                youtube_id=comment_id,
+                parent_id=None if parent in (None, "root") else str(parent),
+                author=str(raw.get("author") or "").strip() or "Unbekannt",
+                text=str(raw.get("text") or ""),
+                like_count=int(likes) if isinstance(likes, (int, float)) else None,
+                published_at=(
+                    datetime.fromtimestamp(timestamp, UTC)
+                    if isinstance(timestamp, (int, float))
+                    else None
+                ),
+                author_is_uploader=bool(raw.get("author_is_uploader")),
+                author_is_verified=bool(raw.get("author_is_verified")),
+                is_pinned=bool(raw.get("is_pinned")),
+                is_favorited=bool(raw.get("is_favorited")),
+            )
+        )
+    total = info.get("comment_count")
+    return CommentsResult(comments, int(total) if isinstance(total, (int, float)) else None)
 
 
 class _YtDlpLogger:
@@ -370,6 +423,25 @@ class YtDlpDownloader:
         if not is_cancelled():
             result.subtitles = self._download_subtitles(meta, media_dir, relative_base, options)
         return result
+
+    def fetch_comments(self, url: str, limit: int) -> CommentsResult:
+        """Top comments with up to 10 replies each – a separate request, after the video."""
+        from yt_dlp import YoutubeDL
+
+        opts = self._base_options() | {
+            "skip_download": True,
+            "getcomments": True,
+            "extractor_args": {
+                "youtube": {
+                    # total, top-level, replies, replies per thread
+                    "max_comments": [str(limit), "all", "all", "10"],
+                    "comment_sort": ["top"],
+                }
+            },
+        }
+        with YoutubeDL(opts) as ydl:
+            info: dict[str, Any] = ydl.extract_info(url, download=False)
+        return comments_from_info(info)
 
     @staticmethod
     def _postprocessors(options: DownloadOptions) -> list[dict[str, Any]]:

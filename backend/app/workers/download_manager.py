@@ -133,6 +133,8 @@ class DownloadManager:
         self.on_download_finished = on_download_finished
         # Called with the video id after a file was replaced by a better version.
         self.on_file_replaced: Callable[[int], None] | None = None
+        # Called with (video ID, how many) when the video's comments should be saved.
+        self.on_comments_wanted: Callable[[int, int], object] | None = None
         self._executor: ThreadPoolExecutor | None = None
         self._thread: threading.Thread | None = None
         self._wake = threading.Event()
@@ -396,8 +398,14 @@ class DownloadManager:
                     except OSError:
                         log.warning("NFO für %s fehlt", stored.youtube_id, exc_info=True)
                 self._finish(db, job, stored, upgraded=bool(replacing))
+                # A better-quality copy keeps the comments it already has.
+                want_comments = options.comments and (
+                    not replacing or stored.comments_fetched_at is None
+                )
             if replacing and self.on_file_replaced:
                 self.on_file_replaced(stored.id)  # converted copies of the old file are stale
+            if want_comments and self.on_comments_wanted:
+                self.on_comments_wanted(stored.id, options.max_comments)
             cleanup_temp(temp_dir)
 
         except DownloadCancelledError:

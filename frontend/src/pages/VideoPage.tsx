@@ -23,6 +23,7 @@ import {
   useVideo,
 } from "@/api/queries";
 import { AddToPlaylistDialog } from "@/components/playlists/AddToPlaylistDialog";
+import { Comments } from "@/components/comments/Comments";
 import { PlaylistPanel } from "@/components/playlists/PlaylistPanel";
 import { ChannelAvatar } from "@/components/subscriptions/ChannelAvatar";
 import { Button } from "@/components/ui/Button";
@@ -31,6 +32,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { PageSpinner } from "@/components/ui/Spinner";
 import { PlayerOverlay, type PlayerNotice, type UpNext } from "@/components/video/PlayerOverlay";
 import { PlaybackStatus, QualityMenu } from "@/components/video/QualityMenu";
+import { RichText } from "@/components/video/RichText";
 import { SaveToDevice } from "@/components/offline/SaveToDevice";
 import { VideoPlayer, type PlayerHandle, type SaveReason } from "@/components/video/VideoPlayer";
 import { useAuth } from "@/hooks/auth";
@@ -203,6 +205,12 @@ function VideoView({ video, playlistId, autoplay }: VideoViewProps) {
     }
   }, [nextVideo, preferences.autoplay_next]);
 
+  // Timestamps in the description and comments: jump there and bring the player into view.
+  const seek = useCallback((seconds: number) => {
+    player.current?.seek(seconds);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
+
   const playlistPanel = playlist ? (
     <PlaylistPanel
       playlist={playlist}
@@ -284,7 +292,10 @@ function VideoView({ video, playlistId, autoplay }: VideoViewProps) {
             />
             {/* Phones: the playlist matters more than the description. */}
             {playlistPanel && <div className="mt-6 lg:hidden">{playlistPanel}</div>}
-            {video.description && <Description text={video.description} />}
+            {video.description && (
+              <Description text={video.description} duration={video.duration_s} onSeek={seek} />
+            )}
+            <Comments video={video} onSeek={seek} />
           </div>
 
           <aside className="flex min-w-0 flex-col gap-8">
@@ -521,9 +532,13 @@ function VideoActions({ video, onWatchedChange }: VideoActionsProps) {
   );
 }
 
-const URL_PATTERN = /(https?:\/\/[^\s<]+)/g;
+interface DescriptionProps {
+  text: string;
+  duration: number | null;
+  onSeek: (seconds: number) => void;
+}
 
-function Description({ text }: { text: string }) {
+function Description({ text, duration, onSeek }: DescriptionProps) {
   const [expanded, setExpanded] = useState(false);
   const long = text.length > 280 || text.split("\n").length > 4;
   return (
@@ -534,21 +549,7 @@ function Description({ text }: { text: string }) {
           !expanded && long && "line-clamp-4",
         )}
       >
-        {text.split(URL_PATTERN).map((part, index) =>
-          index % 2 === 1 ? (
-            <a
-              key={index}
-              href={part}
-              target="_blank"
-              rel="noreferrer noopener"
-              className="text-accent hover:underline"
-            >
-              {part}
-            </a>
-          ) : (
-            part
-          ),
-        )}
+        <RichText text={text} duration={duration} onSeek={onSeek} />
       </div>
       {long && (
         <button

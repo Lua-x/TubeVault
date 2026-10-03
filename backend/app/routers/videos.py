@@ -209,7 +209,7 @@ def add_video(body: AddVideoRequest, user: CurrentUser, db: DbSession, ctx: Cont
     if active is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Dieses Video wird bereits heruntergeladen.")
 
-    options = body.model_dump(include={"container", "max_height"}, exclude_none=True)
+    options = body.model_dump(include={"container", "max_height", "comments"}, exclude_none=True)
     job = DownloadJob(
         url=url,
         youtube_id=youtube_id,

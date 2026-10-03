@@ -18,6 +18,7 @@ class SubscriptionDownloadOptions(BaseModel):
     max_height: MaxHeight | None = None
     prefer_h264: bool | None = None
     sponsorblock_mode: SponsorBlockMode | None = None
+    comments: bool | None = None
 
 
 class SubscriptionSettings(BaseModel):

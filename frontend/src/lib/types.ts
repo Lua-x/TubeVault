@@ -156,6 +156,34 @@ export interface VideoDetail extends VideoSummary {
   downloaded_at: string | null;
   sponsorblock_cut: boolean;
   sponsor_segments: SponsorSegment[];
+  comments_fetched_at: string | null;
+  comment_count: number | null;
+}
+
+export interface Comment {
+  id: number;
+  author: string;
+  author_is_uploader: boolean;
+  author_is_verified: boolean;
+  text: string;
+  like_count: number | null;
+  published_at: string | null;
+  is_pinned: boolean;
+  is_favorited: boolean;
+}
+
+export interface CommentThread extends Comment {
+  replies: Comment[];
+}
+
+export interface CommentsPage {
+  items: CommentThread[];
+  total: number;
+  saved: number;
+  comment_count: number | null;
+  fetched_at: string | null;
+  fetching: boolean;
+  error: string | null;
 }
 
 export interface Page<T> {
@@ -213,6 +241,7 @@ export interface SubscriptionDownloadOptions {
   max_height?: MaxHeight | null;
   prefer_h264?: boolean | null;
   sponsorblock_mode?: SponsorBlockMode | null;
+  comments?: boolean | null;
 }
 
 export interface SubscriptionSettings {
@@ -273,6 +302,8 @@ export interface DownloadOptions {
   subtitle_languages: string[];
   sponsorblock_mode: SponsorBlockMode;
   sponsorblock_categories: SponsorCategory[];
+  comments: boolean;
+  max_comments: 100 | 500 | 1000 | 5000;
 }
 
 export type HwAccel = "none" | "vaapi" | "nvenc";
@@ -394,6 +425,7 @@ export type LiveEvent =
   | { type: "jobs.cleared" }
   | { type: "video.updated"; video: VideoSummary }
   | { type: "video.deleted"; video_id: number }
+  | { type: "video.comments"; video_id?: number }
   | { type: "subscription.updated"; subscription_id: number }
   | { type: "subscription.deleted"; subscription_id: number }
   | { type: "queue.state"; paused: boolean }

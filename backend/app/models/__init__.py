@@ -1,6 +1,7 @@
 """ORM models. Importing this package registers every table on Base.metadata."""
 
 from app.models.channel import Channel
+from app.models.comment import Comment
 from app.models.job import (
     ACTIVE_JOB_STATUSES,
     FINISHED_JOB_STATUSES,
@@ -20,6 +21,7 @@ __all__ = [
     "FINISHED_JOB_STATUSES",
     "ApiToken",
     "Channel",
+    "Comment",
     "DownloadJob",
     "ErrorKind",
     "ItemState",

@@ -26,6 +26,7 @@ from app.routers import (
     admin,
     auth,
     channels,
+    comments,
     downloads,
     home,
     imports,
@@ -44,6 +45,7 @@ from app.services.app_settings import TranscodeOptions, load_app_settings
 from app.services.auth import bootstrap_admin, purge_expired_sessions
 from app.services.backups import apply_staged_restore
 from app.services.catalog import Catalog, YtDlpCatalog
+from app.services.comments import CommentFetcher
 from app.services.connectivity import Connectivity
 from app.services.downloader import Downloader, YtDlpDownloader
 from app.services.importer import Importer
@@ -180,6 +182,7 @@ def _api_router() -> APIRouter:
         users,
         home,
         videos,
+        comments,
         media,
         playback,
         channels,
@@ -319,6 +322,8 @@ def create_app(
     transcoder = Transcoder(settings, transcode_options)
     manager.on_file_replaced = transcoder.purge
     library_tasks = LibraryTasks(settings, sessions, events)
+    comment_fetcher = CommentFetcher(sessions, downloader, events, connectivity)
+    manager.on_comments_wanted = comment_fetcher.request
     importer = Importer(settings.media_dir, settings.import_dir, downloader)
     ctx = AppContext(
         settings=settings,
@@ -335,6 +340,7 @@ def create_app(
         connectivity=connectivity,
         notifier=notifier,
         oidc=OidcClient(settings),
+        comments=comment_fetcher,
     )
 
     @asynccontextmanager
@@ -356,6 +362,7 @@ def create_app(
             await asyncio.to_thread(transcoder.stop)
             await asyncio.to_thread(scheduler.stop)
             await asyncio.to_thread(manager.stop)
+            comment_fetcher.shutdown()
             await asyncio.to_thread(notifier.stop)
             engine.dispose()
 
