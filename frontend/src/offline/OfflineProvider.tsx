@@ -16,13 +16,12 @@ import {
   type SaveQuality,
   type StorageUsage,
 } from "./context";
-import { forgetLocalProgress, loadLocalProgress } from "./progress";
+import { forgetLocalProgress, loadLocalProgress, rememberOwner } from "./progress";
 import { offlineBackend, readText, writeText, type OfflineBackend } from "./storage";
 
 const INDEX = "index.json";
 const POLL_MS = 1500;
 
-const folder = (id: number) => `v${id}`;
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 class Cancelled extends Error {}
@@ -70,12 +69,25 @@ async function fetchInto(
   return store.write(path, response.body, type, (done) => onProgress?.(done, total), signal);
 }
 
+interface OfflineProviderProps {
+  online: boolean;
+  /** Whose videos: the signed-in user, or the last one when the server is away. */
+  owner: number | null;
+  children: ReactNode;
+}
+
 /** Saves videos on this device and plays them without the server. */
-export function OfflineProvider({ online, children }: { online: boolean; children: ReactNode }) {
-  const store = useMemo(() => offlineBackend(), []);
+export function OfflineProvider({ online, owner, children }: OfflineProviderProps) {
+  const backend = useMemo(() => offlineBackend(), []);
+  // Each user has a folder of their own; without anyone signed in there's nothing.
+  const store = owner === null ? null : backend;
+  const root = `u${owner}`;
+  const folder = useCallback((id: number) => `${root}/v${id}`, [root]);
+  const index = `${root}/${INDEX}`;
   const toast = useToast();
   const [entries, setEntries] = useState<Record<number, OfflineEntry>>({});
-  const [ready, setReady] = useState(store === null);
+  const [loaded, setLoaded] = useState<string | null>(null);
+  const ready = store === null || loaded === root;
   const [tasks, setTasks] = useState<OfflineTask[]>([]);
   const [storage, setStorage] = useState<StorageUsage | null>(null);
   const running = useRef<{ id: number; controller: AbortController } | null>(null);
@@ -84,41 +96,52 @@ export function OfflineProvider({ online, children }: { online: boolean; childre
   const refreshUsage = useCallback(() => void usage().then(setStorage), []);
 
   useEffect(() => {
+    if (online && owner !== null) rememberOwner(owner);
+  }, [online, owner]);
+
+  useEffect(() => {
     if (!store) return;
-    void readText(store, INDEX)
+    let cancelled = false;
+    void readText(store, index)
       .then((text) => {
+        if (cancelled) return;
         const list = text ? (JSON.parse(text) as OfflineEntry[]) : [];
         entriesRef.current = Object.fromEntries(list.map((entry) => [entry.id, entry]));
         setEntries(entriesRef.current);
       })
       .catch(() => undefined)
-      .finally(() => setReady(true));
+      .finally(() => {
+        if (!cancelled) setLoaded(root);
+      });
     refreshUsage();
-  }, [store, refreshUsage]);
+    return () => {
+      cancelled = true;
+    };
+  }, [store, index, root, refreshUsage]);
 
   const persist = useCallback(
     async (next: Record<number, OfflineEntry>) => {
       entriesRef.current = next;
       setEntries(next);
-      if (store) await writeText(store, INDEX, JSON.stringify(Object.values(next)));
+      if (store) await writeText(store, index, JSON.stringify(Object.values(next)));
       refreshUsage();
     },
-    [store, refreshUsage],
+    [store, index, refreshUsage],
   );
 
   // Progress made offline goes to the server once it answers again.
   useEffect(() => {
     if (!online) return;
-    for (const [id, progress] of Object.entries(loadLocalProgress())) {
+    for (const [id, progress] of Object.entries(loadLocalProgress(owner))) {
       void api
         .put(`videos/${id}/progress`, {
           position_s: progress.position_s,
           duration_s: progress.duration_s,
         })
-        .then(() => forgetLocalProgress(Number(id)))
+        .then(() => forgetLocalProgress(owner, Number(id)))
         .catch(() => undefined);
     }
-  }, [online]);
+  }, [online, owner]);
 
   const update = (id: number, patch: Partial<OfflineTask>) =>
     setTasks((all) => all.map((task) => (task.id === id ? { ...task, ...patch } : task)));
@@ -197,7 +220,7 @@ export function OfflineProvider({ online, children }: { online: boolean; childre
         refreshUsage();
       }
     },
-    [store, persist, toast, refreshUsage],
+    [store, folder, persist, toast, refreshUsage],
   );
 
   // One download at a time, in order.
@@ -244,7 +267,7 @@ export function OfflineProvider({ online, children }: { online: boolean; childre
       delete next[id];
       await persist(next);
     },
-    [store, persist],
+    [store, folder, persist],
   );
 
   const open = useCallback(
@@ -274,12 +297,13 @@ export function OfflineProvider({ online, children }: { online: boolean; childre
         revoke: () => urls.forEach((value) => URL.revokeObjectURL(value)),
       };
     },
-    [store],
+    [store, folder],
   );
 
   const value = useMemo<OfflineContextValue>(
     () => ({
-      supported: store !== null,
+      supported: backend !== null,
+      owner,
       ready,
       entries,
       tasks,
@@ -289,7 +313,7 @@ export function OfflineProvider({ online, children }: { online: boolean; childre
       remove,
       open,
     }),
-    [store, ready, entries, tasks, storage, save, cancel, remove, open],
+    [backend, owner, ready, entries, tasks, storage, save, cancel, remove, open],
   );
 
   return <OfflineContext.Provider value={value}>{children}</OfflineContext.Provider>;

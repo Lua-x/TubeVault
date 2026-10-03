@@ -11,6 +11,7 @@ import { LiveEventsProvider } from "@/hooks/live";
 import { ApiError } from "@/lib/api";
 import { basePath } from "@/lib/base";
 import { OfflineProvider } from "@/offline/OfflineProvider";
+import { lastOwner } from "@/offline/progress";
 import { ChannelPage } from "@/pages/ChannelPage";
 import { ChannelsPage } from "@/pages/ChannelsPage";
 import { DevicePage } from "@/pages/DevicePage";
@@ -87,7 +88,7 @@ function ConnectionError({ message, retry }: { message: string; retry: () => voi
 function OfflineApp({ retry }: { retry: () => void }) {
   return (
     <BrowserRouter basename={basePath().replace(/\/$/, "") || "/"}>
-      <OfflineProvider online={false}>
+      <OfflineProvider online={false} owner={lastOwner()}>
         <div className="sticky top-0 z-30 border-b border-separator bg-elevated/90 px-4 py-2.5 backdrop-blur-xl">
           <div className="mx-auto flex max-w-[1680px] items-center justify-between gap-3 text-[14px]">
             <span className="flex items-center gap-2 text-secondary">
@@ -132,7 +133,7 @@ export function App() {
 
   return (
     <BrowserRouter basename={basePath().replace(/\/$/, "") || "/"}>
-      <OfflineProvider online>
+      <OfflineProvider online owner={user.id}>
         <LiveEventsProvider>
           <AppShell>
             <AnimatedRoutes />

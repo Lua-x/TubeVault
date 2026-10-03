@@ -36,6 +36,8 @@ export interface StorageUsage {
 export interface OfflineContextValue {
   /** False when this browser can't keep videos (no storage API). */
   supported: boolean;
+  /** The user whose saved videos these are (null: nobody signed in on this device). */
+  owner: number | null;
   ready: boolean;
   entries: Record<number, OfflineEntry>;
   tasks: OfflineTask[];

@@ -15,7 +15,7 @@ import { forgetLocalProgress, loadLocalProgress, saveLocalProgress } from "@/off
 export function DeviceVideoPage({ online }: { online: boolean }) {
   const { id } = useParams();
   const videoId = Number(id);
-  const { ready, entries, open } = useOffline();
+  const { owner, ready, entries, open } = useOffline();
   const entry = entries[videoId];
   const [files, setFiles] = useState<OfflineFiles | null | undefined>(undefined);
   useDocumentTitle(entry?.video.title);
@@ -53,7 +53,7 @@ export function DeviceVideoPage({ online }: { online: boolean }) {
   }
 
   const video = entry.video;
-  const startAt = loadLocalProgress()[videoId]?.position_s ?? video.progress?.position_s ?? 0;
+  const startAt = loadLocalProgress(owner)[videoId]?.position_s ?? video.progress?.position_s ?? 0;
 
   return (
     <div className="mx-auto max-w-[1200px]">
@@ -71,12 +71,12 @@ export function DeviceVideoPage({ online }: { online: boolean }) {
           local={{ poster: files.poster, subtitles: files.subtitles, chapters: files.chapters }}
           startAt={startAt}
           onSave={(seconds, duration) => {
-            saveLocalProgress(videoId, seconds, duration);
+            saveLocalProgress(owner, videoId, seconds, duration);
             if (online) {
               // Reachable after all: hand it over right away.
               void api
                 .put(`videos/${videoId}/progress`, { position_s: seconds, duration_s: duration })
-                .then(() => forgetLocalProgress(videoId))
+                .then(() => forgetLocalProgress(owner, videoId))
                 .catch(() => undefined);
             }
           }}

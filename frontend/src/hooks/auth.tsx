@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, type ReactN
 
 import { api, request, setUnauthorizedHandler } from "@/lib/api";
 import type { AuthStatus, Preferences, TwoFactorChallenge, User } from "@/lib/types";
+import { forgetOwner } from "@/offline/progress";
 
 interface AuthContextValue {
   status: AuthStatus | undefined;
@@ -79,14 +80,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       logout: async () => {
         await api.post("auth/logout").catch(() => undefined);
-        const previous = client.getQueryData<AuthStatus>(STATUS_KEY);
-        client.clear();
-        client.setQueryData<AuthStatus>(STATUS_KEY, {
-          oidc_name: previous?.oidc_name ?? null,
-          password_login: previous?.password_login ?? true,
-          setup_required: false,
-          user: null,
-        });
+        forgetOwner();
+        setUser(null);
+        // Drop everything else that was loaded for this user. (Clearing the whole cache
+        // would also unhook the status query from its observer – the app wouldn't notice.)
+        client.removeQueries({ predicate: (query) => query.queryKey[0] !== STATUS_KEY[0] });
       },
       refresh: () => query.refetch(),
       updatePreferences: async (patch) => {

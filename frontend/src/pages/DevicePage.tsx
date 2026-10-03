@@ -42,8 +42,8 @@ function Poster({ entry }: { entry: OfflineEntry }) {
 /** Videos saved on this device – also the whole app when the server is out of reach. */
 export function DevicePage({ offlineMode = false }: { offlineMode?: boolean }) {
   useDocumentTitle("Auf diesem Gerät");
-  const { supported, ready, entries, tasks, usage, cancel, remove } = useOffline();
-  const local = loadLocalProgress();
+  const { supported, owner, ready, entries, tasks, usage, cancel, remove } = useOffline();
+  const local = loadLocalProgress(owner);
   const list = Object.values(entries).sort((a, b) => b.saved_at.localeCompare(a.saved_at));
   const total = list.reduce((sum, entry) => sum + entry.size, 0);
 
