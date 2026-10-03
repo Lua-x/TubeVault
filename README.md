@@ -44,6 +44,19 @@
 
 ## Funktionen
 
+**Version 0.6 – Konten & unterwegs**
+
+- **Aufs Gerät laden:** Videos und ganze Playlists in der installierten App speichern und
+  unterwegs ohne Verbindung zum Server schauen – als Original oder als kompakte Fassung in
+  720p/480p, die dein Server erzeugt. Ist der Server nicht erreichbar, startet die App direkt
+  mit deinen gespeicherten Videos; der Fortschritt landet später auf dem Server
+- **Zwei-Faktor-Anmeldung** mit jeder Authenticator-App, samt Wiederherstellungscodes
+- **Anmeldung über deinen eigenen Anmeldedienst** (OpenID Connect): Authelia, Authentik,
+  Keycloak, Pocket ID & Co. – Konten werden beim ersten Login angelegt, Admin-Rechte auf
+  Wunsch über eine Gruppe vergeben
+- **Rechte pro Benutzer:** nur ausgewählte Kanäle sehen (z. B. ein Kinderprofil) und
+  „Nur schauen“-Konten, die nichts hinzufügen oder abonnieren können
+
 **Version 0.5 – Offline, sicher, automatisch**
 
 - Ohne Internet läuft alles weiter: Bibliothek, Suche und Wiedergabe brauchen nur deinen
@@ -204,6 +217,7 @@ anlegen und diesem Benutzer geben.
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
 | `SESSION_DAYS` | `30` | Wie lange eine Anmeldung gültig bleibt |
 | `IMPORT_DIR` | `/import` | Ordner, aus dem **Verwaltung → Import** vorhandene Videos übernimmt |
+| `PUBLIC_URL`, `OIDC_*`, `PASSWORD_LOGIN` | leer | Anmeldung über einen eigenen Anmeldedienst, siehe [Anmeldung](#anmeldung) |
 
 Alles Weitere – Format (MP4/MKV), maximale Qualität, H.264 bevorzugen, Untertitel-Sprachen,
 SponsorBlock, Hardware-Transcoding, Ordnerstruktur, parallele Downloads, Benutzer – stellst du in
@@ -288,6 +302,104 @@ Unter **Abos → Abonnieren** fügst du einen Kanal (`https://www.youtube.com/@n
   alte Fassung weiter. Admins können jedes Video auf seiner Seite mit **Neu laden** erneut
   holen, etwa nach dem Wechsel auf 4K.
 
+### Benutzer und Rechte
+
+Unter **Einstellungen → Benutzer** legen Admins weitere Konten an. Ein Klick auf einen
+Benutzer öffnet seine Rechte:
+
+- **Admin:** darf alles, auch Einstellungen, Benutzer und Verwaltung.
+- **Kanäle:** „Alle“ oder nur ausgewählte. Wer nur ausgewählte Kanäle sieht, findet alles
+  andere nirgends – nicht in der Bibliothek, der Suche, auf der Startseite oder per direktem
+  Link. Ideal für ein Kinderprofil.
+- **Darf Videos hinzufügen:** aus = „Nur schauen“. Hinzufügen, Abos und die Download-Seite
+  verschwinden dann aus der Oberfläche und sind auch per API gesperrt.
+
+Wiedergabestand, Playlists und „Aufs Gerät“ gehören immer dem einzelnen Benutzer.
+
+### Anmeldung
+
+**Zwei-Faktor-Anmeldung:** Unter **Einstellungen → Konto → Zwei-Faktor-Anmeldung** den
+QR-Code mit einer Authenticator-App scannen (z. B. Aegis, 2FAS, Google Authenticator, die
+Passwörter-App auf dem iPhone). Danach fragt TubeVault beim Anmelden nach dem 6-stelligen
+Code. Die zehn Wiederherstellungscodes gut aufbewahren – jeder gilt einmal, falls das Handy
+weg ist. Admins können die Zwei-Faktor-Anmeldung eines Benutzers zurücksetzen; für den
+eigenen Admin hilft notfalls
+`docker exec -it tubevault python -m app reset-2fa <benutzer>`.
+
+**Eigener Anmeldedienst (OpenID Connect):** Läuft bei dir schon Authelia, Authentik,
+Keycloak, Pocket ID oder ein anderer OIDC-Anbieter, meldest du dich darüber an – mit dessen
+Zwei-Faktor-Schutz und ohne eigenes TubeVault-Passwort. Eingerichtet wird das über
+Umgebungsvariablen, das Client-Secret landet so weder in der Datenbank noch in Sicherungen:
+
+| Variable | Standard | Bedeutung |
+| -------- | -------- | --------- |
+| `PUBLIC_URL` | leer | Adresse, unter der TubeVault erreichbar ist, samt `BASE_PATH`, z. B. `https://tube.example.com`. Leer = aus der Anfrage ermitteln |
+| `OIDC_ISSUER` | leer | Adresse des Anbieters, z. B. `https://auth.example.com` (Authentik: `https://auth.example.com/application/o/tubevault/`). Leer = aus |
+| `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` | leer | Zugangsdaten des Clients beim Anbieter |
+| `OIDC_NAME` | `SSO` | Text auf dem Knopf: „Mit … anmelden“ |
+| `OIDC_SCOPES` | `openid profile email groups` | Angefragte Scopes |
+| `OIDC_USERNAME_CLAIM` | `preferred_username` | Woraus der Benutzername neuer Konten entsteht |
+| `OIDC_GROUPS_CLAIM` | `groups` | Wo die Gruppen stehen |
+| `OIDC_ADMIN_GROUP` | leer | Mitglieder dieser Gruppe werden Admins, alle anderen nicht (der letzte Admin bleibt immer). Leer = Rechte in TubeVault verwalten |
+| `OIDC_AUTO_CREATE` | `true` | Unbekannte Konten beim ersten Login anlegen. `false` = nur verbundene Konten dürfen rein |
+| `OIDC_TOKEN_AUTH` | `client_secret_basic` | Oder `client_secret_post` – wie beim Anbieter eingestellt |
+| `PASSWORD_LOGIN` | `true` | `false` = nur noch über den Anbieter anmelden (wirkt nur, wenn OIDC eingerichtet ist) |
+
+Beim Anbieter legst du einen vertraulichen Client („confidential“) mit dieser
+Weiterleitungsadresse an – **Verwaltung → Anmeldung über OIDC** zeigt sie dir auch an:
+
+```
+https://tube.example.com/api/auth/oidc/callback
+```
+
+<details>
+<summary>Authelia</summary>
+
+```yaml
+identity_providers:
+  oidc:
+    clients:
+      - client_id: tubevault
+        client_name: TubeVault
+        client_secret: '$pbkdf2-sha512$…'   # authelia crypto hash generate pbkdf2
+        authorization_policy: two_factor
+        redirect_uris:
+          - https://tube.example.com/api/auth/oidc/callback
+        scopes: [openid, profile, email, groups]
+        token_endpoint_auth_method: client_secret_basic
+```
+
+`OIDC_ISSUER=https://auth.example.com`
+</details>
+
+<details>
+<summary>Authentik</summary>
+
+*Anwendungen → Provider → OAuth2/OpenID-Provider*, Client-Typ *Vertraulich*,
+Weiterleitungs-URI wie oben. Dann eine Anwendung mit dem Slug `tubevault` anlegen.
+`OIDC_ISSUER=https://auth.example.com/application/o/tubevault/`
+</details>
+
+<details>
+<summary>Keycloak</summary>
+
+Client mit *Client authentication* an, *Valid redirect URIs* wie oben. Für Gruppen im
+dedizierten Client-Scope einen Mapper *Group Membership* mit dem Token-Claim-Namen `groups`
+anlegen („Full group path“ aus) und `OIDC_SCOPES=openid profile email` setzen – einen Scope
+`groups` kennt Keycloak von sich aus nicht. `OIDC_ISSUER=https://auth.example.com/realms/<realm>`
+</details>
+
+<details>
+<summary>Pocket ID</summary>
+
+*OIDC Clients → Hinzufügen*, Callback-URL wie oben. `OIDC_ISSUER=https://id.example.com`
+</details>
+
+Das erste Konto, das sich so anmeldet, wird Admin, wenn es noch keine Benutzer gibt.
+Bestehende TubeVault-Konten verbindest du unter **Einstellungen → Konto → Anmeldung über …**
+(nur angemeldet möglich – ein gleicher Benutzername allein reicht nie). Konten ohne Passwort
+können eins festlegen, um auch ohne den Anbieter hereinzukommen.
+
 ### Ohne Internet
 
 TubeVault ist ein Mediaserver zum Offline-Schauen: Bibliothek, Suche, Wiedergabe, Playlists
@@ -301,6 +413,42 @@ Internet aus,
 - startet der Container sofort, statt auf das yt-dlp-Update zu warten.
 
 Ob YouTube erreichbar ist, prüft TubeVault nur nach einem Netzwerkfehler, nie regelmäßig.
+
+### Aufs Gerät laden
+
+<img src="docs/screenshots/device-phone-dark.png" width="240" align="right" alt="Die App auf dem Smartphone ohne Verbindung zum Server: Hinweis oben, darunter „Auf diesem Gerät“ mit drei gespeicherten Videos, eines davon halb gesehen." />
+
+Für unterwegs, wenn dein Server nicht erreichbar ist (Zug, Flugzeug, Urlaub): **Aufs Gerät**
+auf der Videoseite oder bei einer Playlist speichert Videos in der installierten App.
+
+- **Original:** die Datei so, wie sie auf dem Server liegt – MKV wird dafür einmal in MP4
+  umverpackt. Passt der Codec nicht zum Gerät, bietet TubeVault nur die kompakten Fassungen an.
+- **Kompakt · 720p** und **Sparsam · 480p:** dein Server wandelt das Video einmal in H.264
+  um, das auf jedem Gerät läuft. Höchstens etwa 1,4 GB pro Stunde in 720p und 0,65 GB in
+  480p, meist deutlich weniger – der Dialog schätzt die Größe vorher. Die Fassung bleibt eine
+  Weile im Umwandlungs-Cache.
+
+Alles Gespeicherte steht unter **Auf diesem Gerät** (auch als Tab in der Bibliothek), mit
+Untertiteln, Kapiteln und Vorschaubild. Ist der Server beim Öffnen der App nicht erreichbar,
+startet sie direkt dort. Wo du aufgehört hast, merkt sich das Gerät und gibt es weiter,
+sobald der Server wieder antwortet.
+
+Gut zu wissen:
+
+- Es braucht **HTTPS** (siehe [Reverse Proxy](#reverse-proxy)) – über `http://` mit einer
+  IP-Adresse geben Browser keinen Speicher frei, der Knopf erscheint dann nicht.
+- **Die App muss geöffnet bleiben**, bis der Download fertig ist. Browser können Downloads im
+  Hintergrund nicht fortsetzen; ein abgebrochener Download startet beim nächsten Versuch neu.
+- Gespeichert wird im Speicher des Browsers für diese Seite. Wer die Website-Daten löscht oder
+  die App vom Home-Bildschirm entfernt, löscht auch die Videos. TubeVault bittet den Browser,
+  den Speicher dauerhaft zu behalten; bei knappem Speicherplatz darf das System trotzdem
+  aufräumen.
+- **iPhone/iPad:** TubeVault vorher zum Home-Bildschirm hinzufügen und von dort öffnen. Safari
+  gibt Webseiten weniger Platz als einer installierten App, und iOS kann gespeicherte Daten
+  bei knappem Speicher löschen. Für lange Videos die kompakte Fassung wählen und das iPhone
+  beim Laden nicht sperren.
+- Jedes Gerät und jeder Benutzer hat seine eigene Auswahl. Nach dem Abmelden zeigt die App
+  ohne Server nichts mehr an.
 
 ### Sicherung
 
@@ -361,8 +509,9 @@ eigenem Icon:
 - **Desktop:** in Chrome oder Edge das Installieren-Symbol in der Adressleiste
 
 Android und Desktop-Browser bieten das nur über **HTTPS** an (oder auf `localhost`), also
-z. B. hinter einem [Reverse Proxy](#reverse-proxy) mit Zertifikat. Gecacht werden nur die
-Oberfläche und ihre Dateien – deine Videos kommen immer live vom Server.
+z. B. hinter einem [Reverse Proxy](#reverse-proxy) mit Zertifikat. Gecacht wird die
+Oberfläche samt Player, damit die App auch ohne Server startet. Videos kommen live vom Server –
+außer denen, die du mit [Aufs Gerät](#aufs-gerät-laden) gespeichert hast.
 
 ### API und Kurzbefehle
 
@@ -501,7 +650,7 @@ example.com {
   ohne dass das Image neu gebaut werden muss. YouTube ändert häufig Details – ein Neustart
   (`docker compose restart`) bringt die neueste Version.
 - **TubeVault** selbst: `docker compose pull && docker compose up -d`.
-- **Image-Tags:** `latest` ist immer der aktuelle Stand; `0.3` oder `0.3.0` hält dich auf
+- **Image-Tags:** `latest` ist immer der aktuelle Stand; `0.6` oder `0.6.0` hält dich auf
   einer festen Version. Zurück auf eine ältere Version geht nicht, weil die Datenbank beim
   Update migriert wird – TubeVault startet dann mit einem entsprechenden Hinweis nicht.
   Vor großen Updates einfach unter **Verwaltung → Sicherung** eine Sicherung anlegen.
@@ -525,6 +674,12 @@ example.com {
 | ------- | ------ |
 | `/config is not writable` im Log | `PUID`/`PGID` passen nicht zu den Ordnerrechten, oder bei `user:` gehört der Ordner nicht diesem Benutzer |
 | Passwort vergessen | `docker exec -it tubevault python -m app reset-password <benutzer>` |
+| Handy mit der Authenticator-App verloren | Mit einem Wiederherstellungscode anmelden. Sonst setzt ein Admin die Zwei-Faktor-Anmeldung unter **Einstellungen → Benutzer** zurück, oder `docker exec -it tubevault python -m app reset-2fa <benutzer>` |
+| Code der Authenticator-App wird abgelehnt | Die Uhr von Server oder Handy geht falsch – TubeVault erlaubt 30 Sekunden Abweichung |
+| Anbieter meldet „invalid redirect_uri“ | Die Weiterleitungsadresse beim Anbieter muss genau der unter **Verwaltung → Anmeldung über OIDC** entsprechen; hinter einem Proxy `PUBLIC_URL` setzen |
+| „Der Anmeldedienst ist nicht erreichbar“ | TubeVault muss `OIDC_ISSUER` selbst erreichen können – im selben Docker-Netz ggf. eine Adresse wählen, die auch der Container auflöst |
+| „Aufs Gerät“ fehlt | Es braucht HTTPS; über `http://` mit IP-Adresse gibt der Browser keinen Speicher frei |
+| Gespeicherte Videos sind weg | Website-Daten gelöscht, App entfernt oder das System hat bei knappem Speicher aufgeräumt (v. a. iOS) |
 | Downloads scheitern mit „not a bot“ / HTTP 429 | YouTube bremst. TubeVault versucht es automatisch später erneut (Backoff bis 6 h) |
 | Video spielt nicht ab (MKV) | Safari/iOS können kein MKV – Format in den Einstellungen auf MP4 stellen |
 | „App installieren“ fehlt | Android/Desktop verlangen HTTPS – TubeVault hinter einen Reverse Proxy mit Zertifikat stellen |
@@ -587,6 +742,10 @@ Content-Security-Policy erzwingt das auch im Browser. Verbindungen nach außen g
   eines SHA-256-Hashes der Video-ID den Server; SponsorBlock erfährt also nicht, welches
   Video du schaust.
 - **Deinen Benachrichtigungsdienst**, nur wenn du einen einträgst.
+- **Deinen Anmeldedienst** (OIDC), nur wenn du einen einrichtest.
+
+Mit „Aufs Gerät“ gespeicherte Videos liegen nur im Browser des jeweiligen Geräts; TubeVault
+erfährt davon nichts außer dem Download selbst.
 
 ## Lizenz
 
