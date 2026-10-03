@@ -16,6 +16,7 @@ from app.services.app_settings import load_app_settings
 from app.services.backups import BackupError, auto_backup_if_due
 from app.services.catalog import Catalog
 from app.services.connectivity import Connectivity
+from app.services.rss import RssWatcher
 from app.services.subscriptions import (
     SubscriptionChecker,
     refresh_channel_artwork,
@@ -42,9 +43,11 @@ class SubscriptionScheduler:
         catalog: Catalog,
         poll_interval: float = 30.0,
         connectivity: Connectivity | None = None,
+        rss: RssWatcher | None = None,
     ) -> None:
         self._settings = settings
         self._connectivity = connectivity
+        self._rss = rss
         self._sessions = sessions
         self._events = events
         self._checker = checker
@@ -86,6 +89,8 @@ class SubscriptionScheduler:
         while not self._stop.is_set():
             try:
                 self._run_due()
+                if self._rss and self._rss.run_round():
+                    self._run_due()  # new uploads: check those subscriptions right away
                 self._maybe_cleanup()
             except Exception:
                 log.exception("Fehler im Abo-Scheduler")

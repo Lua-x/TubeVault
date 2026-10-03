@@ -46,6 +46,7 @@ from app.services.catalog import Catalog, YtDlpCatalog
 from app.services.connectivity import Connectivity
 from app.services.downloader import Downloader, YtDlpDownloader
 from app.services.importer import Importer
+from app.services.rss import FeedFetcher, RssWatcher, fetch_feed_ids
 from app.services.search import ensure_search_index
 from app.services.subscriptions import SubscriptionChecker
 from app.workers.download_manager import DownloadManager
@@ -242,6 +243,7 @@ def create_app(
     configure_logging: bool = True,
     scheduler_poll_interval: float = 30.0,
     connectivity: Connectivity | None = None,
+    feeds: FeedFetcher | None = None,
 ) -> FastAPI:
     settings = settings or Settings()
     init_storage(settings)
@@ -278,6 +280,7 @@ def create_app(
         catalog,
         poll_interval=scheduler_poll_interval,
         connectivity=connectivity,
+        rss=RssWatcher(sessions, connectivity, feeds or fetch_feed_ids),
     )
 
     def connectivity_changed(online: bool) -> None:

@@ -284,6 +284,7 @@ export interface AppSettings {
   transcoding: TranscodeOptions;
   library: LibraryOptions;
   backup: BackupOptions;
+  subscriptions: { rss: boolean };
 }
 
 export interface Backup {

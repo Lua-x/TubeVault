@@ -250,6 +250,19 @@ function DownloadForm({ initial }: { initial: AppSettings }) {
         </Row>
       </Group>
 
+      <Group
+        title="Abos"
+        footer="Schaut alle 15 Minuten in den RSS-Feed jedes Abos. Neue Videos sind so meist nach Minuten statt Stunden da – die gründliche Prüfung läuft weiter im eingestellten Intervall."
+      >
+        <Row>
+          <Switch
+            label="Neue Videos schneller finden"
+            checked={draft.subscriptions.rss}
+            onChange={(rss) => setDraft({ ...draft, subscriptions: { rss } })}
+          />
+        </Row>
+      </Group>
+
       <Group title="Untertitel">
         <Row>
           <Switch

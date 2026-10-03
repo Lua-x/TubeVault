@@ -96,6 +96,7 @@ def test_restore_after_restart(
         catalog,
         configure_logging=False,
         connectivity=Connectivity(probe=lambda: True),
+        feeds=lambda _url: [],
     )
     with TestClient(app, headers=HEADERS) as restarted:
         restarted.post("/api/auth/login", json={"username": "admin", "password": "geheim123"})

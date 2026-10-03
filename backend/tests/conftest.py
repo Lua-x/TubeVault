@@ -203,13 +203,39 @@ def network() -> FakeNetwork:
     return FakeNetwork()
 
 
+class FakeFeeds:
+    """RSS feeds by URL; tests put video IDs in, nothing goes to YouTube."""
+
+    def __init__(self) -> None:
+        self.ids: dict[str, list[str]] = {}
+        self.calls: list[str] = []
+
+    def fetch(self, url: str) -> list[str]:
+        self.calls.append(url)
+        return self.ids.get(url, [])
+
+
+@pytest.fixture
+def feeds() -> FakeFeeds:
+    return FakeFeeds()
+
+
 @pytest.fixture
 def client(
-    settings: Settings, downloader: FakeDownloader, catalog: FakeCatalog, network: FakeNetwork
+    settings: Settings,
+    downloader: FakeDownloader,
+    catalog: FakeCatalog,
+    network: FakeNetwork,
+    feeds: FakeFeeds,
 ) -> Iterator[TestClient]:
     connectivity = Connectivity(probe=network.probe, recheck_s=0)
     app = create_app(
-        settings, downloader, catalog, configure_logging=False, connectivity=connectivity
+        settings,
+        downloader,
+        catalog,
+        configure_logging=False,
+        connectivity=connectivity,
+        feeds=feeds.fetch,
     )
     with TestClient(app, headers=HEADERS) as test_client:
         yield test_client
