@@ -89,6 +89,8 @@ export interface VideoListParams {
   limit?: number;
   channelId?: number;
   watched?: WatchedFilter;
+  duration?: "any" | "short" | "medium" | "long";
+  uploaded?: "any" | "week" | "month" | "year";
 }
 
 function videoSearch(params: VideoListParams, offset = 0): URLSearchParams {
@@ -97,6 +99,8 @@ function videoSearch(params: VideoListParams, offset = 0): URLSearchParams {
   if (params.sort) search.set("sort", params.sort);
   if (params.channelId) search.set("channel_id", String(params.channelId));
   if (params.watched && params.watched !== "all") search.set("watched", params.watched);
+  if (params.duration && params.duration !== "any") search.set("duration", params.duration);
+  if (params.uploaded && params.uploaded !== "any") search.set("uploaded", params.uploaded);
   search.set("limit", String(params.limit ?? 120));
   if (offset) search.set("offset", String(offset));
   return search;
@@ -770,6 +774,14 @@ export function useDeleteToken() {
 }
 
 const COMMENTS_PAGE = 20;
+
+export function useSimilarVideos(videoId: number) {
+  return useQuery({
+    queryKey: ["videos", "similar", videoId],
+    queryFn: () => api.get<VideoSummary[]>(`videos/${videoId}/similar`),
+    staleTime: 5 * 60_000,
+  });
+}
 
 export function useComments(videoId: number, sort: "top" | "new") {
   const query = useInfiniteQuery({

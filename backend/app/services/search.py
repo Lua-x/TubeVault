@@ -99,17 +99,33 @@ def fts_query(raw: str) -> str | None:
     return " AND ".join(f'"{token}"*' for token in tokens)
 
 
-def search_ranking(conn: Connection, raw: str) -> CTE | None:
-    """Matching videos as (id, rank) – lower rank is better. None without full-text search.
+# Words that say nothing about what a video is about.
+_STOPWORD_TEXT = """
+aber alle als also am an auch auf aus bei bin bis das dass dem den der des die dies diese
+dieser du ein eine einem einen einer es für hat hier ich ihr im in ist ja kann mal man mit
+nach nicht noch nur oder schon sich sie sind so über um und uns von vor war was wie wir wird
+zu zum zur
+a about after all an and are as at be but by can do for from get how i if in is it its my
+new not of on or our so that the this to was we what when why will with you your
+video videos official part teil folge episode live full hd 4k
+"""
+_STOPWORDS = frozenset(_STOPWORD_TEXT.split())
 
-    A query instead of a list of ids, so counting, sorting and paging happen in the
-    database – for any number of matches. MATERIALIZED makes SQLite search the index
-    once; otherwise it may pick the videos table as the outer loop and search the index
-    again for every single video (seconds instead of milliseconds for broad terms).
-    """
-    if not is_sqlite(conn):
+
+def similar_query(*texts: str) -> str | None:
+    """An FTS5 query for videos about the same thing: any of the telling words."""
+    words: list[str] = []
+    for value in texts:
+        for word in re.findall(r"\w+", value.lower()):
+            telling = len(word) >= 3 and not word.isdigit() and word not in _STOPWORDS
+            if telling and word not in words:
+                words.append(word)
+    if not words:
         return None
-    query = fts_query(raw) or '""'  # nothing searchable: an empty phrase matches nothing
+    return " OR ".join(f'"{word}"' for word in words[:MAX_TOKENS])
+
+
+def _ranking(query: str) -> CTE:
     return (
         text(
             "SELECT rowid AS id, bm25(videos_fts, 10.0, 1.0, 5.0) AS rank "
@@ -120,3 +136,24 @@ def search_ranking(conn: Connection, raw: str) -> CTE | None:
         .cte("search")
         .prefix_with("MATERIALIZED")
     )
+
+
+def similar_ranking(conn: Connection, title: str) -> CTE | None:
+    """Videos sharing telling words with a title, as (id, rank). None if nothing to go by."""
+    if not is_sqlite(conn):
+        return None
+    query = similar_query(title)
+    return _ranking(query) if query else None
+
+
+def search_ranking(conn: Connection, raw: str) -> CTE | None:
+    """Matching videos as (id, rank) – lower rank is better. None without full-text search.
+
+    A query instead of a list of ids, so counting, sorting and paging happen in the
+    database – for any number of matches. MATERIALIZED makes SQLite search the index
+    once; otherwise it may pick the videos table as the outer loop and search the index
+    again for every single video (seconds instead of milliseconds for broad terms).
+    """
+    if not is_sqlite(conn):
+        return None
+    return _ranking(fts_query(raw) or '""')  # nothing searchable: matches nothing

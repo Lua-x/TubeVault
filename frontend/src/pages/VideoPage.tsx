@@ -36,6 +36,7 @@ import { PageSpinner } from "@/components/ui/Spinner";
 import { PlayerOverlay, type PlayerNotice, type UpNext } from "@/components/video/PlayerOverlay";
 import { PlaybackStatus, QualityMenu } from "@/components/video/QualityMenu";
 import { RichText } from "@/components/video/RichText";
+import { SimilarVideos } from "@/components/video/SimilarVideos";
 import { SaveToDevice } from "@/components/offline/SaveToDevice";
 import { VideoPlayer, type PlayerHandle, type SaveReason } from "@/components/video/VideoPlayer";
 import { useAuth } from "@/hooks/auth";
@@ -340,6 +341,7 @@ function VideoView({ video, playlistId, autoplay }: VideoViewProps) {
                 </ol>
               </section>
             )}
+            <SimilarVideos videoId={video.id} />
             <FileInfo video={video} skipped={segments?.length ?? 0} />
           </aside>
         </div>

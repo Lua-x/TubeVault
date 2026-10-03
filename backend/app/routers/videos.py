@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date, timedelta
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query, status
@@ -35,7 +36,7 @@ from app.services.access import ensure_visible, require_can_add, visible_videos
 from app.services.app_settings import load_app_settings
 from app.services.presenters import video_detail, video_summaries
 from app.services.progress import MIN_RESUME_S, save_progress, set_watched
-from app.services.search import search_ranking
+from app.services.search import search_ranking, similar_ranking
 from app.services.subscriptions import mark_video_removed
 from app.services.upgrades import has_active_job, queue_upgrade
 from app.services.videos import delete_video_files, video_file_exists
@@ -47,6 +48,17 @@ router = APIRouter(prefix="/videos", tags=["videos"])
 
 SortOrder = Literal["relevance", "added", "newest", "oldest", "title"]
 WatchedFilter = Literal["all", "unwatched", "watched", "in_progress"]
+DurationFilter = Literal["any", "short", "medium", "long"]
+UploadedFilter = Literal["any", "week", "month", "year"]
+
+# Short: under 4 minutes, long: over 20 – like YouTube's search filters.
+DURATIONS: dict[str, tuple[int | None, int | None]] = {
+    "short": (None, 240),
+    "medium": (240, 1200),
+    "long": (1200, None),
+}
+UPLOADED_DAYS = {"week": 7, "month": 31, "year": 365}
+SIMILAR_LIMIT = 12
 
 
 def _get_video(db: DbSession, video_id: int, user: User) -> Video:
@@ -83,6 +95,8 @@ def list_videos(
     q: str | None = Query(default=None, max_length=200),
     channel_id: int | None = None,
     watched: WatchedFilter = "all",
+    duration: DurationFilter = "any",
+    uploaded: UploadedFilter = "any",
     sort: SortOrder | None = None,
     limit: int = Query(default=60, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
@@ -91,6 +105,16 @@ def list_videos(
     if channel_id is not None:
         query = query.where(Video.channel_id == channel_id)
     query = _watch_filter(query, user.id, watched)
+    if duration != "any":
+        shortest, longest = DURATIONS[duration]
+        if shortest is not None:
+            query = query.where(Video.duration_s >= shortest)
+        if longest is not None:
+            query = query.where(Video.duration_s < longest)
+    if uploaded != "any":
+        query = query.where(
+            Video.upload_date >= date.today() - timedelta(days=UPLOADED_DAYS[uploaded])
+        )
 
     search: CTE | None = None
     if q and q.strip():
@@ -128,6 +152,39 @@ def list_videos(
 @router.get("/{video_id}")
 def get_video(video_id: int, user: CurrentUser, db: DbSession) -> VideoDetail:
     return video_detail(db, user.id, _get_video(db, video_id, user))
+
+
+@router.get("/{video_id}/similar")
+def similar_videos(
+    video_id: int,
+    user: CurrentUser,
+    db: DbSession,
+    limit: int = Query(default=SIMILAR_LIMIT, ge=1, le=48),
+) -> list[VideoSummary]:
+    """More from the library about the same thing – then more from the same channel."""
+    video = _get_video(db, video_id, user)
+    base = visible_videos(select(Video), user).where(
+        Video.status == VideoStatus.READY, Video.id != video.id
+    )
+    found: list[Video] = []
+    ranking = similar_ranking(db.connection(), video.title)
+    if ranking is not None:
+        found = list(
+            db.scalars(
+                base.join(ranking, ranking.c.id == Video.id)
+                .options(selectinload(Video.channel))
+                .order_by(ranking.c.rank.asc(), Video.id.desc())
+                .limit(limit)
+            )
+        )
+    if len(found) < limit and video.channel_id is not None:
+        found += db.scalars(
+            base.where(Video.channel_id == video.channel_id, Video.id.not_in([v.id for v in found]))
+            .options(selectinload(Video.channel))
+            .order_by(Video.upload_date.desc(), Video.id.desc())
+            .limit(limit - len(found))
+        )
+    return video_summaries(db, user.id, found)
 
 
 @router.get("/{video_id}/segments")
