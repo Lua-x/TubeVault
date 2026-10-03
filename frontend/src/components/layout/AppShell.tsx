@@ -1,8 +1,11 @@
 import { useCallback, useState, type ReactNode } from "react";
 import { Outlet } from "react-router";
 
+import { useAudioPlayer } from "@/audio/context";
+import { MiniPlayer } from "@/components/audio/MiniPlayer";
 import { AddVideoDialog } from "@/components/video/AddVideoDialog";
 import { useCanAdd } from "@/hooks/auth";
+import { cn } from "@/lib/cn";
 
 import { AddVideoContext } from "./addVideo";
 import { Sidebar } from "./Sidebar";
@@ -19,6 +22,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
     [canAdd],
   );
   const closeAdd = useCallback(() => setAdding(null), []);
+  const listening = useAudioPlayer().track !== null;
 
   return (
     <AddVideoContext.Provider value={openAdd}>
@@ -31,12 +35,19 @@ export function AppShell({ children }: { children?: ReactNode }) {
       <Sidebar onAdd={openAdd} />
       <main
         id="main"
-        className="min-h-dvh pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0 md:pl-60"
+        className={cn(
+          "min-h-dvh md:pl-60",
+          // Room for the tab bar – and the mini player above it.
+          listening
+            ? "pb-[calc(10rem+env(safe-area-inset-bottom))] md:pb-28"
+            : "pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0",
+        )}
       >
         <div className="mx-auto w-full max-w-[1680px] px-4 pt-[max(1.25rem,env(safe-area-inset-top))] sm:px-6 md:px-10 md:pt-10">
           {children ?? <Outlet />}
         </div>
       </main>
+      <MiniPlayer aboveTabBar />
       <TabBar />
       <AddVideoDialog
         key={adding?.key ?? 0}

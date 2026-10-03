@@ -5,7 +5,7 @@ import { canPlayDirectly, canPlayRemuxed } from "@/lib/playback";
 import type { PlaybackInfo, VideoDetail } from "@/lib/types";
 
 /** What to save: the original file, the original repacked as MP4, or a compact copy. */
-export type OfflineQuality = "original" | "remux" | 720 | 480;
+export type OfflineQuality = "original" | "remux" | 720 | 480 | "audio";
 /** What can be asked for: also "the best that plays here", decided per video. */
 export type SaveQuality = OfflineQuality | "best";
 
@@ -73,6 +73,7 @@ export const QUALITY_LABELS: Record<string, string> = {
   remux: "Original (MP4)",
   720: "Kompakt · 720p",
   480: "Sparsam · 480p",
+  audio: "Nur Ton",
 };
 
 export function notEnoughSpace(needed: number, usage: StorageUsage | null): string | null {

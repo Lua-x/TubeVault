@@ -10,6 +10,8 @@ import { useAuth } from "@/hooks/auth";
 import { LiveEventsProvider } from "@/hooks/live";
 import { ApiError } from "@/lib/api";
 import { basePath } from "@/lib/base";
+import { AudioPlayerProvider } from "@/audio/AudioPlayerProvider";
+import { MiniPlayer } from "@/components/audio/MiniPlayer";
 import { OfflineProvider } from "@/offline/OfflineProvider";
 import { lastOwner } from "@/offline/progress";
 import { ChannelPage } from "@/pages/ChannelPage";
@@ -92,28 +94,31 @@ function OfflineApp({ retry }: { retry: () => void }) {
   return (
     <BrowserRouter basename={basePath().replace(/\/$/, "") || "/"}>
       <OfflineProvider online={false} owner={lastOwner()}>
-        <div className="sticky top-0 z-30 border-b border-separator bg-elevated/90 px-4 py-2.5 backdrop-blur-xl">
-          <div className="mx-auto flex max-w-[1680px] items-center justify-between gap-3 text-[14px]">
-            <span className="flex items-center gap-2 text-secondary">
-              <WifiOff className="size-4 shrink-0" strokeWidth={2} />
-              <span>
-                Keine Verbindung zum Server
-                <span className="hidden sm:inline"> – hier ist, was auf diesem Gerät liegt</span>
+        <AudioPlayerProvider>
+          <div className="sticky top-0 z-30 border-b border-separator bg-elevated/90 px-4 py-2.5 backdrop-blur-xl">
+            <div className="mx-auto flex max-w-[1680px] items-center justify-between gap-3 text-[14px]">
+              <span className="flex items-center gap-2 text-secondary">
+                <WifiOff className="size-4 shrink-0" strokeWidth={2} />
+                <span>
+                  Keine Verbindung zum Server
+                  <span className="hidden sm:inline"> – hier ist, was auf diesem Gerät liegt</span>
+                </span>
               </span>
-            </span>
-            <Button variant="secondary" size="sm" onClick={retry}>
-              Neu verbinden
-            </Button>
+              <Button variant="secondary" size="sm" onClick={retry}>
+                Neu verbinden
+              </Button>
+            </div>
           </div>
-        </div>
-        <main className="mx-auto w-full max-w-[1680px] px-4 pt-6 pb-12 sm:px-6 md:px-10">
-          <Suspense fallback={<PageSpinner />}>
-            <Routes>
-              <Route path="/device/:id" element={<DeviceVideoPage online={false} />} />
-              <Route path="*" element={<DevicePage offlineMode />} />
-            </Routes>
-          </Suspense>
-        </main>
+          <main className="mx-auto w-full max-w-[1680px] px-4 pt-6 pb-12 sm:px-6 md:px-10">
+            <Suspense fallback={<PageSpinner />}>
+              <Routes>
+                <Route path="/device/:id" element={<DeviceVideoPage online={false} />} />
+                <Route path="*" element={<DevicePage offlineMode />} />
+              </Routes>
+            </Suspense>
+          </main>
+          <MiniPlayer />
+        </AudioPlayerProvider>
       </OfflineProvider>
     </BrowserRouter>
   );
@@ -140,11 +145,13 @@ export function App() {
   return (
     <BrowserRouter basename={basePath().replace(/\/$/, "") || "/"}>
       <OfflineProvider online owner={user.id}>
-        <LiveEventsProvider>
-          <AppShell>
-            <AnimatedRoutes />
-          </AppShell>
-        </LiveEventsProvider>
+        <AudioPlayerProvider>
+          <LiveEventsProvider>
+            <AppShell>
+              <AnimatedRoutes />
+            </AppShell>
+          </LiveEventsProvider>
+        </AudioPlayerProvider>
       </OfflineProvider>
     </BrowserRouter>
   );

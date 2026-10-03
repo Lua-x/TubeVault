@@ -1,4 +1,4 @@
-import { ArrowLeft, GripVertical, Pencil, Play, Trash2, X } from "lucide-react";
+import { ArrowLeft, GripVertical, Headphones, Pencil, Play, Trash2, X } from "lucide-react";
 import { Reorder, useDragControls } from "motion/react";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
@@ -11,6 +11,7 @@ import {
   useReorderPlaylist,
   useUpdatePlaylist,
 } from "@/api/queries";
+import { trackFromVideo, useAudioPlayer } from "@/audio/context";
 import { SaveAllToDevice } from "@/components/offline/SaveAllToDevice";
 import { PlaylistCover } from "@/components/playlists/PlaylistCover";
 import { PlaylistNameDialog } from "@/components/playlists/PlaylistNameDialog";
@@ -70,6 +71,7 @@ function PlaylistView({ playlist }: { playlist: PlaylistDetail }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const navigate = useNavigate();
   const toast = useToast();
+  const audio = useAudioPlayer();
 
   const first = order.find((v) => !v.progress?.watched) ?? order[0];
   const saveOrder = () => {
@@ -113,6 +115,18 @@ function PlaylistView({ playlist }: { playlist: PlaylistDetail }) {
                 onClick={() => navigate(`/videos/${first.id}?playlist=${playlist.id}`)}
               >
                 {first === order[0] ? "Abspielen" : "Weiterspielen"}
+              </Button>
+            )}
+            {first && (
+              <Button
+                variant="secondary"
+                icon={<Headphones className="size-4" strokeWidth={2} />}
+                onClick={() => {
+                  const start = order.indexOf(first);
+                  audio.play(order.map(trackFromVideo), Math.max(0, start));
+                }}
+              >
+                Anhören
               </Button>
             )}
             <SaveAllToDevice videos={order} />

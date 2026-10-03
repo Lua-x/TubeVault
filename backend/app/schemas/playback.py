@@ -39,6 +39,7 @@ class DeviceOptions(BaseModel):
     # height → estimated bytes, for sizes up to the original's height
     estimates: dict[int, int]
     can_remux: bool  # the original's codecs fit into an MP4 as they are
+    audio_size: int | None = None  # only the sound, as M4A; None without a sound track
 
 
 class DeviceEstimateRequest(BaseModel):
@@ -50,6 +51,7 @@ class DeviceEstimate(BaseModel):
 
     count: int
     original_size: int
+    audio_size: int = 0
     estimates: dict[int, int]  # height → estimated bytes
 
 

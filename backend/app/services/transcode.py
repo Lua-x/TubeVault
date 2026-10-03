@@ -339,6 +339,35 @@ def device_command(
     ]  # fmt: skip
 
 
+def is_aac(audio_codec: str | None) -> bool:
+    return (audio_codec or "").lower().startswith(("aac", "mp4a"))
+
+
+def audio_command(
+    source: Path, target: Path, audio_codec: str | None, ffmpeg: str | None = None
+) -> list[str]:
+    """Only the sound, as M4A: copied when it already is AAC (instant), else converted."""
+    codec = (
+        ["-c:a", "copy"]
+        if is_aac(audio_codec)
+        else ["-c:a", "aac", "-b:a", f"{DEVICE_AUDIO_KBPS}k", "-ac", "2"]
+    )
+    return [
+        ffmpeg or ffmpeg_binary(),
+        "-hide_banner", "-nostdin", "-loglevel", "error", "-y",
+        "-i", str(source),
+        "-map", "0:a:0", "-vn", "-sn", "-dn",
+        *codec,
+        "-movflags", "+faststart",
+        "-progress", "pipe:1", "-nostats",
+        "-f", "mp4", str(target),
+    ]  # fmt: skip
+
+
+def audio_size_estimate(duration: float) -> int:
+    return int((DEVICE_AUDIO_KBPS + 2) * 1000 / 8 * max(duration, 0))
+
+
 def device_size_estimate(
     duration: float,
     height: int,

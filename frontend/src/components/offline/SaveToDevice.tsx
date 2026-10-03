@@ -24,6 +24,7 @@ interface DeviceOptions {
   original_size: number;
   estimates: Record<string, number>;
   can_remux: boolean;
+  audio_size: number | null;
 }
 
 interface Choice {
@@ -57,6 +58,9 @@ function useChoices(video: VideoDetail, enabled: boolean): Choice[] | null {
         hint: playable ? "Spart Platz – etwa" : "Läuft auf diesem Gerät – etwa",
       });
     }
+  }
+  if (options.audio_size) {
+    choices.push({ quality: "audio", size: options.audio_size, hint: "Zum Hören – etwa" });
   }
   return choices;
 }

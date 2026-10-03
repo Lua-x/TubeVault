@@ -29,6 +29,7 @@ from app.services.transcode import (
     HlsJob,
     MediaInfo,
     Mode,
+    audio_command,
     can_copy_into_mp4,
     device_command,
     ffmpeg_binary,
@@ -53,6 +54,9 @@ SEGMENT_TIMEOUT_S = 60.0
 EVICT_IDLE_S = 20.0
 CLEANUP_INTERVAL_S = 600.0
 MAX_CACHE_AGE_S = 30 * 86400.0
+# What a cached file holds: the original repacked (None), a compact copy of that height,
+# or only the sound.
+Variant = int | Literal["audio"] | None
 
 
 class TranscodeError(RuntimeError):
@@ -408,9 +412,14 @@ class Transcoder:
     # --- remux ---------------------------------------------------------------------------
 
     @staticmethod
-    def _file_key(source: Source, height: int | None) -> str:
+    def _file_key(source: Source, variant: Variant) -> str:
         key = f"{source.video_id}-{file_signature(source.path)}"
-        return key if height is None else f"{key}-h{height}"
+        if variant is None:
+            return key
+        return f"{key}-audio" if variant == "audio" else f"{key}-h{variant}"
+
+    def _target(self, key: str, variant: Variant) -> Path:
+        return self.remux_dir / f"{key}{'.m4a' if variant == 'audio' else '.mp4'}"
 
     def remux(self, source: Source) -> RemuxJob:
         """Starts (or reports) copying the streams into an MP4 in the cache."""
@@ -420,9 +429,13 @@ class Transcoder:
         """Starts (or reports) a compact H.264 MP4 for saving onto a device."""
         return self._file_job(source, height)
 
-    def _file_job(self, source: Source, height: int | None) -> RemuxJob:
-        key = self._file_key(source, height)
-        target = self.remux_dir / f"{key}.mp4"
+    def audio(self, source: Source) -> RemuxJob:
+        """Starts (or reports) the sound alone as M4A – for listening and podcasts."""
+        return self._file_job(source, "audio")
+
+    def _file_job(self, source: Source, variant: Variant) -> RemuxJob:
+        key = self._file_key(source, variant)
+        target = self._target(key, variant)
         with self._lock:
             job = self._remuxes.get(key)
             if target.is_file():
@@ -434,19 +447,22 @@ class Transcoder:
                 return job
             if job is not None and job.state == "running":
                 return job
-            if height is None and not can_copy_into_mp4(source.info):
+            if variant is None and not can_copy_into_mp4(source.info):
                 raise TranscodeError("Diese Codecs lassen sich nicht in MP4 kopieren")
+            if variant == "audio" and not source.info.audio_codec:
+                raise TranscodeError("Dieses Video hat keine Tonspur")
             self.remux_dir.mkdir(parents=True, exist_ok=True)
             job = RemuxJob(key=key, target=target, duration=source.info.duration)
             self._remuxes[key] = job
-        partial = target.with_name(f"{key}.partial.mp4")
+        partial = target.with_name(f"{key}.partial{target.suffix}")
         log_path = target.with_name(f"{key}.log")
         with log_path.open("wb") as log_file:
-            command = (
-                remux_command(source.path, partial, source.info.video_codec)
-                if height is None
-                else device_command(source.path, partial, height, source.info.height)
-            )
+            if variant is None:
+                command = remux_command(source.path, partial, source.info.video_codec)
+            elif variant == "audio":
+                command = audio_command(source.path, partial, source.info.audio_codec)
+            else:
+                command = device_command(source.path, partial, variant, source.info.height)
             job.process = subprocess.Popen(  # noqa: S603 – arguments built from validated input
                 command,
                 stdin=subprocess.DEVNULL,
@@ -458,11 +474,13 @@ class Transcoder:
         threading.Thread(
             target=self._follow_remux, args=(job, partial, log_path), name="remux", daemon=True
         ).start()
-        log.info(
-            "%s: Video %s",
-            "Umverpacken" if height is None else f"Gerätefassung {height}p",
-            source.video_id,
-        )
+        if variant is None:
+            label = "Umverpacken"
+        elif variant == "audio":
+            label = "Tonspur"
+        else:
+            label = f"Gerätefassung {variant}p"
+        log.info("%s: Video %s", label, source.video_id)
         return job
 
     def _follow_remux(self, job: RemuxJob, partial: Path, log_path: Path) -> None:
@@ -483,16 +501,17 @@ class Transcoder:
             partial.unlink(missing_ok=True)
             log.warning("Umverpacken fehlgeschlagen: %s", job.error)
 
-    def remux_status(self, source: Source, height: int | None = None) -> RemuxJob | None:
-        key = self._file_key(source, height)
+    def remux_status(self, source: Source, variant: Variant = None) -> RemuxJob | None:
+        key = self._file_key(source, variant)
         with self._lock:
             job = self._remuxes.get(key)
-        if job is None and (self.remux_dir / f"{key}.mp4").is_file():
-            return self._file_job(source, height)
+        if job is None and self._target(key, variant).is_file():
+            return self._file_job(source, variant)
         return job
 
-    def remux_file(self, source: Source, height: int | None = None) -> Path | None:
-        target = self.remux_dir / f"{self._file_key(source, height)}.mp4"
+    def remux_file(self, source: Source, variant: Variant = None) -> Path | None:
+        key = self._file_key(source, variant)
+        target = self._target(key, variant)
         if not target.is_file():
             return None
         _touch(target)
@@ -530,8 +549,8 @@ class Transcoder:
                     size = sum(f.stat().st_size for f in directory.iterdir() if f.is_file())
                     entries.append((directory.stat().st_mtime, size, directory))
         if self.remux_dir.is_dir():
-            for file in self.remux_dir.glob("*.mp4"):
-                if file not in active and not file.name.endswith(".partial.mp4"):
+            for file in [*self.remux_dir.glob("*.mp4"), *self.remux_dir.glob("*.m4a")]:
+                if file not in active and ".partial." not in file.name:
                     entries.append((file.stat().st_mtime, file.stat().st_size, file))
         total = sum(size for _, size, _ in entries)
         now = time.time()

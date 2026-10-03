@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import FileResponse, Response
 from sqlalchemy import select
@@ -26,6 +28,7 @@ from app.services.transcode import (
     DEVICE_HEIGHTS,
     QUALITIES,
     ProbeError,
+    audio_size_estimate,
     available_heights,
     can_copy_into_mp4,
     codec_string,
@@ -46,6 +49,8 @@ from app.workers.transcoder import (
 router = APIRouter(tags=["playback"])
 
 HLS_CACHE = "private, max-age=3600"
+# How long a request for the sound waits while it is being prepared.
+AUDIO_WAIT_S = 120.0
 
 
 def _source(db: DbSession, settings: AppConfig, video_id: int, user: User) -> tuple[Video, Source]:
@@ -167,6 +172,57 @@ def remux_file(
     return FileResponse(path, media_type="video/mp4", headers={"Cache-Control": HLS_CACHE})
 
 
+# --- only the sound --------------------------------------------------------------------
+
+
+@router.post("/videos/{video_id}/audio")
+def start_audio(
+    video_id: int, user: CurrentUser, db: DbSession, settings: AppConfig, ctx: Context
+) -> RemuxStatus:
+    source = _source(db, settings, video_id, user)[1]
+    try:
+        return _remux_status(ctx.transcoder.audio(source))
+    except TranscodeError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+
+
+@router.get("/videos/{video_id}/audio")
+def audio_status(
+    video_id: int, user: CurrentUser, db: DbSession, settings: AppConfig, ctx: Context
+) -> RemuxStatus:
+    source = _source(db, settings, video_id, user)[1]
+    return _remux_status(ctx.transcoder.remux_status(source, "audio"))
+
+
+@router.get("/videos/{video_id}/audio.m4a")
+def audio_file(
+    video_id: int, user: CurrentUser, db: DbSession, settings: AppConfig, ctx: Context
+) -> Response:
+    """The sound as M4A – prepared on the spot if needed (copying AAC takes a moment).
+
+    Waiting here instead of making the player poll keeps playback inside the tap that
+    started it, which iOS insists on.
+    """
+    source = _source(db, settings, video_id, user)[1]
+    try:
+        job = ctx.transcoder.audio(source)
+    except TranscodeError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+    deadline = time.monotonic() + AUDIO_WAIT_S
+    while job.state == "running" and time.monotonic() < deadline:
+        time.sleep(0.2)
+    if job.state == "failed":
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, job.error or "Fehlgeschlagen")
+    path = ctx.transcoder.remux_file(source, "audio")
+    if path is None:
+        return Response(
+            "Die Tonspur wird noch vorbereitet.",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            headers={"Retry-After": "30"},
+        )
+    return FileResponse(path, media_type="audio/mp4", headers={"Cache-Control": HLS_CACHE})
+
+
 # --- saving onto a device -------------------------------------------------------------
 
 
@@ -193,6 +249,7 @@ def device_options(
             if not info.height or info.height >= height
         },
         can_remux=can_copy_into_mp4(info),
+        audio_size=audio_size_estimate(info.duration) if info.audio_codec else None,
     )
 
 
@@ -206,6 +263,7 @@ def device_estimate(
     return DeviceEstimate(
         count=len(videos),
         original_size=sum(video.filesize or 0 for video in videos),
+        audio_size=sum(audio_size_estimate(video.duration_s or 0) for video in videos),
         estimates={
             height: sum(
                 device_size_estimate(

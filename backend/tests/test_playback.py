@@ -13,6 +13,7 @@ from app.models import Video
 from app.services.transcode import (
     HlsJob,
     MediaInfo,
+    audio_command,
     available_heights,
     can_copy_into_mp4,
     codec_string,
@@ -263,3 +264,36 @@ def test_device_size_estimate() -> None:
     )
     # Never larger than the source height: a 360p source is not scaled up.
     assert device_size_estimate(minute, 720, 360) == device_size_estimate(minute, 360)
+
+
+def _streams(path: Path) -> list[dict[str, Any]]:
+    out = subprocess.run(  # noqa: S603
+        ["ffprobe", "-v", "error", "-print_format", "json", "-show_streams", str(path)],  # noqa: S607
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    return list(json.loads(out)["streams"])
+
+
+@needs_ffmpeg
+def test_audio_only(admin: TestClient) -> None:
+    vid = _library_video(admin, "audiovideo1", suffix=".mkv")
+    assert admin.get(f"/api/videos/{vid}/device").json()["audio_size"] > 0
+    assert admin.get(f"/api/videos/{vid}/audio").json()["state"] == "none"
+    # Asking for the file prepares it and waits – the player just sets the source.
+    response = admin.get(f"/api/videos/{vid}/audio.m4a")
+    assert admin.get(f"/api/videos/{vid}/audio").json()["state"] == "ready"
+    assert admin.post(f"/api/videos/{vid}/audio").json()["state"] == "ready"
+    assert response.status_code == 200 and response.headers["content-type"] == "audio/mp4"
+    ctx = admin.app.state.ctx  # type: ignore[attr-defined]
+    made = next((ctx.settings.cache_dir / "remux").glob(f"{vid}-*-audio.m4a"))
+    # AAC is copied as it is: one stream, no picture.
+    assert [(s["codec_type"], s["codec_name"]) for s in _streams(made)] == [("audio", "aac")]
+
+
+def test_audio_command_copies_aac_and_converts_the_rest() -> None:
+    copy = audio_command(Path("in.mp4"), Path("out.m4a"), "aac", ffmpeg="ffmpeg")
+    assert copy[copy.index("-c:a") + 1] == "copy" and "-vn" in copy
+    opus = audio_command(Path("in.webm"), Path("out.m4a"), "opus", ffmpeg="ffmpeg")
+    assert opus[opus.index("-c:a") + 1] == "aac"

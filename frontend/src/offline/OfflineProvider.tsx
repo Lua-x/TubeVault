@@ -40,7 +40,12 @@ async function prepare(
   signal: AbortSignal,
 ): Promise<string> {
   if (quality === "original") return apiUrl(`videos/${id}/stream`);
-  const base = quality === "remux" ? `videos/${id}/remux` : `videos/${id}/device/${quality}`;
+  const base =
+    quality === "remux"
+      ? `videos/${id}/remux`
+      : quality === "audio"
+        ? `videos/${id}/audio`
+        : `videos/${id}/device/${quality}`;
   let status = await api.post<RemuxStatus>(base);
   while (status.state === "running") {
     if (signal.aborted) throw new Cancelled();
@@ -51,7 +56,8 @@ async function prepare(
   if (status.state !== "ready") {
     throw new Error(status.error ?? "Der Server konnte die Datei nicht vorbereiten.");
   }
-  return apiUrl(quality === "remux" ? `videos/${id}/remux.mp4` : `${base}/file`);
+  if (quality === "remux") return apiUrl(`videos/${id}/remux.mp4`);
+  return apiUrl(quality === "audio" ? `videos/${id}/audio.m4a` : `${base}/file`);
 }
 
 async function fetchInto(

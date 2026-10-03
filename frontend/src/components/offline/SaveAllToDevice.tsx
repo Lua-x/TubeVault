@@ -11,12 +11,13 @@ import { formatBytes } from "@/lib/format";
 import type { VideoSummary } from "@/lib/types";
 import { notEnoughSpace, QUALITY_LABELS, useOffline } from "@/offline/context";
 
-const CHOICES = ["best", 720, 480] as const;
+const CHOICES = ["best", 720, 480, "audio"] as const;
 type Choice = (typeof CHOICES)[number];
 
 interface DeviceEstimate {
   count: number;
   original_size: number;
+  audio_size: number;
   estimates: Record<string, number>;
 }
 
@@ -40,7 +41,11 @@ export function SaveAllToDevice({ videos }: { videos: VideoSummary[] }) {
 
   if (!offline.supported) return null;
   const sizeOf = (choice: Choice) =>
-    (choice === "best" ? estimate?.original_size : estimate?.estimates[String(choice)]) ?? 0;
+    (choice === "best"
+      ? estimate?.original_size
+      : choice === "audio"
+        ? estimate?.audio_size
+        : estimate?.estimates[String(choice)]) ?? 0;
   // Compact by default – unless it wouldn't save anything.
   const selected =
     picked ?? (estimate && sizeOf(720) >= estimate.original_size * 0.9 ? "best" : 720);
@@ -84,9 +89,11 @@ export function SaveAllToDevice({ videos }: { videos: VideoSummary[] }) {
                   <span className="block text-[13px] text-secondary">
                     {choice === "best"
                       ? "Beste Qualität"
-                      : sizeOf(choice) < sizeOf("best") * 0.9
-                        ? "Spart Platz – etwa"
-                        : "Läuft überall – etwa"}
+                      : choice === "audio"
+                        ? "Zum Hören – etwa"
+                        : sizeOf(choice) < sizeOf("best") * 0.9
+                          ? "Spart Platz – etwa"
+                          : "Läuft überall – etwa"}
                   </span>
                 </span>
                 <span className="text-[14px] text-secondary tabular-nums">

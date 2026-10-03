@@ -6,6 +6,7 @@ import {
   Clock,
   Download,
   ExternalLink,
+  Headphones,
   ListPlus,
   RefreshCw,
   Trash2,
@@ -25,6 +26,7 @@ import {
   useVideo,
   useWatchLater,
 } from "@/api/queries";
+import { trackFromVideo, useAudioPlayer } from "@/audio/context";
 import { AddToPlaylistDialog } from "@/components/playlists/AddToPlaylistDialog";
 import { Comments } from "@/components/comments/Comments";
 import { PlaylistPanel } from "@/components/playlists/PlaylistPanel";
@@ -382,6 +384,30 @@ const actionBase =
 const actionNeutral = "bg-surface hover:bg-surface-hover";
 const actionClass = cn(actionBase, actionNeutral, "px-4");
 
+/** Only the sound – keeps playing while browsing and with the screen locked. */
+function ListenButton({ video }: { video: VideoDetail }) {
+  const player = useAudioPlayer();
+  const active = player.track?.id === video.id;
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={() => {
+        if (active) player.setExpanded(true);
+        else player.play([trackFromVideo(video)]);
+      }}
+      className={cn(
+        actionBase,
+        "px-4",
+        active ? "bg-accent/15 text-accent hover:bg-accent/25" : actionNeutral,
+      )}
+    >
+      <Headphones className="size-4" strokeWidth={2} />
+      Anhören
+    </button>
+  );
+}
+
 function WatchLaterButton({ videoId }: { videoId: number }) {
   const { data: later } = useWatchLater();
   const toggle = useToggleWatchLater();
@@ -481,6 +507,7 @@ function VideoActions({ video, onWatchedChange }: VideoActionsProps) {
         {watched ? "Gesehen" : "Als gesehen markieren"}
       </button>
       <WatchLaterButton videoId={video.id} />
+      <ListenButton video={video} />
       <button type="button" onClick={() => setAddingToPlaylist(true)} className={actionClass}>
         <ListPlus className="size-4" strokeWidth={2} />
         Zur Playlist
