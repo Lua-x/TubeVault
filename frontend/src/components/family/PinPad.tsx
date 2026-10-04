@@ -46,7 +46,8 @@ export function PinPad({ title, error, busy, onSubmit, onCancel, tv }: PinPadPro
 
   return (
     <div className="flex flex-col items-center gap-6">
-      <p className={cn("font-semibold", tv ? "text-[max(24px,2vw)]" : "text-[19px]")}>{title}</p>
+      {/* Takes the place of "Wer schaut?" – the page's heading. */}
+      <h1 className={cn("font-semibold", tv ? "text-[max(24px,2vw)]" : "text-[19px]")}>{title}</h1>
       <div className="flex h-4 items-center gap-3" aria-live="polite">
         <span className="sr-only">{pin.length} Ziffern eingegeben</span>
         {Array.from({ length: Math.max(4, pin.length) }, (_, i) => (

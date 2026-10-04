@@ -29,6 +29,9 @@ from app.services.transcode import ProbeError, ffmpeg_binary, probe
 log = logging.getLogger(__name__)
 
 IDLE_WAIT_S = 120.0
+# A breath between two videos: when files are missing (a drive not mounted) a video
+# takes no time at all, and the loop would keep the server's requests waiting.
+PAUSE_S = 0.1
 TIMEOUT_S = 3600
 
 
@@ -228,6 +231,8 @@ class MediaAnalyzer:
             except Exception:
                 log.exception("Fehler in der Medienanalyse")
                 busy = False
-            if not busy:
+            if busy:
+                self._stop.wait(PAUSE_S)
+            else:
                 self._wake.wait(IDLE_WAIT_S)
                 self._wake.clear()

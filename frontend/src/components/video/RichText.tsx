@@ -20,7 +20,8 @@ export function RichText({ text, duration = null, onSeek }: RichTextProps) {
           href={token.text}
           target="_blank"
           rel="noreferrer noopener"
-          className="text-accent hover:underline"
+          // Underlined: in running text, color alone doesn't set a link apart.
+          className="break-words text-accent underline decoration-accent/40 underline-offset-2 hover:decoration-accent"
         >
           {token.text}
         </a>
