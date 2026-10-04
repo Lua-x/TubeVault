@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import getpass
 import logging
 import sys
@@ -38,6 +39,23 @@ def serve(settings: Settings) -> None:
         os.execv(sys.executable, [sys.executable, "-m", "app", "serve"])  # noqa: S606
 
 
+def youtube_enabled_on_disk(settings: Settings) -> bool:
+    """The setting, read before the server (and its migrations) starts; True if unknown."""
+    import json
+    import sqlite3
+
+    database = settings.config_dir / "tubevault.db"
+    if settings.database_url or not database.is_file():
+        return True
+    try:
+        with contextlib.closing(sqlite3.connect(f"file:{database}?mode=ro", uri=True)) as conn:
+            row = conn.execute("SELECT value FROM settings WHERE key = 'app'").fetchone()
+        value = json.loads(row[0]) if row else {}
+    except (sqlite3.Error, ValueError, TypeError):
+        return True
+    return not (isinstance(value, dict) and value.get("youtube_enabled") is False)
+
+
 def update_ytdlp(settings: Settings, only_if_enabled: bool) -> None:
     from app.services.ytdlp_updater import drop_outdated_runtime, pypi_reachable, update_ytdlp
 
@@ -45,6 +63,9 @@ def update_ytdlp(settings: Settings, only_if_enabled: bool) -> None:
     drop_outdated_runtime(settings.runtime_dir)
     if only_if_enabled and not settings.ytdlp_auto_update:
         logging.getLogger("app").info("YTDLP_AUTO_UPDATE ist aus – kein Update.")
+        return
+    if only_if_enabled and not youtube_enabled_on_disk(settings):
+        print("YouTube-Downloader ausgeschaltet – yt-dlp-Update übersprungen.")
         return
     if only_if_enabled and not pypi_reachable():
         # Offline start: don't wait for pip's retries, the library works without internet.

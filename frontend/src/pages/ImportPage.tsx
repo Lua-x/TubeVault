@@ -15,6 +15,7 @@ import { Group, Row } from "@/components/ui/Group";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { PageSpinner } from "@/components/ui/Spinner";
 import { Switch } from "@/components/ui/Switch";
+import { useYoutube } from "@/hooks/auth";
 import { useToast } from "@/hooks/toast";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { cn } from "@/lib/cn";
@@ -28,7 +29,9 @@ export function ImportPage() {
   const scan = useStartImportScan();
   const run = useStartImport();
   const toast = useToast();
-  const [deselected, setDeselected] = useState<Set<string>>(() => new Set());
+  const youtube = useYoutube();
+  // Keys whose checkbox differs from what is picked by default.
+  const [toggled, setToggled] = useState<Set<string>>(() => new Set());
   const [mode, setMode] = useState<ImportMode>("move");
   const [fetchMetadata, setFetchMetadata] = useState(true);
 
@@ -36,19 +39,33 @@ export function ImportPage() {
 
   const busy = task?.state === "running";
   const ready = data.candidates.filter((c) => c.status === "ready");
+  const readyYoutube = ready.filter((c) => c.kind === "youtube");
+  const readyOwn = ready.filter((c) => c.kind === "own");
   const known = data.candidates.filter((c) => c.status === "known");
-  const unknown = data.candidates.filter((c) => c.status === "unknown");
-  const selected = ready.filter((c) => !deselected.has(c.key));
+  // Own videos are only picked by default on a pure media server, so an old archive
+  // without IDs doesn't land in the library by accident.
+  const pickedByDefault = (c: ImportCandidate) => c.kind === "youtube" || !youtube;
+  const isSelected = (c: ImportCandidate) => toggled.has(c.key) !== pickedByDefault(c);
+  const selected = ready.filter(isSelected);
   const keepPossible = selected.length > 0 && selected.every((c) => c.root === "media");
   const effectiveMode = mode === "keep" && !keepPossible ? "move" : mode;
 
   const fail = (err: unknown) =>
     toast(err instanceof Error ? err.message : "Das hat nicht geklappt", "error");
   const toggle = (key: string) =>
-    setDeselected((current) => {
+    setToggled((current) => {
       const next = new Set(current);
       if (next.has(key)) next.delete(key);
       else next.add(key);
+      return next;
+    });
+  const setAll = (items: ImportCandidate[], on: boolean) =>
+    setToggled((current) => {
+      const next = new Set(current);
+      for (const c of items) {
+        if (on === pickedByDefault(c)) next.delete(c.key);
+        else next.add(c.key);
+      }
       return next;
     });
 
@@ -87,6 +104,12 @@ export function ImportPage() {
             oder aus dem Dateinamen, z. B.{" "}
             <code className="text-primary">Titel [dQw4w9WgXcQ].mp4</code>.
           </p>
+          <p className="mt-2">
+            Dateien ohne YouTube-ID sind <span className="text-primary">eigene Videos</span>, etwa
+            von Kamera oder Handy. Ihr Ordner wird zum Kanal (
+            <code className="text-primary">/import/Urlaub 2024/…</code> → „Urlaub 2024“), Titel und
+            Aufnahmedatum kommen aus der Datei.
+          </p>
           {!data.import_dir_exists && (
             <p className="mt-2">
               Für einen eigenen Import-Ordner in der <code>docker-compose.yml</code> ergänzen:{" "}
@@ -108,44 +131,36 @@ export function ImportPage() {
 
         {data.scanned_at && (
           <>
-            <Group
-              title={`Bereit zum Import (${ready.length})`}
-              footer={data.scanned_at ? `Durchsucht ${formatRelative(data.scanned_at)}` : undefined}
-            >
-              {ready.length === 0 ? (
+            {ready.length === 0 && (
+              <Group
+                title="Bereit zum Import"
+                footer={`Durchsucht ${formatRelative(data.scanned_at)}`}
+              >
                 <Row className="text-[15px] text-secondary">Nichts Neues gefunden.</Row>
-              ) : (
-                <>
-                  <Row className="flex items-center justify-between gap-4 text-[14px]">
-                    <span className="text-secondary">
-                      {selected.length} von {ready.length} ausgewählt ·{" "}
-                      {formatBytes(selected.reduce((sum, c) => sum + c.size, 0))}
-                    </span>
-                    <button
-                      type="button"
-                      className="font-medium text-accent hover:underline"
-                      onClick={() =>
-                        setDeselected(
-                          selected.length === ready.length
-                            ? new Set(ready.map((c) => c.key))
-                            : new Set(),
-                        )
-                      }
-                    >
-                      {selected.length === ready.length ? "Keine" : "Alle"}
-                    </button>
-                  </Row>
-                  {ready.map((candidate) => (
-                    <CandidateRow
-                      key={candidate.key}
-                      candidate={candidate}
-                      checked={!deselected.has(candidate.key)}
-                      onToggle={() => toggle(candidate.key)}
-                    />
-                  ))}
-                </>
-              )}
-            </Group>
+              </Group>
+            )}
+            <CandidateGroup
+              title="YouTube-Videos"
+              items={readyYoutube}
+              isSelected={isSelected}
+              onToggle={toggle}
+              onAll={(on) => setAll(readyYoutube, on)}
+            />
+            <CandidateGroup
+              title="Eigene Videos"
+              footer="Ohne YouTube-ID – Kommentare, SponsorBlock und Abos gibt es für sie nicht."
+              items={readyOwn}
+              isSelected={isSelected}
+              onToggle={toggle}
+              onAll={(on) => setAll(readyOwn, on)}
+            />
+            {ready.length > 0 && (
+              <p className="-mt-3 px-4 text-[13px] text-tertiary">
+                {selected.length} von {ready.length} ausgewählt ·{" "}
+                {formatBytes(selected.reduce((sum, c) => sum + c.size, 0))} · Durchsucht{" "}
+                {formatRelative(data.scanned_at)}
+              </p>
+            )}
 
             {ready.length > 0 && (
               <Group title="Optionen">
@@ -162,14 +177,16 @@ export function ImportPage() {
                     ]}
                   />
                 </Row>
-                <Row>
-                  <Switch
-                    label="Fehlende Infos von YouTube laden"
-                    description="Für Dateien ohne .info.json. Gibt es das Video nicht mehr, nimmt TubeVault den Dateinamen."
-                    checked={fetchMetadata}
-                    onChange={setFetchMetadata}
-                  />
-                </Row>
+                {youtube && selected.some((c) => c.kind === "youtube") && (
+                  <Row>
+                    <Switch
+                      label="Fehlende Infos von YouTube laden"
+                      description="Für Dateien ohne .info.json. Gibt es das Video nicht mehr, nimmt TubeVault den Dateinamen."
+                      checked={fetchMetadata}
+                      onChange={setFetchMetadata}
+                    />
+                  </Row>
+                )}
               </Group>
             )}
 
@@ -183,7 +200,7 @@ export function ImportPage() {
                       {
                         keys: selected.map((c) => c.key),
                         mode: effectiveMode,
-                        fetch_metadata: fetchMetadata,
+                        fetch_metadata: youtube && fetchMetadata,
                       },
                       { onError: fail },
                     )
@@ -197,15 +214,54 @@ export function ImportPage() {
             )}
 
             <Collapsible title={`Schon in der Bibliothek (${known.length})`} items={known} />
-            <Collapsible
-              title={`Ohne YouTube-ID (${unknown.length})`}
-              items={unknown}
-              hint="Diese Dateien kann TubeVault keinem YouTube-Video zuordnen. Benenne sie mit der ID, z. B. „Titel [dQw4w9WgXcQ].mp4“, und durchsuche den Ordner erneut."
-            />
           </>
         )}
       </div>
     </>
+  );
+}
+
+function CandidateGroup({
+  title,
+  footer,
+  items,
+  isSelected,
+  onToggle,
+  onAll,
+}: {
+  title: string;
+  footer?: string;
+  items: ImportCandidate[];
+  isSelected: (c: ImportCandidate) => boolean;
+  onToggle: (key: string) => void;
+  onAll: (on: boolean) => void;
+}) {
+  if (items.length === 0) return null;
+  const count = items.filter(isSelected).length;
+  const all = count === items.length;
+  return (
+    <Group title={`${title} (${items.length})`} footer={footer}>
+      <Row className="flex items-center justify-between gap-4 text-[14px]">
+        <span className="text-secondary">
+          {count} von {items.length} ausgewählt
+        </span>
+        <button
+          type="button"
+          className="font-medium text-accent hover:underline"
+          onClick={() => onAll(!all)}
+        >
+          {all ? "Keine" : "Alle"}
+        </button>
+      </Row>
+      {items.map((candidate) => (
+        <CandidateRow
+          key={candidate.key}
+          candidate={candidate}
+          checked={isSelected(candidate)}
+          onToggle={() => onToggle(candidate.key)}
+        />
+      ))}
+    </Group>
   );
 }
 

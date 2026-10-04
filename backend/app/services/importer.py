@@ -1,8 +1,9 @@
-"""Importing video files that are already on disk, e.g. an older yt-dlp archive.
+"""Importing video files that are already on disk: an older yt-dlp archive or own videos.
 
 Files come from the optional import folder (``/import``) or from anywhere below the media
 folder that TubeVault doesn't know yet. The YouTube ID is taken from a yt-dlp
-``.info.json`` next to the file or from the file name.
+``.info.json`` next to the file or from the file name. Files without one are own videos
+(camera, phone, …): their folder becomes the channel (see app/services/own_videos.py).
 """
 
 from __future__ import annotations
@@ -25,7 +26,7 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import LiveContentError
 from app.models import Subtitle, Video, VideoStatus
-from app.services import nfo
+from app.services import nfo, own_videos
 from app.services.downloader import Downloader, VideoMetadata, metadata_from_info
 from app.services.languages import subtitle_label
 from app.services.library import relative_to_media, video_base_path
@@ -36,7 +37,9 @@ log = logging.getLogger(__name__)
 
 Root = Literal["import", "media"]
 Mode = Literal["move", "copy", "keep"]
-Status = Literal["ready", "known", "unknown"]
+Status = Literal["ready", "known"]
+Kind = Literal["youtube", "own"]
+Source = Literal["info.json", "Dateiname", "Eigenes Video"]
 
 VIDEO_EXTENSIONS = {".mp4", ".mkv", ".webm", ".m4v", ".mov"}
 THUMB_EXTENSIONS = (".jpg", ".jpeg", ".webp", ".png")
@@ -60,10 +63,12 @@ class Candidate:
     root: Root
     relative: str
     size: int
-    youtube_id: str | None
-    source: Literal["info.json", "Dateiname"] | None
+    # For own videos: their fingerprint, "local-…".
+    youtube_id: str
+    source: Source
     title: str
     status: Status
+    kind: Kind = "youtube"
 
 
 @dataclass
@@ -129,10 +134,17 @@ def scan(
                     size = path.stat().st_size
                 except OSError:
                     continue
-                youtube_id, source, title = detect(path)
-                status: Status = (
-                    "unknown" if not youtube_id else "known" if youtube_id in known_ids else "ready"
-                )
+                youtube_id, found_in, title = detect(path)
+                kind: Kind = "youtube"
+                source: Source
+                if youtube_id is None or found_in is None:
+                    try:
+                        youtube_id = own_videos.fingerprint(path)
+                    except OSError:
+                        continue
+                    kind, source = "own", "Eigenes Video"
+                else:
+                    source = found_in
                 candidates.append(
                     Candidate(
                         key=f"{label}:{relative}",
@@ -142,7 +154,8 @@ def scan(
                         youtube_id=youtube_id,
                         source=source,
                         title=title,
-                        status=status,
+                        status="known" if youtube_id in known_ids else "ready",
+                        kind=kind,
                     )
                 )
     return candidates
@@ -227,8 +240,21 @@ class Importer:
         wanted = set(keys)
         return [c for c in scan_result.candidates if c.key in wanted]
 
+    def _own_metadata(self, candidate: Candidate, source: Path) -> VideoMetadata:
+        """What the file itself tells: title, description and when it was recorded."""
+        info = own_videos.embedded_info(source)
+        channel_id, channel_name = own_videos.folder_channel(candidate.relative)
+        return VideoMetadata(
+            youtube_id=candidate.youtube_id,
+            title=info.title or candidate.title,
+            webpage_url="",
+            description=info.description,
+            channel_id=channel_id,
+            channel_name=channel_name,
+            upload_date=info.recorded or own_videos.file_date(source),
+        )
+
     def _metadata(self, candidate: Candidate, source: Path, fetch: bool) -> VideoMetadata:
-        assert candidate.youtube_id is not None
         url = f"https://www.youtube.com/watch?v={candidate.youtube_id}"
         info = read_info_json(source)
         if info:
@@ -258,8 +284,6 @@ class Importer:
         write_nfo: bool,
         user_id: int | None,
     ) -> Video:
-        if candidate.youtube_id is None:
-            raise ImportSkippedError("Keine YouTube-ID gefunden")
         if mode == "keep" and candidate.root != "media":
             raise ImportSkippedError("Nur Dateien unter /media können liegen bleiben")
         source = self.root_path(candidate.root) / candidate.relative
@@ -273,7 +297,11 @@ class Importer:
         ):
             raise ImportSkippedError("Schon in der Bibliothek")
 
-        meta = self._metadata(candidate, source, fetch_metadata)
+        meta = (
+            self._own_metadata(candidate, source)
+            if candidate.kind == "own"
+            else self._metadata(candidate, source, fetch_metadata)
+        )
         video = upsert_video(db, meta, user_id)
         video.manual = True
         folder = video.channel.folder_name if video.channel else "Unknown"

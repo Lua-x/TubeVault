@@ -301,7 +301,7 @@ function VideoView({ video, playlistId, autoplay }: VideoViewProps) {
             {video.description && (
               <Description text={video.description} duration={video.duration_s} onSeek={seek} />
             )}
-            <Comments video={video} onSeek={seek} />
+            {!video.is_local && <Comments video={video} onSeek={seek} />}
           </div>
 
           <aside className="flex min-w-0 flex-col gap-8">
@@ -528,7 +528,7 @@ function VideoActions({ video, onWatchedChange }: VideoActionsProps) {
           Auf YouTube
         </a>
       )}
-      {user?.is_admin && (
+      {user?.is_admin && user.can_add && !video.is_local && (
         <button type="button" onClick={() => setRedownloading(true)} className={actionClass}>
           <RefreshCw className="size-4" strokeWidth={2} />
           Neu laden
@@ -648,7 +648,7 @@ function FileInfo({ video, skipped }: { video: VideoDetail; skipped: number }) {
     ["Größe", formatBytes(video.filesize)],
     ["Untertitel", video.subtitles.map((s) => s.label).join(", ")],
     ["SponsorBlock", sponsorblock],
-    ["Heruntergeladen", formatDate(video.downloaded_at)],
+    [video.is_local ? "Importiert" : "Heruntergeladen", formatDate(video.downloaded_at)],
   ];
   const visible = rows.filter(([, value]) => value);
   if (visible.length === 0) return null;

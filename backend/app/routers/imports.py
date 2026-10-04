@@ -22,10 +22,13 @@ class CandidateOut(BaseModel):
     root: Literal["import", "media"]
     relative: str
     size: int
-    youtube_id: str | None
-    source: str | None
+    # Own videos: "local-…", a fingerprint of the file.
+    youtube_id: str
+    source: str
     title: str
-    status: Literal["ready", "known", "unknown"]
+    status: Literal["ready", "known"]
+    # "own": camera, phone … – no YouTube ID, the folder becomes the channel.
+    kind: Literal["youtube", "own"]
 
 
 class ImportOverview(BaseModel):
@@ -92,14 +95,17 @@ def start_import(body: ImportRequest, user: AdminUser, ctx: Context) -> dict[str
         imported, skipped, failed = 0, 0, 0
         progress.total(len(candidates))
         with ctx.sessions() as db:
-            library = load_app_settings(db).library
+            app_settings = load_app_settings(db)
+            library = app_settings.library
+            # Media-server mode: what YouTube knows is not asked for.
+            fetch = body.fetch_metadata and app_settings.youtube_enabled
             for candidate in candidates:
                 try:
                     video = ctx.importer.import_one(
                         db,
                         candidate,
                         mode=body.mode,
-                        fetch_metadata=body.fetch_metadata,
+                        fetch_metadata=fetch,
                         layout=library.layout,
                         write_nfo=library.write_nfo,
                         user_id=user_id,

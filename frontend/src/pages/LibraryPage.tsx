@@ -1,6 +1,6 @@
 import { Clapperboard, Plus, Search } from "lucide-react";
 import { useCallback, useDeferredValue, useState } from "react";
-import { useSearchParams } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 
 import { useVideoPages, type VideoSort, type WatchedFilter } from "@/api/queries";
 import { useOpenAddVideo } from "@/components/layout/addVideo";
@@ -12,8 +12,9 @@ import { LoadMore } from "@/components/ui/LoadMore";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Select } from "@/components/ui/Select";
 import { VideoGrid, VideoGridSkeleton } from "@/components/video/VideoGrid";
-import { useCanAdd } from "@/hooks/auth";
+import { useAuth, useCanAdd, useYoutube } from "@/hooks/auth";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { IMPORT_HINT } from "@/lib/mediaServer";
 
 const SORTS: { value: VideoSort; label: string }[] = [
   { value: "added", label: "Zuletzt hinzugefügt" },
@@ -54,6 +55,9 @@ export function LibraryPage() {
   const loadMore = useCallback(() => void fetchNextPage(), [fetchNextPage]);
   const openAdd = useOpenAddVideo();
   const canAdd = useCanAdd();
+  const { user } = useAuth();
+  const importHint = !useYoutube() && Boolean(user?.is_admin);
+  const navigate = useNavigate();
 
   const setParam = (key: string, value: string, fallback: string) => {
     const next = new URLSearchParams(params);
@@ -129,16 +133,22 @@ export function LibraryPage() {
             icon={<Clapperboard className="size-7" strokeWidth={1.5} />}
             title="Deine Bibliothek ist leer"
             action={
-              canAdd && (
-                <Button icon={<Plus className="size-4" strokeWidth={2.25} />} onClick={openAdd}>
-                  Video hinzufügen
-                </Button>
+              importHint ? (
+                <Button onClick={() => navigate("/admin/import")}>Videos importieren</Button>
+              ) : (
+                canAdd && (
+                  <Button icon={<Plus className="size-4" strokeWidth={2.25} />} onClick={openAdd}>
+                    Video hinzufügen
+                  </Button>
+                )
               )
             }
           >
             {canAdd
               ? "Füge ein YouTube-Video per Link hinzu oder abonniere einen Kanal."
-              : "Für dein Konto sind noch keine Videos freigegeben."}
+              : importHint
+                ? IMPORT_HINT
+                : "Für dein Konto sind noch keine Videos freigegeben."}
           </EmptyState>
         )
       ) : (

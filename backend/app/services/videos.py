@@ -63,7 +63,7 @@ def upsert_video(db: Session, meta: VideoMetadata, added_by_id: int | None) -> V
     video.is_short = meta.is_short
     video.was_live = meta.was_live
     video.chapters = meta.chapters
-    video.source_url = meta.webpage_url
+    video.source_url = meta.webpage_url or None
     db.flush()
     return video
 

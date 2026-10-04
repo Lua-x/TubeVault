@@ -85,7 +85,7 @@ export function ChannelPage() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            {!canAdd ? null : channel.subscription_id ? (
+            {!canAdd || channel.is_local ? null : channel.subscription_id ? (
               <Link
                 to={`/subscriptions/${channel.subscription_id}`}
                 className="inline-flex h-9 items-center gap-2 rounded-full bg-surface px-4 text-[14px] font-medium transition-colors hover:bg-surface-hover"

@@ -115,6 +115,8 @@ class AuthStatus(BaseModel):
     # Login through an OpenID Connect provider: the name for the button, if set up.
     oidc_name: str | None = None
     password_login: bool = True
+    # False: a pure media server – nothing to add, subscribe or download.
+    youtube: bool = True
 
 
 class TokenCreate(BaseModel):

@@ -11,9 +11,10 @@ import { PageSpinner } from "@/components/ui/Spinner";
 import { Hero } from "@/components/video/Hero";
 import { Row, RowItem } from "@/components/video/Row";
 import { VideoCard } from "@/components/video/VideoCard";
-import { useCanAdd } from "@/hooks/auth";
+import { useAuth, useCanAdd, useYoutube } from "@/hooks/auth";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import type { VideoSummary } from "@/lib/types";
+import { IMPORT_HINT } from "@/lib/mediaServer";
 
 function VideoRow({ title, videos, to }: { title: string; videos: VideoSummary[]; to?: string }) {
   if (videos.length === 0) return null;
@@ -33,6 +34,8 @@ export function HomePage() {
   const { data, isLoading } = useHome();
   const openAdd = useOpenAddVideo();
   const canAdd = useCanAdd();
+  const { user } = useAuth();
+  const importHint = !useYoutube() && Boolean(user?.is_admin);
   const navigate = useNavigate();
 
   if (isLoading || !data) return <PageSpinner />;
@@ -48,25 +51,31 @@ export function HomePage() {
           icon={<Clapperboard className="size-7" strokeWidth={1.5} />}
           title="Willkommen bei TubeVault"
           action={
-            canAdd && (
-              <div className="flex flex-wrap justify-center gap-3">
-                <Button icon={<Plus className="size-4" strokeWidth={2.25} />} onClick={openAdd}>
-                  Video hinzufügen
-                </Button>
-                <Button
-                  variant="secondary"
-                  icon={<Tv className="size-4" strokeWidth={2} />}
-                  onClick={() => navigate("/subscriptions")}
-                >
-                  Kanal abonnieren
-                </Button>
-              </div>
+            importHint ? (
+              <Button onClick={() => navigate("/admin/import")}>Videos importieren</Button>
+            ) : (
+              canAdd && (
+                <div className="flex flex-wrap justify-center gap-3">
+                  <Button icon={<Plus className="size-4" strokeWidth={2.25} />} onClick={openAdd}>
+                    Video hinzufügen
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    icon={<Tv className="size-4" strokeWidth={2} />}
+                    onClick={() => navigate("/subscriptions")}
+                  >
+                    Kanal abonnieren
+                  </Button>
+                </div>
+              )
             )
           }
         >
           {canAdd
             ? "Füge ein einzelnes Video hinzu oder abonniere einen Kanal – neue Videos erscheinen dann automatisch hier."
-            : "Hier erscheinen die Videos, die für dich freigegeben sind."}
+            : importHint
+              ? IMPORT_HINT
+              : "Hier erscheinen die Videos, die für dich freigegeben sind."}
         </EmptyState>
       ) : (
         <>

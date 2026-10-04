@@ -7,6 +7,7 @@ from sqlalchemy import String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base, utcnow
+from app.models.video import LOCAL_PREFIX
 
 if TYPE_CHECKING:
     from app.models.video import Video
@@ -34,6 +35,11 @@ class Channel(Base):
     @property
     def has_avatar(self) -> bool:
         return bool(self.avatar_path)
+
+    @property
+    def is_local(self) -> bool:
+        """A folder of own videos rather than a YouTube channel."""
+        return self.youtube_id.startswith(LOCAL_PREFIX)
 
     @property
     def has_banner(self) -> bool:

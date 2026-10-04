@@ -37,6 +37,11 @@ def _serialize(root: ET.Element) -> str:
     return f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n{body}\n'
 
 
+def _id_type(item: Video | Channel) -> str:
+    """Own videos have no YouTube ID – Jellyfin must not look them up there."""
+    return "tubevault" if item.is_local else "youtube"
+
+
 def _common(root: ET.Element, video: Video) -> None:
     _element(root, "title", video.title)
     _element(root, "plot", video.description)
@@ -44,7 +49,7 @@ def _common(root: ET.Element, video: Video) -> None:
         _element(root, "runtime", max(1, round(video.duration_s / 60)))
     if video.channel:
         _element(root, "studio", video.channel.name)
-    _element(root, "uniqueid", video.youtube_id, type="youtube", default="true")
+    _element(root, "uniqueid", video.youtube_id, type=_id_type(video), default="true")
     added = video.downloaded_at or video.added_at
     if added:
         _element(root, "dateadded", added.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S"))
@@ -79,8 +84,8 @@ def tvshow_nfo(channel: Channel) -> str:
     root = ET.Element("tvshow")
     _element(root, "title", channel.name)
     _element(root, "plot", channel.description)
-    _element(root, "studio", "YouTube")
-    _element(root, "uniqueid", channel.youtube_id, type="youtube", default="true")
+    _element(root, "studio", "TubeVault" if channel.is_local else "YouTube")
+    _element(root, "uniqueid", channel.youtube_id, type=_id_type(channel), default="true")
     return _serialize(root)
 
 

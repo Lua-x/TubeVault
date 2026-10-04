@@ -16,6 +16,11 @@ if TYPE_CHECKING:
     from app.models.user import User
 
 
+# IDs of own videos and their folder "channels" (camera, phone, …). A YouTube ID has
+# exactly 11 characters, a channel ID starts with "UC" – the two never collide.
+LOCAL_PREFIX = "local-"
+
+
 class VideoStatus(enum.StrEnum):
     PENDING = "pending"
     DOWNLOADING = "downloading"
@@ -94,6 +99,11 @@ class Video(Base):
     @property
     def has_thumbnail(self) -> bool:
         return bool(self.thumbnail_path)
+
+    @property
+    def is_local(self) -> bool:
+        """An own video, not from YouTube: no comments, SponsorBlock or re-downloads."""
+        return self.youtube_id.startswith(LOCAL_PREFIX)
 
     @property
     def container(self) -> str | None:

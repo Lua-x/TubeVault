@@ -32,7 +32,7 @@ from app.schemas.videos import (
     WatchState,
 )
 from app.services import sponsorblock
-from app.services.access import ensure_visible, require_can_add, visible_videos
+from app.services.access import ensure_visible, require_can_add, require_youtube, visible_videos
 from app.services.app_settings import load_app_settings
 from app.services.presenters import video_detail, video_summaries
 from app.services.progress import MIN_RESUME_S, save_progress, set_watched
@@ -195,9 +195,12 @@ def sponsor_segments(video_id: int, user: CurrentUser, db: DbSession, ctx: Conte
     video page never waits for the internet.
     """
     video = _get_video(db, video_id, user)
-    options = load_app_settings(db).downloads
+    app_settings = load_app_settings(db)
+    options = app_settings.downloads
     if (
-        options.sponsorblock_mode == "skip"
+        app_settings.youtube_enabled
+        and not video.is_local
+        and options.sponsorblock_mode == "skip"
         and options.sponsorblock_categories
         and sponsorblock.is_stale(video)
         and not sponsorblock.recently_failed(video.youtube_id)
@@ -251,6 +254,7 @@ def update_watched(
 @router.post("", status_code=status.HTTP_202_ACCEPTED)
 def add_video(body: AddVideoRequest, user: CurrentUser, db: DbSession, ctx: Context) -> JobOut:
     require_can_add(user)
+    require_youtube(db)
     try:
         url, youtube_id = parse_video_url(body.url)
     except InvalidVideoUrlError as exc:
@@ -296,7 +300,10 @@ def add_video(body: AddVideoRequest, user: CurrentUser, db: DbSession, ctx: Cont
 @router.post("/{video_id}/redownload", status_code=status.HTTP_202_ACCEPTED)
 def redownload(video_id: int, user: AdminUser, db: DbSession, ctx: Context) -> JobOut:
     """Download again with the current settings and replace the file, e.g. in better quality."""
+    require_youtube(db)
     video = _get_video(db, video_id, user)
+    if video.is_local:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Eigene Videos gibt es nicht auf YouTube.")
     if video.status is not VideoStatus.READY or not video_file_exists(
         ctx.settings.media_dir, video
     ):

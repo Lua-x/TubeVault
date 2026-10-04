@@ -33,6 +33,7 @@ from app.models import (
 from app.routers.oidc import redirect_uri as oidc_redirect_uri
 from app.routers.system import ffmpeg_version
 from app.services import backups, notifications
+from app.services.access import require_youtube
 from app.services.app_settings import load_app_settings
 from app.services.catalog import channel_url
 from app.services.search import is_sqlite, rebuild
@@ -279,7 +280,8 @@ class YtDlpUpdate(BaseModel):
 
 
 @router.post("/ytdlp/update")
-def ytdlp_update(_: AdminUser, ctx: Context) -> YtDlpUpdate:
+def ytdlp_update(_: AdminUser, db: DbSession, ctx: Context) -> YtDlpUpdate:
+    require_youtube(db)
     result = update_ytdlp(ctx.settings.runtime_dir)
     loaded = current_ytdlp_version()
     installed = _installed_ytdlp(ctx)
@@ -319,7 +321,9 @@ LABELS: dict[str, str] = {
 
 
 @router.post("/maintenance/{action}")
-def maintenance(action: Action, _: AdminUser, ctx: Context) -> dict[str, Any]:
+def maintenance(action: Action, _: AdminUser, db: DbSession, ctx: Context) -> dict[str, Any]:
+    if action == "artwork":
+        require_youtube(db)
     if action == "verify":
         try:
             return ctx.library_tasks.verify_files().as_dict()

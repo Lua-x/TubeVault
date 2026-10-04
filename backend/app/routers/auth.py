@@ -41,6 +41,7 @@ from app.schemas.auth import (
 )
 from app.services import auth as auth_service
 from app.services import two_factor
+from app.services.app_settings import youtube_enabled
 from app.services.tokens import create_token
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -60,6 +61,7 @@ def auth_status(request: Request, db: DbSession, settings: AppConfig) -> AuthSta
         user=UserOut.model_validate(user) if user else None,
         oidc_name=settings.oidc_name if settings.oidc_enabled else None,
         password_login=password_login_allowed(settings),
+        youtube=youtube_enabled(db),
     )
 
 

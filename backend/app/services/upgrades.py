@@ -19,6 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.models import ACTIVE_JOB_STATUSES, DownloadJob, SubscriptionItem, Video, VideoStatus
+from app.models.video import LOCAL_PREFIX
 from app.services.app_settings import DownloadOptions, load_app_settings
 from app.services.connectivity import Connectivity
 from app.services.downloader import Downloader
@@ -115,6 +116,7 @@ class QualityUpgrades:
             recent = db.scalars(
                 select(Video).where(
                     Video.status == VideoStatus.READY,
+                    Video.youtube_id.not_like(f"{LOCAL_PREFIX}%"),  # own videos: not on YouTube
                     Video.height.is_not(None),
                     Video.downloaded_at >= (now - WINDOW).replace(tzinfo=None),
                     Video.downloaded_at <= (now - MIN_AGE).replace(tzinfo=None),

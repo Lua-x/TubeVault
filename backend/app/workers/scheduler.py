@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.config import Settings
 from app.core.events import EventBus
 from app.models import Subscription
-from app.services.app_settings import load_app_settings
+from app.services.app_settings import load_app_settings, youtube_enabled
 from app.services.backups import BackupError, auto_backup_if_due
 from app.services.catalog import Catalog
 from app.services.connectivity import Connectivity
@@ -103,12 +103,17 @@ class SubscriptionScheduler:
         self._last_cleanup = None
         self._wake.set()
 
+    def _youtube_enabled(self) -> bool:
+        with self._sessions() as db:
+            return youtube_enabled(db)
+
     def _loop(self) -> None:
         while not self._stop.is_set():
             try:
-                self._run_due()
-                if self._rss and self._rss.run_round():
-                    self._run_due()  # new uploads: check those subscriptions right away
+                if self._youtube_enabled():
+                    self._run_due()
+                    if self._rss and self._rss.run_round():
+                        self._run_due()  # new uploads: check those subscriptions right away
                 self._maybe_cleanup()
             except Exception:
                 log.exception("Fehler im Abo-Scheduler")
@@ -152,6 +157,12 @@ class SubscriptionScheduler:
     def cleanup(self) -> list[int]:
         """Hourly maintenance: retention rules, then missing channel artwork."""
         self._last_cleanup = utcnow()
+        if not self._youtube_enabled():
+            # Media-server mode: nothing to fetch, and no retention rules – without new
+            # downloads they would only empty the library bit by bit.
+            self._auto_backup()
+            self._check_disk()
+            return []
         with self._sessions() as db:
             deleted = run_cleanup(db, self._settings.media_dir)
         for video_id in deleted:

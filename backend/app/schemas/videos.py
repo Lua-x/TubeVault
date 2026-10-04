@@ -18,6 +18,8 @@ class ChannelOut(ApiModel):
     has_avatar: bool
     has_banner: bool
     updated_at: datetime
+    # A folder of own videos, not a YouTube channel.
+    is_local: bool = False
 
 
 class SubtitleOut(ApiModel):
@@ -59,6 +61,8 @@ class VideoSummary(ApiModel):
     has_thumbnail: bool
     added_at: datetime
     updated_at: datetime
+    # An own video (camera, phone …): nothing of it is on YouTube.
+    is_local: bool = False
     # Filled per user by the routers.
     progress: WatchState | None = None
 

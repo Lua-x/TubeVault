@@ -34,6 +34,7 @@ import { Group, Row } from "@/components/ui/Group";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { PageSpinner } from "@/components/ui/Spinner";
+import { useYoutube } from "@/hooks/auth";
 import { useToast } from "@/hooks/toast";
 import { useAwaitRestart } from "@/hooks/useAwaitRestart";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
@@ -57,6 +58,7 @@ const compact = new Intl.NumberFormat("de-DE", { notation: "compact", maximumFra
 export function AdminPage() {
   useDocumentTitle("Verwaltung");
   const { data } = useAdminOverview();
+  const youtube = useYoutube();
   if (!data) return <PageSpinner />;
   return (
     <>
@@ -76,7 +78,7 @@ export function AdminPage() {
         </div>
         <div className="grid items-start gap-9 lg:grid-cols-2">
           <div className="flex flex-col gap-9">
-            <YtDlpGroup />
+            {youtube && <YtDlpGroup />}
             <SystemGroup data={data} />
             <OidcInfoGroup />
           </div>
@@ -310,6 +312,9 @@ function MaintenanceGroup() {
   const { data: task } = useLibraryTask(true);
   const toast = useToast();
   const busy = task?.state === "running";
+  const youtube = useYoutube();
+  // Channel artwork comes from YouTube.
+  const actions = youtube ? ACTIONS : ACTIONS.filter((a) => a.action !== "artwork");
   return (
     <div className="flex flex-col gap-3">
       <Group title="Wartung">
@@ -326,7 +331,7 @@ function MaintenanceGroup() {
           </span>
           <ChevronRight className="size-4 text-tertiary" strokeWidth={2} />
         </Link>
-        {ACTIONS.map(({ action, label, hint, icon: Icon }) => (
+        {actions.map(({ action, label, hint, icon: Icon }) => (
           <Row key={action} className="flex items-center gap-3">
             <Icon className="size-5 shrink-0 text-secondary" strokeWidth={1.75} />
             <span className="min-w-0 flex-1">

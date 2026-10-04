@@ -37,6 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       client.setQueryData<AuthStatus>(STATUS_KEY, (old) => ({
         oidc_name: old?.oidc_name ?? null,
         password_login: old?.password_login ?? true,
+        youtube: old?.youtube ?? true,
         setup_required: user ? false : (old?.setup_required ?? false),
         user,
       }));
@@ -51,12 +52,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => setUnauthorizedHandler(null);
   }, [setUser]);
 
+  const signedIn = query.data?.user ?? null;
+  // Media-server mode: nobody adds, subscribes or downloads – every "add" place hides.
+  const user = useMemo(
+    () => (signedIn && query.data?.youtube === false ? { ...signedIn, can_add: false } : signedIn),
+    [signedIn, query.data?.youtube],
+  );
+
   const value = useMemo<AuthContextValue>(
     () => ({
       status: query.data,
       isLoading: query.isLoading,
       error: query.error,
-      user: query.data?.user ?? null,
+      user,
       login: async (username, password) => {
         const result = await request<User | TwoFactorChallenge>(
           "POST",
@@ -99,7 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       },
     }),
-    [query, client, setUser],
+    [query, client, setUser, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -114,6 +122,11 @@ export function useAuth(): AuthContextValue {
 /** May add videos, subscribe and manage downloads (not view-only accounts). */
 export function useCanAdd(): boolean {
   return useAuth().user?.can_add ?? false;
+}
+
+/** False when TubeVault runs as a pure media server (YouTube downloader off). */
+export function useYoutube(): boolean {
+  return useAuth().status?.youtube ?? true;
 }
 
 export function useCurrentUser(): User {

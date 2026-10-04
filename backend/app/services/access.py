@@ -11,10 +11,13 @@ from typing import Any
 
 from fastapi import HTTPException, status
 from sqlalchemy import ColumnElement, Select, select
+from sqlalchemy.orm import Session
 
 from app.models import User, Video, user_channels
+from app.services.app_settings import youtube_enabled
 
 NOT_FOUND = "Video nicht gefunden"
+YOUTUBE_OFF = "Der YouTube-Downloader ist ausgeschaltet – TubeVault läuft als reiner Media-Server."
 
 
 def allowed_channels(user: User) -> Select[tuple[int]]:
@@ -61,3 +64,9 @@ def require_can_add(user: User) -> None:
         raise HTTPException(
             status.HTTP_403_FORBIDDEN, "Dein Konto darf keine Videos hinzufügen oder abonnieren."
         )
+
+
+def require_youtube(db: Session) -> None:
+    """Everything that would fetch from YouTube – refused in media-server mode."""
+    if not youtube_enabled(db):
+        raise HTTPException(status.HTTP_409_CONFLICT, YOUTUBE_OFF)

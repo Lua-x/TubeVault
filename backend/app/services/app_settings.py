@@ -115,6 +115,9 @@ class DlnaOptions(BaseModel):
 
 
 class AppSettings(BaseModel):
+    # Off: a pure media server – nothing is fetched from YouTube or SponsorBlock any more,
+    # no subscriptions are checked, no downloads run. The library stays as it is.
+    youtube_enabled: bool = True
     downloads: DownloadOptions = Field(default_factory=DownloadOptions)
     max_concurrent_downloads: int = Field(default=2, ge=1, le=5)
     transcoding: TranscodeOptions = Field(default_factory=TranscodeOptions)
@@ -139,6 +142,10 @@ def set_queue_paused(db: Session, paused: bool) -> None:
     else:
         row.value = paused
     db.commit()
+
+
+def youtube_enabled(db: Session) -> bool:
+    return load_app_settings(db).youtube_enabled
 
 
 def load_app_settings(db: Session) -> AppSettings:

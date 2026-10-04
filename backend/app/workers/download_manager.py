@@ -250,7 +250,10 @@ class DownloadManager:
         with self._session() as db:
             if queue_paused(db):
                 return
-            limit = load_app_settings(db).max_concurrent_downloads
+            app_settings = load_app_settings(db)
+            if not app_settings.youtube_enabled:
+                return  # media-server mode: the queue waits, nothing goes to YouTube
+            limit = app_settings.max_concurrent_downloads
             free = limit - self.active_count
             if free <= 0:
                 return

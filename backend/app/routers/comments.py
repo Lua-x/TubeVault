@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from typing import Literal
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import delete, func, select
 
 from app.core.deps import AdminUser, Context, CurrentUser, DbSession
 from app.models import Comment, User, Video
 from app.schemas.comments import CommentOut, CommentsPage, CommentThread
-from app.services.access import ensure_visible, require_can_add
+from app.services.access import ensure_visible, require_can_add, require_youtube
 from app.services.app_settings import load_app_settings
 
 router = APIRouter(prefix="/videos", tags=["comments"])
@@ -84,7 +84,10 @@ def list_comments(
 def fetch_comments(video_id: int, user: CurrentUser, db: DbSession, ctx: Context) -> CommentsPage:
     """Loads (or refreshes) the comments from YouTube in the background."""
     require_can_add(user)
+    require_youtube(db)
     video = _video(db, video_id, user)
+    if video.is_local:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Eigene Videos haben keine Kommentare.")
     ctx.comments.request(video.id, load_app_settings(db).downloads.max_comments)
     return _page(db, ctx, video, [])
 

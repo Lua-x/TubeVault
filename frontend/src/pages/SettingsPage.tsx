@@ -226,166 +226,192 @@ function DownloadForm({ initial }: { initial: AppSettings }) {
   return (
     <form onSubmit={submit} className="flex flex-col gap-9">
       <Group
-        title="Downloads"
+        title="Betrieb"
         footer={
-          downloads.container === "mkv"
-            ? "MKV spielen Safari und iOS nicht direkt ab. Chrome, Edge und Firefox kommen meist damit klar."
-            : "MP4 mit H.264 läuft in jedem Browser und in Jellyfin/Plex."
+          draft.youtube_enabled
+            ? "TubeVault lädt Videos von YouTube, prüft Abos und holt Kommentare, wenn gewünscht."
+            : "TubeVault ist ein reiner Media-Server: keine Verbindung zu YouTube oder SponsorBlock, keine Abos und Downloads. Eigene Videos kommen über Verwaltung → Import dazu, die Bibliothek bleibt, wie sie ist."
         }
       >
-        <Row className="flex items-center justify-between gap-4">
-          <span className="text-[15px]">Format</span>
-          <SegmentedControl
-            label="Format"
-            value={downloads.container}
-            onChange={(container) => update({ container })}
-            options={[
-              { value: "mp4", label: "MP4" },
-              { value: "mkv", label: "MKV" },
-            ]}
+        <Row>
+          <Switch
+            label="YouTube-Downloader"
+            description="Aus, wenn TubeVault nur deine vorhandenen und eigenen Videos zeigen soll."
+            checked={draft.youtube_enabled}
+            onChange={(youtube_enabled) => setDraft({ ...draft, youtube_enabled })}
           />
         </Row>
-        <Row>
-          <Select
-            inline
-            label="Maximale Qualität"
-            value={downloads.max_height == null ? "" : String(downloads.max_height)}
-            onChange={(e) =>
-              update({ max_height: e.target.value ? (Number(e.target.value) as MaxHeight) : null })
+      </Group>
+
+      {draft.youtube_enabled && (
+        <>
+          <Group
+            title="Downloads"
+            footer={
+              downloads.container === "mkv"
+                ? "MKV spielen Safari und iOS nicht direkt ab. Chrome, Edge und Firefox kommen meist damit klar."
+                : "MP4 mit H.264 läuft in jedem Browser und in Jellyfin/Plex."
             }
           >
-            {HEIGHTS.map((h) => (
-              <option key={h.value} value={h.value}>
-                {h.label}
-              </option>
-            ))}
-          </Select>
-        </Row>
-        <Row>
-          <Switch
-            label="H.264 bevorzugen"
-            description="Beste Kompatibilität. YouTube bietet H.264 nur bis 1080p an."
-            checked={downloads.prefer_h264}
-            onChange={(prefer_h264) => update({ prefer_h264 })}
-          />
-        </Row>
-        <Row>
-          <Select
-            inline
-            label="Gleichzeitige Downloads"
-            value={String(draft.max_concurrent_downloads)}
-            onChange={(e) =>
-              setDraft({ ...draft, max_concurrent_downloads: Number(e.target.value) })
-            }
+            <Row className="flex items-center justify-between gap-4">
+              <span className="text-[15px]">Format</span>
+              <SegmentedControl
+                label="Format"
+                value={downloads.container}
+                onChange={(container) => update({ container })}
+                options={[
+                  { value: "mp4", label: "MP4" },
+                  { value: "mkv", label: "MKV" },
+                ]}
+              />
+            </Row>
+            <Row>
+              <Select
+                inline
+                label="Maximale Qualität"
+                value={downloads.max_height == null ? "" : String(downloads.max_height)}
+                onChange={(e) =>
+                  update({
+                    max_height: e.target.value ? (Number(e.target.value) as MaxHeight) : null,
+                  })
+                }
+              >
+                {HEIGHTS.map((h) => (
+                  <option key={h.value} value={h.value}>
+                    {h.label}
+                  </option>
+                ))}
+              </Select>
+            </Row>
+            <Row>
+              <Switch
+                label="H.264 bevorzugen"
+                description="Beste Kompatibilität. YouTube bietet H.264 nur bis 1080p an."
+                checked={downloads.prefer_h264}
+                onChange={(prefer_h264) => update({ prefer_h264 })}
+              />
+            </Row>
+            <Row>
+              <Select
+                inline
+                label="Gleichzeitige Downloads"
+                value={String(draft.max_concurrent_downloads)}
+                onChange={(e) =>
+                  setDraft({ ...draft, max_concurrent_downloads: Number(e.target.value) })
+                }
+              >
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </Select>
+            </Row>
+          </Group>
+
+          <Group title="Automatik">
+            <Row>
+              <Switch
+                label="Neue Videos schneller finden"
+                description="Schaut alle 15 Minuten in den RSS-Feed jedes Abos – die gründliche Prüfung läuft weiter im eingestellten Intervall."
+                checked={draft.automation.rss}
+                onChange={(rss) => setDraft({ ...draft, automation: { ...draft.automation, rss } })}
+              />
+            </Row>
+            <Row>
+              <Switch
+                label="Bessere Qualität nachladen"
+                description="Kurz nach dem Upload hat YouTube oft nur niedrige Auflösungen. TubeVault schaut in den ersten 7 Tagen nach und ersetzt die Datei, sobald es eine bessere gibt."
+                checked={draft.automation.upgrade_quality}
+                onChange={(upgrade_quality) =>
+                  setDraft({ ...draft, automation: { ...draft.automation, upgrade_quality } })
+                }
+              />
+            </Row>
+          </Group>
+
+          <Group title="Untertitel">
+            <Row>
+              <Switch
+                label="Untertitel laden"
+                checked={downloads.subtitles}
+                onChange={(subtitles) => update({ subtitles })}
+              />
+            </Row>
+            <Row>
+              <Switch
+                label="Automatische Untertitel"
+                description="Von YouTube erzeugt, nur in der Originalsprache des Videos."
+                checked={downloads.auto_subtitles}
+                onChange={(auto_subtitles) => update({ auto_subtitles })}
+              />
+            </Row>
+            <Row>
+              <TextField
+                label="Sprachen"
+                hint="Sprachcodes, durch Komma getrennt, z. B. de, en"
+                value={languages}
+                onChange={(e) => setLanguages(e.target.value)}
+              />
+            </Row>
+          </Group>
+
+          <Group
+            title="Kommentare"
+            footer="Werden nach dem Video in einem eigenen Schritt geladen – klappt das nicht, ist das Video trotzdem da. Pro Abo und beim Hinzufügen lässt es sich abweichend einstellen."
           >
-            {[1, 2, 3, 4, 5].map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </Select>
-        </Row>
-      </Group>
+            <Row>
+              <Switch
+                label="Kommentare speichern"
+                description="Die beliebtesten Kommentare samt Antworten, zum Lesen ohne YouTube."
+                checked={downloads.comments}
+                onChange={(comments) => update({ comments })}
+              />
+            </Row>
+            {downloads.comments && (
+              <Row>
+                <Select
+                  inline
+                  label="Höchstens"
+                  value={String(downloads.max_comments)}
+                  onChange={(e) =>
+                    update({
+                      max_comments: Number(e.target.value) as DownloadOptions["max_comments"],
+                    })
+                  }
+                >
+                  {[100, 500, 1000, 5000].map((n) => (
+                    <option key={n} value={n}>
+                      {n.toLocaleString("de-DE")} Kommentare
+                    </option>
+                  ))}
+                </Select>
+              </Row>
+            )}
+          </Group>
 
-      <Group title="Automatik">
-        <Row>
-          <Switch
-            label="Neue Videos schneller finden"
-            description="Schaut alle 15 Minuten in den RSS-Feed jedes Abos – die gründliche Prüfung läuft weiter im eingestellten Intervall."
-            checked={draft.automation.rss}
-            onChange={(rss) => setDraft({ ...draft, automation: { ...draft.automation, rss } })}
-          />
-        </Row>
-        <Row>
-          <Switch
-            label="Bessere Qualität nachladen"
-            description="Kurz nach dem Upload hat YouTube oft nur niedrige Auflösungen. TubeVault schaut in den ersten 7 Tagen nach und ersetzt die Datei, sobald es eine bessere gibt."
-            checked={draft.automation.upgrade_quality}
-            onChange={(upgrade_quality) =>
-              setDraft({ ...draft, automation: { ...draft.automation, upgrade_quality } })
-            }
-          />
-        </Row>
-      </Group>
-
-      <Group title="Untertitel">
-        <Row>
-          <Switch
-            label="Untertitel laden"
-            checked={downloads.subtitles}
-            onChange={(subtitles) => update({ subtitles })}
-          />
-        </Row>
-        <Row>
-          <Switch
-            label="Automatische Untertitel"
-            description="Von YouTube erzeugt, nur in der Originalsprache des Videos."
-            checked={downloads.auto_subtitles}
-            onChange={(auto_subtitles) => update({ auto_subtitles })}
-          />
-        </Row>
-        <Row>
-          <TextField
-            label="Sprachen"
-            hint="Sprachcodes, durch Komma getrennt, z. B. de, en"
-            value={languages}
-            onChange={(e) => setLanguages(e.target.value)}
-          />
-        </Row>
-      </Group>
-
-      <Group
-        title="Kommentare"
-        footer="Werden nach dem Video in einem eigenen Schritt geladen – klappt das nicht, ist das Video trotzdem da. Pro Abo und beim Hinzufügen lässt es sich abweichend einstellen."
-      >
-        <Row>
-          <Switch
-            label="Kommentare speichern"
-            description="Die beliebtesten Kommentare samt Antworten, zum Lesen ohne YouTube."
-            checked={downloads.comments}
-            onChange={(comments) => update({ comments })}
-          />
-        </Row>
-        {downloads.comments && (
-          <Row>
-            <Select
-              inline
-              label="Höchstens"
-              value={String(downloads.max_comments)}
-              onChange={(e) =>
-                update({ max_comments: Number(e.target.value) as DownloadOptions["max_comments"] })
-              }
-            >
-              {[100, 500, 1000, 5000].map((n) => (
-                <option key={n} value={n}>
-                  {n.toLocaleString("de-DE")} Kommentare
-                </option>
-              ))}
-            </Select>
-          </Row>
-        )}
-      </Group>
-
-      <Group title="SponsorBlock" footer={SPONSORBLOCK_FOOTER[downloads.sponsorblock_mode]}>
-        <Row className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <span className="text-[15px]">Werbung und Füllmaterial</span>
-          <SegmentedControl
-            label="SponsorBlock"
-            value={downloads.sponsorblock_mode}
-            onChange={(sponsorblock_mode) => update({ sponsorblock_mode })}
-            options={SPONSORBLOCK_MODES}
-          />
-        </Row>
-        {downloads.sponsorblock_mode !== "off" && (
-          <Row>
-            <p className="text-[15px]">Kategorien</p>
-            <CategoryPicker
-              value={downloads.sponsorblock_categories}
-              onChange={(sponsorblock_categories) => update({ sponsorblock_categories })}
-            />
-          </Row>
-        )}
-      </Group>
+          <Group title="SponsorBlock" footer={SPONSORBLOCK_FOOTER[downloads.sponsorblock_mode]}>
+            <Row className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <span className="text-[15px]">Werbung und Füllmaterial</span>
+              <SegmentedControl
+                label="SponsorBlock"
+                value={downloads.sponsorblock_mode}
+                onChange={(sponsorblock_mode) => update({ sponsorblock_mode })}
+                options={SPONSORBLOCK_MODES}
+              />
+            </Row>
+            {downloads.sponsorblock_mode !== "off" && (
+              <Row>
+                <p className="text-[15px]">Kategorien</p>
+                <CategoryPicker
+                  value={downloads.sponsorblock_categories}
+                  onChange={(sponsorblock_categories) => update({ sponsorblock_categories })}
+                />
+              </Row>
+            )}
+          </Group>
+        </>
+      )}
 
       <TranscodeGroup
         value={draft.transcoding}

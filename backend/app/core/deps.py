@@ -14,6 +14,7 @@ from app.config import Settings
 from app.core.context import AppContext
 from app.core.security import SESSION_COOKIE, hash_token
 from app.models import User, UserSession
+from app.services.access import require_youtube
 
 # Refresh `last_seen_at` (and slide the expiry) at most this often.
 SESSION_TOUCH_INTERVAL = timedelta(minutes=10)
@@ -100,12 +101,13 @@ def websocket_user(websocket: WebSocket, db: Session, settings: Settings) -> Use
 DbSession = Annotated[Session, Depends(get_db)]
 
 
-def require_can_add(user: Annotated[User, Depends(get_current_user)]) -> User:
+def require_can_add(user: Annotated[User, Depends(get_current_user)], db: DbSession) -> User:
     """Adding videos, subscriptions and the download queue (not for view-only accounts)."""
     if not user.can_add:
         raise HTTPException(
             status.HTTP_403_FORBIDDEN, "Dein Konto darf keine Videos hinzufügen oder abonnieren."
         )
+    require_youtube(db)
     return user
 
 

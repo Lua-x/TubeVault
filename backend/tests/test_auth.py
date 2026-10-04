@@ -14,6 +14,7 @@ def test_setup_flow(client: TestClient) -> None:
         "user": None,
         "oidc_name": None,
         "password_login": True,
+        "youtube": True,
     }
 
     response = client.post("/api/auth/setup", json={"username": "Admin", "password": "geheim123"})

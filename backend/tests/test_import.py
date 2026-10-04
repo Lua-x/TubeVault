@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.services.importer import id_from_name, title_from_name
+from app.services.own_videos import folder_channel, parse_tags
 from tests.conftest import FakeDownloader
 
 needs_ffmpeg = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg not installed")
@@ -92,7 +94,10 @@ def test_import_from_folder_and_media(
     assert by_key["import:Kanal/Alt-infojson001.mkv"]["source"] == "info.json"
     assert by_key["import:Kanal/Alt-infojson001.mkv"]["title"] == "Aus dem Archiv"
     assert by_key["import:Mein Video [namedvid001].mp4"]["status"] == "ready"
-    assert by_key["import:Urlaub 2019.mp4"]["status"] == "unknown"
+    own = by_key["import:Urlaub 2019.mp4"]
+    assert own["status"] == "ready" and own["kind"] == "own" and own["source"] == "Eigenes Video"
+    assert own["youtube_id"].startswith("local-")
+    assert by_key["import:Mein Video [namedvid001].mp4"]["kind"] == "youtube"
     assert by_key["media:Altes Archiv/Lose Datei [loosefile01].mp4"]["root"] == "media"
 
     # Keeping files in place only works below /media.
@@ -152,3 +157,96 @@ def test_import_without_youtube(
     assert video["title"] == "Vortrag offline"
     assert video["channel"]["name"] == "Unbekannter Kanal"
     assert downloader.downloads == 0
+
+
+def _own_video(path: Path, **tags: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    metadata = [arg for key, value in tags.items() for arg in ("-metadata", f"{key}={value}")]
+    subprocess.run(  # noqa: S603
+        [  # noqa: S607
+            "ffmpeg", "-loglevel", "error", "-y",
+            "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=10:duration=3",
+            "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+            *metadata, str(path),
+        ],
+        check=True,
+    )  # fmt: skip
+
+
+@needs_ffmpeg
+def test_own_videos(admin: TestClient, tmp_path: Path, downloader: FakeDownloader) -> None:
+    """Camera and phone videos: no YouTube ID, the folder is the channel."""
+    ctx = _ctx(admin)
+    import_dir = tmp_path / "import"
+    ctx.importer.import_dir = import_dir
+    media = Path(ctx.settings.media_dir)
+    beach = import_dir / "Urlaub 2024" / "Strand am Morgen.mp4"
+    _own_video(beach, title="Sonnenaufgang", creation_time="2024-07-14T06:30:00Z")
+    clip = import_dir / "IMG_0042.mp4"
+    _own_video(clip)
+
+    _run(admin, "scan")
+    found = {c["key"]: c for c in admin.get("/api/import").json()["candidates"]}
+    assert {c["kind"] for c in found.values()} == {"own"}
+    assert all(c["status"] == "ready" for c in found.values())
+
+    task = _run(admin, "run", keys=list(found), mode="copy", fetch_metadata=True)
+    assert task["message"] == "2 importiert"
+    assert downloader.downloads == 0
+
+    videos = {v["title"]: v for v in admin.get("/api/videos").json()["items"]}
+    assert set(videos) == {"Sonnenaufgang", "IMG 0042"}
+    sunrise = admin.get(f"/api/videos/{videos['Sonnenaufgang']['id']}").json()
+    assert sunrise["is_local"] is True and sunrise["source_url"] is None
+    assert sunrise["upload_date"] == "2024-07-14" and sunrise["has_thumbnail"] is True
+    assert sunrise["channel"]["name"] == "Urlaub 2024" and sunrise["channel"]["is_local"] is True
+    assert videos["IMG 0042"]["channel"]["name"] == "Eigene Videos"
+    assert admin.get(f"/api/videos/{sunrise['id']}/stream").status_code == 200
+    target = media / "Urlaub 2024" / "2024" / f"Sonnenaufgang [{sunrise['youtube_id']}].mp4"
+    assert target.is_file()
+    assert 'type="tubevault"' in target.with_suffix(".nfo").read_text(encoding="utf-8")
+
+    # Copies are recognised by their content, YouTube features stay away.
+    _run(admin, "scan")
+    rescanned = {c["key"]: c for c in admin.get("/api/import").json()["candidates"]}
+    assert all(c["status"] == "known" for c in rescanned.values())
+    assert admin.post(f"/api/videos/{sunrise['id']}/comments").status_code == 409
+    assert admin.post(f"/api/videos/{sunrise['id']}/redownload").status_code == 409
+    assert admin.get(f"/api/videos/{sunrise['id']}/segments").json()["segments"] == []
+
+    # A kids profile gets the holiday folder like any channel.
+    channel_id = sunrise["channel"]["id"]
+    created = admin.post(
+        "/api/users",
+        json={
+            "username": "kind",
+            "password": "passwort1",
+            "channel_access": "selected",
+            "channel_ids": [channel_id],
+        },
+    )
+    assert created.status_code == 201, created.text
+
+
+@needs_ffmpeg
+def test_own_videos_in_media_server_mode(admin: TestClient, tmp_path: Path) -> None:
+    ctx = _ctx(admin)
+    ctx.importer.import_dir = tmp_path / "import"
+    _own_video(ctx.importer.import_dir / "Familie" / "Geburtstag.mp4")
+    current = admin.get("/api/settings").json()
+    admin.put("/api/settings", json={**current, "youtube_enabled": False})
+    _run(admin, "scan")
+    keys = [c["key"] for c in admin.get("/api/import").json()["candidates"]]
+    assert _run(admin, "run", keys=keys, mode="move")["message"] == "1 importiert"
+    assert admin.get("/api/videos").json()["items"][0]["title"] == "Geburtstag"
+
+
+def test_embedded_tags() -> None:
+    info = parse_tags({"TITLE": " Hochzeit ", "creation_time": "2023-06-01T14:00:00.000000Z"})
+    assert info.title == "Hochzeit" and info.recorded == date(2023, 6, 1)
+    assert parse_tags({"date": "2021-12-24"}).recorded == date(2021, 12, 24)
+    assert parse_tags({"date": "irgendwann"}).recorded is None
+    assert parse_tags({"comment": "Am Meer"}).description == "Am Meer"
+    assert folder_channel("Urlaub/Tag 1/a.mp4")[1] == "Urlaub"
+    assert folder_channel("a.mp4") == folder_channel("b.mkv")
+    assert folder_channel("a.mp4")[0].startswith("local-")

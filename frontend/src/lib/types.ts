@@ -33,6 +33,8 @@ export interface AuthStatus {
   /** Name for "Mit … anmelden" when an OIDC provider is set up. */
   oidc_name: string | null;
   password_login: boolean;
+  /** False: a pure media server – nothing to add, subscribe or download. */
+  youtube: boolean;
 }
 
 export interface Channel {
@@ -44,6 +46,8 @@ export interface Channel {
   has_avatar: boolean;
   has_banner: boolean;
   updated_at: string;
+  /** A folder of own videos, not a YouTube channel. */
+  is_local: boolean;
 }
 
 export type VideoStatus = "pending" | "downloading" | "ready" | "failed" | "missing";
@@ -61,6 +65,8 @@ export interface VideoSummary {
   has_thumbnail: boolean;
   added_at: string;
   updated_at: string;
+  /** An own video (camera, phone …): nothing of it is on YouTube. */
+  is_local: boolean;
   progress: WatchState | null;
 }
 
@@ -332,6 +338,8 @@ export interface BackupOptions {
 }
 
 export interface AppSettings {
+  /** Off: TubeVault is a pure media server and leaves YouTube alone. */
+  youtube_enabled: boolean;
   downloads: DownloadOptions;
   max_concurrent_downloads: number;
   transcoding: TranscodeOptions;
@@ -468,10 +476,13 @@ export interface ImportCandidate {
   root: "import" | "media";
   relative: string;
   size: number;
-  youtube_id: string | null;
-  source: string | null;
+  /** Own videos: "local-…", a fingerprint of the file. */
+  youtube_id: string;
+  source: string;
   title: string;
-  status: "ready" | "known" | "unknown";
+  status: "ready" | "known";
+  /** "own": camera, phone … – the folder becomes the channel. */
+  kind: "youtube" | "own";
 }
 
 export interface ImportOverview {

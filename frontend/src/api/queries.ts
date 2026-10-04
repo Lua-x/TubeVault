@@ -233,6 +233,8 @@ export function useSaveSettings() {
     onSuccess: (data) => {
       client.setQueryData(keys.settings, data);
       void client.invalidateQueries({ queryKey: DLNA_STATUS, exact: true });
+      // The YouTube switch changes what the whole app offers.
+      void client.invalidateQueries({ queryKey: ["auth", "status"] });
     },
   });
 }
