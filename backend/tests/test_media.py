@@ -66,7 +66,7 @@ def test_system_info(admin: TestClient) -> None:
 
 
 def test_websocket_origin_check(admin: TestClient) -> None:
-    from app.routers.ws import _hostname
+    from app.core.websockets import _hostname
 
     assert _hostname("Example.com:8096") == "example.com"
     assert _hostname("[::1]:8096") == "[::1]"

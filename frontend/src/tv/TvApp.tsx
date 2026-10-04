@@ -1,4 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
+import { Smartphone } from "lucide-react";
 import { useCallback, useEffect, useRef } from "react";
 import { Route, Routes, useNavigate, useParams, useSearchParams } from "react-router";
 
@@ -25,6 +26,8 @@ import type { VideoDetail, VideoSummary } from "@/lib/types";
 import { ProfilesPage } from "@/pages/ProfilesPage";
 
 import { chooseView, useInitialFocus, useTvNavigation } from "./navigation";
+import { RemoteReceiverProvider, useRemoteCommands, useRemoteReceiver } from "./remote";
+import { TvRemotePage } from "./TvRemotePage";
 import { TvChannelTile, TvPlaylistTile, TvRow, TvVideoTile } from "./TvTile";
 
 const MIN_RESUME_S = 10;
@@ -41,6 +44,7 @@ function TvHome() {
   const { data: home } = useHome();
   const { data: playlists } = usePlaylists();
   const { user, status } = useAuth();
+  const remote = useRemoteReceiver();
   useTvNavigation();
   useInitialFocus(Boolean(home));
   if (!home) return <PageSpinner />;
@@ -62,6 +66,18 @@ function TvHome() {
           TubeVault
         </h1>
         <div className="flex items-center gap-3">
+          <button
+            type="button"
+            data-tv-focus
+            data-tv-key="connect-phone"
+            onClick={() => navigate("/tv/remote")}
+            className="flex items-center gap-2 rounded-full bg-surface px-[1.4vw] py-[0.6vw] text-[max(15px,1vw)] font-medium text-secondary outline-none focus:bg-primary focus:text-canvas"
+          >
+            <Smartphone className="size-[max(1.1rem,1.2vw)]" strokeWidth={2} />
+            {remote && remote.phones.length > 0
+              ? `${remote.phones.length} verbunden`
+              : "Handy verbinden"}
+          </button>
           {status?.family_device && user && (
             <button
               type="button"
@@ -201,6 +217,75 @@ function TvPlayerView({ video, listId }: { video: VideoDetail; listId: number | 
 
   const back = useCallback(() => navigate(-1), [navigate]);
   useTvNavigation({ onBack: back });
+  const previous = list && index > 0 ? list.videos[index - 1] : undefined;
+  const remote = useRemoteReceiver();
+
+  // The phone remote: commands in, what is playing out.
+  useRemoteCommands((command) => {
+    const media = container.current?.querySelector("video");
+    switch (command.action) {
+      case "toggle":
+        if (media?.paused) void media.play();
+        else media?.pause();
+        break;
+      case "play":
+        void media?.play();
+        break;
+      case "pause":
+        media?.pause();
+        break;
+      case "seek":
+        if (media && command.value != null) media.currentTime = command.value;
+        break;
+      case "skip":
+        if (media && command.value != null) {
+          media.currentTime = Math.max(0, media.currentTime + command.value);
+        }
+        break;
+      case "next":
+        if (next) navigate(`/tv/play/${next.id}?list=${listId}`, { replace: true });
+        break;
+      case "previous":
+        if (previous) navigate(`/tv/play/${previous.id}?list=${listId}`, { replace: true });
+        else if (media) media.currentTime = 0;
+        break;
+      case "back":
+        back();
+        break;
+    }
+  });
+  useEffect(() => {
+    if (!remote) return;
+    let last = 0;
+    const report = (force: boolean) => {
+      const el = container.current?.querySelector("video");
+      if (!el || (!force && Date.now() - last < 1000)) return;
+      last = Date.now();
+      remote.publish({
+        video_id: video.id,
+        title: video.title,
+        channel: video.channel?.name,
+        position: el.currentTime,
+        duration: Number.isFinite(el.duration) ? el.duration : (video.duration_s ?? 0),
+        paused: el.paused,
+        has_next: Boolean(next),
+        has_previous: Boolean(previous),
+      });
+    };
+    const now = () => report(true);
+    const tick = () => report(false);
+    report(true);
+    // The <video> appears once the player is set up; listen on the container.
+    const root = container.current;
+    const events = ["play", "pause", "seeked", "loadedmetadata"];
+    for (const name of events) root?.addEventListener(name, now, true);
+    root?.addEventListener("timeupdate", tick, true);
+    return () => {
+      for (const name of events) root?.removeEventListener(name, now, true);
+      root?.removeEventListener("timeupdate", tick, true);
+      remote.publish({});
+    };
+  }, [remote, video, next, previous]);
 
   useEffect(() => {
     // Keys go to the player: OK pauses, left/right seek.
@@ -269,12 +354,15 @@ function TvPlayer() {
 /** The view for TVs: big tiles, everything reachable with the arrow keys of a remote. */
 export function TvApp() {
   return (
-    <Routes>
-      <Route index element={<TvHome />} />
-      <Route path="channels/:id" element={<TvChannel />} />
-      <Route path="playlists/:id" element={<TvPlaylist />} />
-      <Route path="play/:id" element={<TvPlayer />} />
-      <Route path="profiles" element={<ProfilesPage tv />} />
-    </Routes>
+    <RemoteReceiverProvider>
+      <Routes>
+        <Route index element={<TvHome />} />
+        <Route path="channels/:id" element={<TvChannel />} />
+        <Route path="playlists/:id" element={<TvPlaylist />} />
+        <Route path="play/:id" element={<TvPlayer />} />
+        <Route path="profiles" element={<ProfilesPage tv />} />
+        <Route path="remote" element={<TvRemotePage />} />
+      </Routes>
+    </RemoteReceiverProvider>
   );
 }

@@ -10,6 +10,7 @@ import {
   ListPlus,
   RefreshCw,
   Trash2,
+  Tv2,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
@@ -43,6 +44,7 @@ import { SaveToDevice } from "@/components/offline/SaveToDevice";
 import { VideoPlayer, type PlayerHandle, type SaveReason } from "@/components/video/VideoPlayer";
 import { useAuth } from "@/hooks/auth";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { useRemoteControl } from "@/hooks/remoteControl";
 import { useChannelRate } from "@/hooks/useChannelRate";
 import { usePlaybackSource } from "@/hooks/usePlaybackSource";
 import { useToast } from "@/hooks/toast";
@@ -456,6 +458,7 @@ interface VideoActionsProps {
 
 function VideoActions({ video, onWatchedChange }: VideoActionsProps) {
   const { user } = useAuth();
+  const remote = useRemoteControl();
   const [confirming, setConfirming] = useState(false);
   const [addingToPlaylist, setAddingToPlaylist] = useState(false);
   const [redownloading, setRedownloading] = useState(false);
@@ -517,6 +520,19 @@ function VideoActions({ video, onWatchedChange }: VideoActionsProps) {
         <ListPlus className="size-4" strokeWidth={2} />
         Zur Playlist
       </button>
+      {remote.status === "paired" && (
+        <button
+          type="button"
+          onClick={() => {
+            remote.send("open", video.id);
+            toast(`Läuft auf dem Fernseher (${remote.tv})`);
+          }}
+          className={actionClass}
+        >
+          <Tv2 className="size-4" strokeWidth={2} />
+          Auf Fernseher
+        </button>
+      )}
       <SaveToDevice video={video} />
       <a href={apiUrl(`videos/${video.id}/download`)} className={actionClass}>
         <Download className="size-4" strokeWidth={2} />

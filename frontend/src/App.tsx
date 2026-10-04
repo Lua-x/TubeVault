@@ -50,6 +50,7 @@ const SettingsPage = page(() => import("@/pages/SettingsPage"), "SettingsPage");
 const SharePage = page(() => import("@/pages/SharePage"), "SharePage");
 const SubscriptionPage = page(() => import("@/pages/SubscriptionPage"), "SubscriptionPage");
 const SubscriptionsPage = page(() => import("@/pages/SubscriptionsPage"), "SubscriptionsPage");
+const RemotePage = page(() => import("@/pages/RemotePage"), "RemotePage");
 
 // The player (video.js) is only loaded when a video is opened.
 const VideoPage = lazy(() => import("@/pages/VideoPage").then((m) => ({ default: m.VideoPage })));
@@ -86,6 +87,7 @@ function AnimatedRoutes() {
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/admin/import" element={<ImportPage />} />
           <Route path="/device" element={<DevicePage />} />
+          <Route path="/remote" element={<RemotePage />} />
           <Route path="/device/:id" element={<DeviceVideoPage online />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>

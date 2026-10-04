@@ -25,7 +25,7 @@ export default tseslint.config(
   },
   {
     // Context modules export a provider together with its hook.
-    files: ["src/hooks/**/*.tsx"],
+    files: ["src/hooks/**/*.tsx", "src/tv/remote.tsx"],
     rules: { "react-refresh/only-export-components": "off" },
   },
 );

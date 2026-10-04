@@ -9,6 +9,7 @@ import {
   Search,
   Settings,
   ShieldCheck,
+  Smartphone,
   Tv,
   UsersRound,
   type LucideIcon,
@@ -52,6 +53,7 @@ export const SECONDARY_NAV: NavItem[] = [
   { to: "/subscriptions", label: "Abos", icon: Tv, requiresAdd: true },
   { to: "/downloads", label: "Downloads", icon: ArrowDownToLine, requiresAdd: true },
   { to: "/device", label: "Auf diesem Gerät", icon: HardDriveDownload },
+  { to: "/remote", label: "Fernbedienung", icon: Smartphone },
   { to: "/settings", label: "Einstellungen", icon: Settings },
   { to: "/admin", label: "Verwaltung", icon: ShieldCheck, adminOnly: true },
 ];

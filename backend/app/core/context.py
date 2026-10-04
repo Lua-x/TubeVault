@@ -19,6 +19,7 @@ from app.services.importer import Importer
 from app.services.notifications import Notifier
 from app.services.oidc import OidcClient
 from app.services.podcasts import AudioPrefetch
+from app.services.rooms import Rooms
 from app.services.subscriptions import SubscriptionChecker
 from app.services.two_factor import LoginTickets
 from app.workers.analyzer import MediaAnalyzer
@@ -51,3 +52,6 @@ class AppContext:
     login_throttle: LoginThrottle = field(default_factory=LoginThrottle)
     login_tickets: LoginTickets = field(default_factory=LoginTickets)
     pin_throttle: PinThrottle = field(default_factory=PinThrottle)
+    rooms: Rooms = field(default_factory=Rooms)
+    # Wrong pairing codes for the phone remote, per account.
+    remote_throttle: LoginThrottle = field(default_factory=LoginThrottle)
