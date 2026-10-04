@@ -5,6 +5,8 @@ export interface Preferences {
   sponsorblock_skip?: boolean;
   autoplay_next?: boolean;
   watch_later_keep_watched?: boolean;
+  /** Playback speed per channel id; speed 1 is left out. */
+  channel_rates?: Record<string, number>;
 }
 
 export interface User {

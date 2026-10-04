@@ -8,6 +8,8 @@ export interface AudioTrack {
   id: number;
   title: string;
   channel: string | null;
+  /** Its channel – for the speed remembered per channel. */
+  channelId?: number | null;
   duration: number | null;
   artwork?: string;
   startAt?: number;
@@ -70,6 +72,7 @@ export function trackFromVideo(video: VideoSummary): AudioTrack {
     id: video.id,
     title: video.title,
     channel: video.channel?.name ?? null,
+    channelId: video.channel?.id ?? null,
     duration: video.duration_s,
     artwork: video.has_thumbnail ? thumbnailUrl(video) : undefined,
     startAt: resume,

@@ -2,6 +2,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { keys, reportProgress } from "@/api/queries";
+import { useAuth } from "@/hooks/auth";
+import { withChannelRate } from "@/hooks/useChannelRate";
 import { apiUrl } from "@/lib/base";
 
 import {
@@ -33,6 +35,11 @@ function mediaSession(): MediaSession | null {
 /** One sound for the whole app: keeps playing while you browse, with lock-screen controls. */
 export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   const client = useQueryClient();
+  const { user, updatePreferences } = useAuth();
+  const channelRates = useRef(user?.preferences.channel_rates);
+  useEffect(() => {
+    channelRates.current = user?.preferences.channel_rates;
+  });
   const audio = useRef<HTMLAudioElement>(null);
   const [queue, setQueue] = useState<AudioTrack[]>([]);
   const [index, setIndex] = useState(0);
@@ -94,8 +101,14 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       pendingStart.current = track.startAt ?? 0;
       // Set and play right away – iOS only allows sound inside the tap that asked for it.
       el.src = track.src ?? apiUrl(`videos/${track.id}/audio.m4a`);
-      el.defaultPlaybackRate = state.current.rate;
-      el.playbackRate = state.current.rate;
+      // The speed remembered for the channel, else the last one used for listening.
+      const channelRate =
+        track.channelId != null ? channelRates.current?.[String(track.channelId)] : undefined;
+      const rate = channelRate ?? storedRate();
+      state.current.rate = rate;
+      setRateState(rate);
+      el.defaultPlaybackRate = rate;
+      el.playbackRate = rate;
       void el.play().catch(() => undefined);
       const session = mediaSession();
       if (session && typeof MediaMetadata !== "undefined") {
@@ -327,6 +340,14 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
         } catch {
           // not remembered
         }
+        const channelId = state.current.queue[state.current.index]?.channelId;
+        if (channelId != null) {
+          const next = withChannelRate(channelRates.current, channelId, value);
+          if (next) {
+            channelRates.current = next;
+            void updatePreferences({ channel_rates: next }).catch(() => undefined);
+          }
+        }
       },
       setSleep: (minutes) => {
         const timer: SleepTimer | null =
@@ -358,6 +379,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       next,
       previous,
       close,
+      updatePreferences,
     ],
   );
 

@@ -51,6 +51,10 @@ class PasswordChange(BaseModel):
     new_password: str = Field(min_length=8, max_length=1024)
 
 
+PLAYBACK_RATES = (0.5, 0.75, 1, 1.25, 1.5, 1.75, 2)
+MAX_CHANNEL_RATES = 2000
+
+
 class Preferences(BaseModel):
     """Partial update: only the fields that are sent are changed."""
 
@@ -59,6 +63,20 @@ class Preferences(BaseModel):
     autoplay_next: bool | None = None
     # Keep videos in "Später ansehen" after watching them (default: they leave the list).
     watch_later_keep_watched: bool | None = None
+    # Playback speed per channel ("12": 1.5); always sent as a whole, speed 1 is left out.
+    channel_rates: dict[str, float] | None = None
+
+    @field_validator("channel_rates")
+    @classmethod
+    def _check_rates(cls, value: dict[str, float] | None) -> dict[str, float] | None:
+        if value is None:
+            return None
+        if len(value) > MAX_CHANNEL_RATES:
+            raise ValueError(f"Höchstens {MAX_CHANNEL_RATES} Kanäle")
+        for key, rate in value.items():
+            if not key.isdigit() or rate not in PLAYBACK_RATES:
+                raise ValueError("Ungültige Geschwindigkeit")
+        return {key: rate for key, rate in value.items() if rate != 1}
 
 
 class UserOut(ApiModel):

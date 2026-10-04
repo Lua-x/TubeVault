@@ -131,3 +131,20 @@ def test_usernames_stay_unique_regardless_of_case(admin: TestClient) -> None:
                 "VALUES ('mia', '', 0, '{}', CURRENT_TIMESTAMP)"
             )
         )
+
+
+def test_playback_speed_per_channel(client: TestClient) -> None:
+    client.post("/api/auth/setup", json={"username": "admin", "password": "geheim123"})
+    response = client.put(
+        "/api/auth/me/preferences", json={"channel_rates": {"5": 1.5, "7": 1, "9": 0.75}}
+    )
+    assert response.status_code == 200, response.text
+    # Speed 1 is the default and not stored.
+    assert response.json()["preferences"]["channel_rates"] == {"5": 1.5, "9": 0.75}
+    # Other preferences stay; the map is replaced as a whole.
+    client.put("/api/auth/me/preferences", json={"theme": "dark"})
+    prefs = client.get("/api/auth/me").json()["preferences"]
+    assert prefs["theme"] == "dark" and prefs["channel_rates"] == {"5": 1.5, "9": 0.75}
+    for bad in ({"x": 1.5}, {"5": 3.0}, {"5": 1.1}):
+        response = client.put("/api/auth/me/preferences", json={"channel_rates": bad})
+        assert response.status_code == 422, bad

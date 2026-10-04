@@ -43,6 +43,7 @@ import { SaveToDevice } from "@/components/offline/SaveToDevice";
 import { VideoPlayer, type PlayerHandle, type SaveReason } from "@/components/video/VideoPlayer";
 import { useAuth } from "@/hooks/auth";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { useChannelRate } from "@/hooks/useChannelRate";
 import { usePlaybackSource } from "@/hooks/usePlaybackSource";
 import { useToast } from "@/hooks/toast";
 import { apiUrl } from "@/lib/base";
@@ -113,6 +114,7 @@ function VideoView({ video, playlistId, autoplay }: VideoViewProps) {
   const preferences = user?.preferences ?? {};
 
   const playback = usePlaybackSource(video);
+  const [channelRate, saveChannelRate] = useChannelRate(video.channel?.id);
   const [time, setTime] = useState(0);
   const onTimeUpdate = useCallback((seconds: number) => setTime(Math.floor(seconds)), []);
 
@@ -255,6 +257,8 @@ function VideoView({ video, playlistId, autoplay }: VideoViewProps) {
           onEnded={onEnded}
           onSegmentSkipped={onSegmentSkipped}
           onSegmentChange={setCurrentSegment}
+          playbackRate={channelRate}
+          onRateChange={saveChannelRate}
           overlay={
             <>
               {playback.showMenu && (

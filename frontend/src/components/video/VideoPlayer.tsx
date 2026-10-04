@@ -56,6 +56,10 @@ interface VideoPlayerProps {
   onSegmentChange?: (segment: SponsorSegment | null) => void;
   onPlay?: () => void;
   onEnded?: () => void;
+  /** Speed to play at, e.g. the one remembered for the channel. */
+  playbackRate?: number;
+  /** The viewer picked another speed in the player. */
+  onRateChange?: (rate: number) => void;
   /** Rendered inside the player element, so it stays visible in fullscreen. */
   overlay?: ReactNode;
   /** Saved on this device: poster and tracks come from local (object) URLs. */
@@ -137,6 +141,12 @@ function drawMarkers(player: Player, video: VideoDetail, segments: SponsorSegmen
 }
 
 const segmentKey = (s: SponsorSegment) => `${s.category}:${s.start_s}:${s.end_s}`;
+
+function applyRate(player: Player, rate = 1) {
+  // The default rate survives a source switch (direct → HLS) as well.
+  player.defaultPlaybackRate(rate);
+  if (player.playbackRate() !== rate) player.playbackRate(rate);
+}
 
 export const VideoPlayer = forwardRef<PlayerHandle, VideoPlayerProps>(
   function VideoPlayer(props, ref) {
@@ -275,7 +285,17 @@ export const VideoPlayer = forwardRef<PlayerHandle, VideoPlayerProps>(
       player.one("loadedmetadata", () => {
         if (startAt && startAt > 0) player.currentTime(startAt);
       });
-      player.on("loadedmetadata", () => drawMarkers(player, video, latest.current.segments ?? []));
+      player.on("loadedmetadata", () => {
+        drawMarkers(player, video, latest.current.segments ?? []);
+        applyRate(player, latest.current.playbackRate);
+      });
+      player.on("ratechange", () => {
+        // Our own changes come back as events, too – only report what differs from the prop.
+        const rate = player.playbackRate() ?? 1;
+        if (player.readyState() > 0 && rate !== (latest.current.playbackRate ?? 1)) {
+          latest.current.onRateChange?.(rate);
+        }
+      });
       player.on("playing", () => {
         started = true;
       });
@@ -341,6 +361,13 @@ export const VideoPlayer = forwardRef<PlayerHandle, VideoPlayerProps>(
         });
       }
     }, [sourceKey, fileKey]);
+
+    useEffect(() => {
+      const player = playerRef.current;
+      if (player && !player.isDisposed() && player.readyState() > 0) {
+        applyRate(player, props.playbackRate);
+      }
+    }, [props.playbackRate, fileKey]);
 
     // Segments usually arrive after the player was created.
     useEffect(() => {
