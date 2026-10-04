@@ -24,7 +24,12 @@ export function Group({
       <div className="tv-group-card divide-y divide-separator overflow-hidden rounded-2xl bg-elevated">
         {children}
       </div>
-      {footer && <p className="px-4 text-[13px] text-tertiary">{footer}</p>}
+      {footer && (
+        // Links in the running text are underlined – color alone doesn't set them apart.
+        <p className="px-4 text-[13px] text-tertiary [&_a]:underline [&_a]:underline-offset-2">
+          {footer}
+        </p>
+      )}
     </section>
   );
 }

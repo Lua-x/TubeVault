@@ -136,7 +136,7 @@ export function HistoryPage() {
             Abbrechen
           </Button>
           <Button
-            className="bg-danger hover:bg-danger/90"
+            className="bg-danger-fill hover:bg-danger-fill/90"
             loading={forget.isPending}
             onClick={() =>
               forget.mutate(null, {

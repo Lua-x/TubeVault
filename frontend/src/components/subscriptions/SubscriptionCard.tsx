@@ -42,7 +42,7 @@ export function SubscriptionCard({ sub }: { sub: Subscription }) {
           className="relative z-10 -mt-7 size-14 border-4 border-elevated bg-surface text-[22px]"
         />
         <div className="min-w-0 flex-1 pt-2">
-          <h3 className="truncate text-[16px] font-semibold">{sub.title}</h3>
+          <h2 className="truncate text-[16px] font-semibold">{sub.title}</h2>
           <p className="text-[13px] text-secondary">
             {sub.kind === "channel" ? "Kanal" : "Playlist"} · {counts.join(" · ")}
           </p>

@@ -29,7 +29,7 @@ function SidebarLink({ item, badge }: { item: NavItem; badge?: number }) {
           <Icon className={cn("size-[18px]", isActive && "text-accent")} strokeWidth={1.75} />
           <span className="flex-1 truncate">{label}</span>
           {badge ? (
-            <span className="min-w-5 rounded-full bg-accent px-1.5 text-center text-[11px] leading-5 font-semibold text-white">
+            <span className="min-w-5 rounded-full bg-accent-fill px-1.5 text-center text-[11px] leading-5 font-semibold text-white">
               {badge}
             </span>
           ) : null}
@@ -47,7 +47,10 @@ export function Sidebar({ onAdd }: { onAdd: () => void }) {
   const mine = (playlists ?? []).filter((playlist) => !playlist.is_watch_later);
 
   return (
-    <aside className="glass fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-separator px-3 pt-6 pb-4 md:flex">
+    <aside
+      aria-label="Seitenleiste"
+      className="glass fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-separator px-3 pt-6 pb-4 md:flex"
+    >
       <div className="mb-7 flex items-center gap-2.5 px-3">
         <img src="./favicon.svg" alt="" className="size-7 rounded-[8px]" />
         <span className="text-[17px] font-semibold tracking-tight">TubeVault</span>
@@ -57,7 +60,7 @@ export function Sidebar({ onAdd }: { onAdd: () => void }) {
         <button
           type="button"
           onClick={onAdd}
-          className="mb-5 flex h-9 items-center gap-2 rounded-full bg-accent px-4 text-[14px] font-medium text-white transition-[background-color,transform] duration-200 ease-out-soft hover:bg-accent-hover active:scale-[0.98]"
+          className="mb-5 flex h-9 items-center gap-2 rounded-full bg-accent-fill px-4 text-[14px] font-medium text-white transition-[background-color,transform] duration-200 ease-out-soft hover:bg-accent-fill-hover active:scale-[0.98]"
         >
           <Plus className="size-4" strokeWidth={2.25} />
           Video hinzufügen

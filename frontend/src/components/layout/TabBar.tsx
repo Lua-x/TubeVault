@@ -35,7 +35,7 @@ export function TabBar() {
                 <span className="relative">
                   <Icon className="size-6" strokeWidth={1.6} />
                   {to === "/downloads" && active > 0 && (
-                    <span className="absolute -top-1 -right-2.5 min-w-4 rounded-full bg-danger px-1 text-center text-[10px] leading-4 font-semibold text-white">
+                    <span className="absolute -top-1 -right-2.5 min-w-4 rounded-full bg-danger-fill px-1 text-center text-[10px] leading-4 font-semibold text-white">
                       {active}
                     </span>
                   )}

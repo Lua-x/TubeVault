@@ -89,7 +89,7 @@ export function AddToPlaylistDialog({ open, onClose, videoId }: AddToPlaylistDia
                     className={cn(
                       "flex size-6 items-center justify-center rounded-full border transition-colors",
                       playlist.contains
-                        ? "border-accent bg-accent text-white"
+                        ? "border-accent-fill bg-accent-fill text-white"
                         : "border-separator text-transparent",
                     )}
                   >

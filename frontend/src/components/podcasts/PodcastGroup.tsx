@@ -57,7 +57,7 @@ export function PodcastGroup() {
             Abbrechen
           </Button>
           <Button
-            className={confirm === "off" ? "bg-danger hover:bg-danger/90" : undefined}
+            className={confirm === "off" ? "bg-danger-fill hover:bg-danger-fill/90" : undefined}
             loading={renew.isPending || disable.isPending}
             onClick={() => {
               const done = { onSuccess: () => setConfirm(null) };

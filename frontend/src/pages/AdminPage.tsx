@@ -387,7 +387,13 @@ function LogViewer() {
           </Button>
         </div>
       </div>
-      <div className="max-h-[440px] overflow-auto rounded-2xl bg-elevated px-4 py-3 font-mono text-[12px] leading-relaxed">
+      <div
+        // Scrollable with the keyboard, too.
+        tabIndex={0}
+        role="log"
+        aria-label="Protokoll"
+        className="max-h-[440px] overflow-auto rounded-2xl bg-elevated px-4 py-3 font-mono text-[12px] leading-relaxed"
+      >
         {entries.length === 0 ? (
           <p className="font-sans text-[14px] text-secondary">Keine Einträge.</p>
         ) : (

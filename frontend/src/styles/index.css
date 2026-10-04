@@ -12,11 +12,16 @@
   --tv-surface-hover: #3a3a3c;
   --tv-separator: rgb(255 255 255 / 0.1);
   --tv-text: #ffffff;
-  --tv-text-secondary: rgb(235 235 245 / 0.62);
-  --tv-text-tertiary: rgb(235 235 245 / 0.38);
-  --tv-accent: #0a84ff;
-  --tv-accent-hover: #409cff;
+  /* Text and accents meet WCAG AA (4.5:1) on canvas and cards. */
+  --tv-text-secondary: rgb(235 235 245 / 0.68);
+  --tv-text-tertiary: rgb(235 235 245 / 0.55);
+  --tv-accent: #409cff;
+  --tv-accent-hover: #66b0ff;
+  /* Filled buttons carry white text – they need a darker blue than accent text does. */
+  --tv-accent-fill: #0a6fdc;
+  --tv-accent-fill-hover: #1a74de;
   --tv-danger: #ff453a;
+  --tv-danger-fill: #d93025;
   --tv-warning: #ff9f0a;
   --tv-success: #30d158;
   --tv-glass: rgb(28 28 30 / 0.72);
@@ -32,13 +37,16 @@
   --tv-surface-hover: #e2e2e7;
   --tv-separator: rgb(60 60 67 / 0.14);
   --tv-text: #1d1d1f;
-  --tv-text-secondary: rgb(60 60 67 / 0.72);
-  --tv-text-tertiary: rgb(60 60 67 / 0.45);
-  --tv-accent: #0071e3;
-  --tv-accent-hover: #0077ed;
-  --tv-danger: #e5372b;
-  --tv-warning: #b35c00;
-  --tv-success: #248a3d;
+  --tv-text-secondary: rgb(60 60 67 / 0.82);
+  --tv-text-tertiary: rgb(60 60 67 / 0.74);
+  --tv-accent: #0068d6;
+  --tv-accent-hover: #005fc4;
+  --tv-accent-fill: #0068d6;
+  --tv-accent-fill-hover: #005fc4;
+  --tv-danger: #c9281d;
+  --tv-danger-fill: #c9281d;
+  --tv-warning: #9a5000;
+  --tv-success: #1d7a34;
   --tv-glass: rgb(255 255 255 / 0.72);
   --tv-overlay: rgb(0 0 0 / 0.35);
   --tv-shadow: 0 18px 40px -16px rgb(0 0 0 / 0.28);
@@ -55,7 +63,10 @@
   --color-tertiary: var(--tv-text-tertiary);
   --color-accent: var(--tv-accent);
   --color-accent-hover: var(--tv-accent-hover);
+  --color-accent-fill: var(--tv-accent-fill);
+  --color-accent-fill-hover: var(--tv-accent-fill-hover);
   --color-danger: var(--tv-danger);
+  --color-danger-fill: var(--tv-danger-fill);
   --color-warning: var(--tv-warning);
   --color-success: var(--tv-success);
   --color-glass: var(--tv-glass);

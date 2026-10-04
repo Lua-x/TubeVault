@@ -28,15 +28,23 @@ export function AppShell({ children }: { children?: ReactNode }) {
     <AddVideoContext.Provider value={openAdd}>
       <a
         href="#main"
-        className="sr-only z-50 rounded-full bg-accent px-4 py-2 text-white focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
+        onClick={(event) => {
+          // With <base href> a bare "#main" would lead to the start page instead.
+          event.preventDefault();
+          const main = document.getElementById("main");
+          main?.focus();
+          main?.scrollIntoView();
+        }}
+        className="sr-only z-50 rounded-full bg-accent-fill px-4 py-2 text-white focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
       >
         Zum Inhalt springen
       </a>
       <Sidebar onAdd={openAdd} />
       <main
         id="main"
+        tabIndex={-1}
         className={cn(
-          "min-h-dvh md:pl-60",
+          "min-h-dvh outline-none md:pl-60",
           // Room for the tab bar – and the mini player above it.
           listening
             ? "pb-[calc(10rem+env(safe-area-inset-bottom))] md:pb-28"

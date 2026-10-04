@@ -26,7 +26,7 @@ const MIN_RESUME_S = 10;
 
 function TvShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-dvh bg-canvas px-[4vw] pt-[3vw] pb-[5vw] text-primary">{children}</div>
+    <main className="min-h-dvh bg-canvas px-[4vw] pt-[3vw] pb-[5vw] text-primary">{children}</main>
   );
 }
 
@@ -51,10 +51,10 @@ function TvHome() {
   return (
     <TvShell>
       <header className="flex items-center justify-between">
-        <p className="flex items-center gap-3 text-[max(24px,2vw)] font-bold tracking-tight">
+        <h1 className="flex items-center gap-3 text-[max(24px,2vw)] font-bold tracking-tight">
           <img src="favicon.svg" alt="" className="size-[max(2rem,2.4vw)]" />
           TubeVault
-        </p>
+        </h1>
         <button
           type="button"
           data-tv-focus
@@ -163,7 +163,7 @@ function TvPlayerView({ video, listId }: { video: VideoDetail; listId: number | 
   const client = useQueryClient();
   const playback = usePlaybackSource(video);
   const { data: list } = usePlaylist(listId);
-  const container = useRef<HTMLDivElement>(null);
+  const container = useRef<HTMLElement>(null);
   useDocumentTitle(video.title);
   const index = list?.videos.findIndex((v) => v.id === video.id) ?? -1;
   const next = list && index >= 0 ? list.videos[index + 1] : undefined;
@@ -197,7 +197,8 @@ function TvPlayerView({ video, listId }: { video: VideoDetail; listId: number | 
   }, []);
 
   return (
-    <div ref={container} className="fixed inset-0 bg-black">
+    <main ref={container} className="fixed inset-0 bg-black">
+      <h1 className="sr-only">{video.title}</h1>
       <VideoPlayer
         video={video}
         source={playback.source}
@@ -223,7 +224,7 @@ function TvPlayerView({ video, listId }: { video: VideoDetail; listId: number | 
           />
         }
       />
-    </div>
+    </main>
   );
 }
 

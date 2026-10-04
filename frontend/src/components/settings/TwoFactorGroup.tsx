@@ -266,7 +266,9 @@ export function TwoFactorGroup() {
             <Button
               type="submit"
               loading={disable.isPending || newCodes.isPending}
-              className={action === "disable" ? "bg-danger hover:bg-danger/90" : undefined}
+              className={
+                action === "disable" ? "bg-danger-fill hover:bg-danger-fill/90" : undefined
+              }
             >
               {action === "disable" ? "Ausschalten" : "Neue Codes"}
             </Button>

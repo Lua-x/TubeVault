@@ -79,7 +79,7 @@ export function PlaylistsPage() {
                   className="w-full shadow-[0_0_0_1px_var(--tv-separator)] transition-[transform,box-shadow] duration-300 ease-out-soft group-hover:scale-[1.03] group-hover:shadow-card"
                 />
                 <div className="px-0.5">
-                  <h3 className="truncate text-[15px] font-medium">{playlist.name}</h3>
+                  <h2 className="truncate text-[15px] font-medium">{playlist.name}</h2>
                   <p className="text-[13px] text-secondary">
                     {playlist.video_count} {playlist.video_count === 1 ? "Video" : "Videos"}
                     {playlist.duration_s ? ` · ${formatDuration(playlist.duration_s)}` : ""}

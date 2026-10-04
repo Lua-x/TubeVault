@@ -128,7 +128,7 @@ export function SaveToDevice({ video, className }: { video: VideoDetail; classNa
               Behalten
             </Button>
             <Button
-              className="bg-danger hover:bg-danger/90"
+              className="bg-danger-fill hover:bg-danger-fill/90"
               onClick={() => {
                 void offline.remove(video.id);
                 setOpen(false);

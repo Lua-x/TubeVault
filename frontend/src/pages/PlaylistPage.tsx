@@ -210,7 +210,7 @@ function PlaylistView({ playlist }: { playlist: PlaylistDetail }) {
             Abbrechen
           </Button>
           <Button
-            className="bg-danger hover:bg-danger/90"
+            className="bg-danger-fill hover:bg-danger-fill/90"
             loading={destroy.isPending}
             onClick={() =>
               destroy.mutate(playlist.id, {

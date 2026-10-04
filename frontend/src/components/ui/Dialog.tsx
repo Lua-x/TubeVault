@@ -7,6 +7,14 @@ import { cn } from "@/lib/cn";
 
 import { IconButton } from "./Button";
 
+// The element focused last outside any dialog – where focus goes back when one closes.
+// (An autofocused field inside is focused before any effect of the dialog runs.)
+let lastOutside: HTMLElement | null = null;
+document.addEventListener("focusin", (event) => {
+  const target = event.target;
+  if (target instanceof HTMLElement && !target.closest('[role="dialog"]')) lastOutside = target;
+});
+
 interface DialogProps {
   open: boolean;
   onClose: () => void;
@@ -20,24 +28,35 @@ export function Dialog({ open, onClose, title, children, wide }: DialogProps) {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
 
+  // The latest onClose without re-running the effect below (and losing the opener).
+  const closeRef = useRef(onClose);
+  useEffect(() => {
+    closeRef.current = onClose;
+  });
+
   useEffect(() => {
     if (!open) return;
-    const previous = document.activeElement as HTMLElement | null;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-      if (event.key === "Tab" && panelRef.current) {
-        const focusable = panelRef.current.querySelectorAll<HTMLElement>(
+    // Back to where the dialog was opened from once it closes.
+    const opener = lastOutside;
+    const focusable = () =>
+      Array.from(
+        panelRef.current?.querySelectorAll<HTMLElement>(
           'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-        );
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-        if (event.shiftKey && document.activeElement === first) {
-          event.preventDefault();
-          last?.focus();
-        } else if (!event.shiftKey && document.activeElement === last) {
-          event.preventDefault();
-          first?.focus();
-        }
+        ) ?? [],
+      ).filter((el) => !el.hasAttribute("disabled") && el.getClientRects().length > 0);
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeRef.current();
+      if (event.key !== "Tab" || !panelRef.current) return;
+      const items = focusable();
+      const first = items[0];
+      const last = items[items.length - 1];
+      const inside = panelRef.current.contains(document.activeElement);
+      if (!inside || (event.shiftKey && document.activeElement === first)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first)?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
       }
     };
     document.addEventListener("keydown", onKey);
@@ -45,9 +64,9 @@ export function Dialog({ open, onClose, title, children, wide }: DialogProps) {
     return () => {
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = "";
-      previous?.focus();
+      if (opener?.isConnected) opener.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   return createPortal(
     <AnimatePresence>

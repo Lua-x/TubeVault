@@ -297,7 +297,7 @@ export function SearchPage() {
           </div>
           {results.length > 0 ? (
             <>
-              <VideoGrid videos={results} />
+              <VideoGrid videos={results} heading="h3" />
               <LoadMore
                 hasMore={videos.hasNextPage}
                 loading={videos.isFetchingNextPage}

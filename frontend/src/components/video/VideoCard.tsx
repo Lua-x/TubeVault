@@ -13,9 +13,17 @@ interface VideoCardProps {
   to?: string;
   hideChannel?: boolean;
   className?: string;
+  /** One level below the heading the card stands under (h2 directly below the page title). */
+  heading?: "h2" | "h3";
 }
 
-export function VideoCard({ video, to, hideChannel, className }: VideoCardProps) {
+export function VideoCard({
+  video,
+  to,
+  hideChannel,
+  className,
+  heading: Heading = "h3",
+}: VideoCardProps) {
   const meta = [hideChannel ? null : video.channel?.name, formatRelative(video.upload_date)]
     .filter(Boolean)
     .join(" · ");
@@ -38,14 +46,14 @@ export function VideoCard({ video, to, hideChannel, className }: VideoCardProps)
         <WatchOverlay video={video} />
       </div>
       <div className="min-w-0 px-0.5">
-        <h3
+        <Heading
           className={cn(
             "line-clamp-2 text-[15px] leading-snug font-medium",
             video.progress?.watched && "text-secondary",
           )}
         >
           {video.title}
-        </h3>
+        </Heading>
         {meta && <p className="mt-1 truncate text-[13px] text-secondary">{meta}</p>}
       </div>
     </Link>

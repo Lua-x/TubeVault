@@ -18,10 +18,7 @@ import { chosenView, isTvBrowser } from "@/tv/navigation";
 import { ChannelPage } from "@/pages/ChannelPage";
 import { ChannelsPage } from "@/pages/ChannelsPage";
 import { DevicePage } from "@/pages/DevicePage";
-import { DownloadsPage } from "@/pages/DownloadsPage";
-import { AdminPage } from "@/pages/AdminPage";
 import { HomePage } from "@/pages/HomePage";
-import { ImportPage } from "@/pages/ImportPage";
 import { LibraryPage } from "@/pages/LibraryPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
@@ -29,11 +26,7 @@ import { HistoryPage } from "@/pages/HistoryPage";
 import { PlaylistPage, WatchLaterPage } from "@/pages/PlaylistPage";
 import { PlaylistsPage } from "@/pages/PlaylistsPage";
 import { SearchPage } from "@/pages/SearchPage";
-import { SharePage } from "@/pages/SharePage";
-import { SettingsPage } from "@/pages/SettingsPage";
 import { SetupPage } from "@/pages/SetupPage";
-import { SubscriptionPage } from "@/pages/SubscriptionPage";
-import { SubscriptionsPage } from "@/pages/SubscriptionsPage";
 
 // The TV view only loads on TVs (or when chosen).
 const TvApp = lazy(() => import("@/tv/TvApp").then((m) => ({ default: m.TvApp })));
@@ -43,6 +36,18 @@ function Home() {
   if (isTvBrowser() && chosenView() !== "standard") return <Navigate to="/tv" replace />;
   return <HomePage />;
 }
+
+// Pages for settings, administration and the download side load when they are opened –
+// the start screen on a phone or TV doesn't wait for them.
+const page = <K extends string>(load: () => Promise<Record<K, React.ComponentType>>, name: K) =>
+  lazy(() => load().then((m) => ({ default: m[name] })));
+const AdminPage = page(() => import("@/pages/AdminPage"), "AdminPage");
+const DownloadsPage = page(() => import("@/pages/DownloadsPage"), "DownloadsPage");
+const ImportPage = page(() => import("@/pages/ImportPage"), "ImportPage");
+const SettingsPage = page(() => import("@/pages/SettingsPage"), "SettingsPage");
+const SharePage = page(() => import("@/pages/SharePage"), "SharePage");
+const SubscriptionPage = page(() => import("@/pages/SubscriptionPage"), "SubscriptionPage");
+const SubscriptionsPage = page(() => import("@/pages/SubscriptionsPage"), "SubscriptionsPage");
 
 // The player (video.js) is only loaded when a video is opened.
 const VideoPage = lazy(() => import("@/pages/VideoPage").then((m) => ({ default: m.VideoPage })));

@@ -10,9 +10,12 @@ const GRID =
 export function VideoGrid({
   videos,
   hideChannel,
+  heading = "h2",
 }: {
   videos: VideoSummary[];
   hideChannel?: boolean;
+  /** Level of the card titles: h2 right below the page title, h3 below a section. */
+  heading?: "h2" | "h3";
 }) {
   return (
     <ul className={GRID}>
@@ -28,7 +31,7 @@ export function VideoGrid({
             delay: index < 12 ? index * 0.03 : 0,
           }}
         >
-          <VideoCard video={video} hideChannel={hideChannel} />
+          <VideoCard video={video} hideChannel={hideChannel} heading={heading} />
         </motion.li>
       ))}
     </ul>

@@ -490,7 +490,7 @@ function CategoryPicker({
             className={cn(
               "h-8 rounded-full px-3.5 text-[13px] font-medium transition-colors duration-200",
               active
-                ? "bg-accent text-white hover:bg-accent-hover"
+                ? "bg-accent-fill text-white hover:bg-accent-fill-hover"
                 : "bg-surface text-secondary hover:bg-surface-hover hover:text-primary",
             )}
           >
@@ -620,7 +620,7 @@ function OidcGroup({ name }: { name: string }) {
         ) : (
           <a
             href={apiUrl("auth/oidc/link")}
-            className="inline-flex h-8 items-center rounded-full bg-accent px-3.5 text-[13px] font-medium text-white hover:bg-accent-hover"
+            className="inline-flex h-8 items-center rounded-full bg-accent-fill px-3.5 text-[13px] font-medium text-white hover:bg-accent-fill-hover"
           >
             Verbinden
           </a>

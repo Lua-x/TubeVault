@@ -304,7 +304,7 @@ function VideoView({ video, playlistId, autoplay }: VideoViewProps) {
             {!video.is_local && <Comments video={video} onSeek={seek} />}
           </div>
 
-          <aside className="flex min-w-0 flex-col gap-8">
+          <aside aria-label="Kapitel und weitere Videos" className="flex min-w-0 flex-col gap-8">
             {playlistPanel && <div className="max-lg:hidden">{playlistPanel}</div>}
             {video.chapters.length > 0 && (
               <section aria-labelledby="chapters-heading">
@@ -589,7 +589,7 @@ function VideoActions({ video, onWatchedChange }: VideoActionsProps) {
             Abbrechen
           </Button>
           <Button
-            className="bg-danger hover:bg-danger/90"
+            className="bg-danger-fill hover:bg-danger-fill/90"
             loading={remove.isPending}
             onClick={() => void confirmDelete()}
           >
