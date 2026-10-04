@@ -93,6 +93,7 @@ class Rooms:
         return room
 
     def get(self, room_id: str) -> Room | None:
+        self.prune()  # a party room everyone left long ago is gone, not waiting forever
         return self._rooms.get(room_id)
 
     def new_code(self, room: Room) -> str:

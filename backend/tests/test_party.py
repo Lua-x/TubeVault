@@ -106,3 +106,12 @@ def test_one_account_cant_take_all_rooms() -> None:
     with pytest.raises(RoomError):
         rooms.create("party", owner_id=1, video_id=1)
     assert rooms.create("party", owner_id=2, video_id=1).owner_id == 2
+
+
+def test_left_rooms_close_after_a_while() -> None:
+    rooms = Rooms()
+    room = rooms.create("party", owner_id=1, video_id=1)
+    room.idle_since = time.monotonic() - 30
+    assert rooms.get(room.id) is room  # a reload is fine
+    room.idle_since = time.monotonic() - 601
+    assert rooms.get(room.id) is None
