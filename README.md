@@ -5,8 +5,9 @@
 <h1 align="center">TubeVault</h1>
 
 <p align="center">
-  Selbstgehosteter Media-Server für YouTube-Inhalte – Videos herunterladen, mit Metadaten
-  ablegen und in einer ruhigen Bibliothek im Stil von Apple TV ansehen.<br />
+  Selbstgehosteter Media-Server für YouTube-Inhalte und eigene Videos – herunterladen, mit
+  Metadaten ablegen und in einer ruhigen Bibliothek im Stil von Apple TV ansehen, auch auf dem
+  Fernseher.<br />
   Ohne Werbung, ohne Tracking, komplett auf deinem Server.
 </p>
 
@@ -40,9 +41,27 @@
   <img src="docs/screenshots/admin-desktop-dark.png" width="420" alt="Verwaltung mit Kennzahlen, Speicher pro Kanal, Downloads der letzten 30 Tage, yt-dlp-Update und Wartung." />
 </p>
 
+<p align="center">
+  <img src="docs/screenshots/tv-dark.png" width="640" alt="Die TV-Ansicht: große Kacheln für „Weiterschauen“ und „Später ansehen“, die gewählte Kachel weiß umrandet – bedienbar mit den Pfeiltasten der Fernbedienung." />
+</p>
+
 > Die Screenshots zeigen Demo-Videos, die mit `backend/scripts/seed_demo.py` erzeugt wurden.
 
 ## Funktionen
+
+**Version 0.8 – Wohnzimmer & Media-Server**
+
+- **Auf den Fernseher:** ein Knopf im Player schickt das Video per Chromecast oder AirPlay
+  an den Fernseher – ohne Skript von Google, über das, was Chrome und Safari eingebaut haben
+- **TV-Ansicht** mit großen Kacheln für die Fernbedienung; Smart-TVs landen von selbst dort
+- **DLNA-Server:** Smart-TVs, Konsolen, VLC und Kodi finden deine Bibliothek im Heimnetz,
+  ganz ohne App – ab Werk aus, nur im Heimnetz und mit den Rechten eines gewählten Kontos
+- **Nur Media-Server:** Der YouTube-Downloader lässt sich abschalten; dann spricht TubeVault
+  mit niemandem mehr außer deinen Geräten
+- **Eigene Videos** von Kamera oder Handy importieren – der Ordner wird zum Kanal, Titel und
+  Aufnahmedatum kommen aus der Datei
+- Barrierefreiheit nach WCAG AA (Kontraste, Tastatur, Bildschirmleser) und ein schnellerer
+  Start auf Handy und Fernseher
 
 **Version 0.7 – Hören & Entdecken**
 
@@ -286,6 +305,30 @@ NFO-Dateien anderer Programme überschreibt TubeVault nie.
 (`Titel [ID].mp4`, `Titel (ID).mp4`, `Titel-ID.mp4`). Fehlende Infos lädt TubeVault von YouTube;
 gibt es ein Video dort nicht mehr, nimmt es den Dateinamen. Thumbnails und Untertitel
 (`.vtt`, `.srt`) neben der Datei werden mitgenommen, fehlende Thumbnails erzeugt ffmpeg.
+
+**Eigene Videos:** Dateien ohne YouTube-ID – vom Handy, der Kamera, der letzten Feier –
+übernimmt der Import als eigene Videos. Der Ordner wird zum Kanal
+(`/import/Urlaub 2024/IMG_1234.mp4` landet in „Urlaub 2024“, Dateien direkt im Ordner in
+„Eigene Videos“), Titel, Beschreibung und Aufnahmedatum liest TubeVault aus der Datei, sonst
+nimmt es den Dateinamen und das Änderungsdatum. Eine Kopie derselben Datei erkennt es wieder.
+Eigene Videos laufen überall mit – Player, TV-Ansicht, DLNA, Playlists, Podcasts, Kinderprofile
+(der Ordner lässt sich wie ein Kanal freigeben); Kommentare, SponsorBlock und „Neu laden“ gibt
+es für sie nicht. Damit kein altes Archiv aus Versehen so landet, sind sie im Import erst
+angehakt, wenn der YouTube-Downloader aus ist.
+
+### Nur Media-Server
+
+Unter **Einstellungen → Betrieb** lässt sich der **YouTube-Downloader** ausschalten. Dann ist
+TubeVault ein reiner Media-Server für deine vorhandenen und eigenen Videos:
+
+- keine Verbindung mehr zu YouTube oder SponsorBlock – auch kein yt-dlp-Update beim Start
+- keine Abo-Prüfungen, Downloads, Kommentare, Kanalbilder oder Qualitäts-Upgrades; „Video
+  hinzufügen“, Abos und Downloads verschwinden aus der App, die API lehnt sie ab
+- die Aufräumregeln der Abos pausieren, damit die Bibliothek nicht nach und nach schrumpft
+- neue Videos kommen über **Verwaltung → Import** dazu
+
+Abos, Warteschlange und Einstellungen bleiben gespeichert; wer den Downloader wieder
+einschaltet, macht genau dort weiter.
 
 ### Abos
 
@@ -650,6 +693,38 @@ Startest du den Container mit `user:`, ergänze stattdessen `group_add:` mit der
 `/dev/dri/renderD128` (`stat -c %g /dev/dri/renderD128`). Klappt etwas mit der GPU nicht, fällt
 TubeVault von selbst auf Software zurück – der Grund steht im Log.
 
+### Auf dem Fernseher
+
+Drei Wege, je nachdem, was im Wohnzimmer steht:
+
+- **Chromecast und AirPlay:** Im Player erscheint ein Fernseher-Knopf, sobald Chrome
+  (Chromecast) oder Safari (AirPlay) ein Gerät im Netz sieht. TubeVault nutzt dafür die
+  Funktionen, die der Browser eingebaut hat – kein Skript von Google. Der Fernseher holt das
+  Video über einen signierten Link, der 12 Stunden gilt und nur dieses eine Video öffnet; die
+  Rechte des Kontos prüft TubeVault bei jedem Abruf erneut. MKV-Dateien werden dafür einmal in
+  MP4 umverpackt. Wichtig: Der Fernseher muss die Adresse erreichen, unter der du TubeVault im
+  Browser öffnest (also nicht `localhost`), und Chromecast lehnt selbstsignierte Zertifikate ab.
+- **TV-Ansicht:** Im Browser des Fernsehers (Fire TV, Android TV, Tizen, webOS …) öffnet sich
+  automatisch eine Ansicht mit großen Kacheln, die sich ganz mit den Pfeiltasten der
+  Fernbedienung bedienen lässt: OK spielt und pausiert, links/rechts spult, Zurück geht zurück.
+  Auf anderen Geräten unter **Einstellungen → Darstellung → TV-Ansicht** oder `/tv`.
+- **DLNA:** Unter **Einstellungen → Fernseher im Heimnetz** eingeschaltet, erscheint TubeVault
+  auf Smart-TVs, Konsolen, in VLC und Kodi als Medienquelle – mit den Ordnern „Kanäle“,
+  „Zuletzt hinzugefügt“ und „Playlists“, Spulen inklusive. Fernseher finden Server per
+  Multicast; das erreicht einen Container nur im Host-Netz:
+
+  ```yaml
+  services:
+    tubevault:
+      network_mode: host   # statt ports: – TubeVault lauscht dann direkt auf Port 8096
+  ```
+
+  DLNA kennt keine Anmeldung. Deshalb ist es ab Werk aus, antwortet nur Adressen aus dem
+  Heimnetz (private, Loopback- und Link-Local-Adressen), lehnt alles ab, was über einen Reverse
+  Proxy kommt (`X-Forwarded-For`), und zeigt nur, was das in den Einstellungen gewählte Konto
+  sehen darf – ein Kinderprofil bleibt auch auf dem Fernseher ein Kinderprofil. Gespielt wird
+  die Originaldatei; MP4 mit H.264 verstehen praktisch alle Fernseher, MKV und WebM nicht jeder.
+
 ## Reverse Proxy
 
 TubeVault funktioniert hinter Nginx, Nginx Proxy Manager, Caddy und Traefik – inklusive
@@ -799,7 +874,8 @@ und veröffentlicht ein Release.
 ## Datenschutz
 
 TubeVault sendet keine Telemetrie und lädt keine externen Skripte oder Schriften – eine
-Content-Security-Policy erzwingt das auch im Browser. Verbindungen nach außen gehen nur zu:
+Content-Security-Policy erzwingt das auch im Browser. Ist der YouTube-Downloader aus
+(**Nur Media-Server**), geht keine einzige Verbindung nach außen. Sonst nur zu:
 
 - **YouTube:** Downloads, Abo-Prüfungen samt RSS-Feeds, das Nachladen besserer Qualität und –
   nur wenn eingeschaltet – Kommentare.
@@ -811,6 +887,9 @@ Content-Security-Policy erzwingt das auch im Browser. Verbindungen nach außen g
   Video du schaust.
 - **Deinen Benachrichtigungsdienst**, nur wenn du einen einträgst.
 - **Deinen Anmeldedienst** (OIDC), nur wenn du einen einrichtest.
+
+Der DLNA-Server (wenn eingeschaltet) kündigt sich per Multicast nur im lokalen Netz an und
+antwortet nur Geräten aus dem Heimnetz.
 
 Mit „Aufs Gerät“ gespeicherte Videos liegen nur im Browser des jeweiligen Geräts; TubeVault
 erfährt davon nichts außer dem Download selbst. Podcast-Feeds holt deine App direkt bei
