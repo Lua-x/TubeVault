@@ -308,6 +308,27 @@ def restart(_: AdminUser, ctx: Context) -> dict[str, str]:
     return {"detail": "TubeVault startet neu"}
 
 
+# --- media analysis --------------------------------------------------------------------
+
+
+class AnalysisState(BaseModel):
+    total: int
+    trickplay_done: int
+    loudness_done: int
+    current: str | None
+
+
+@router.get("/analysis")
+def analysis_state(_: AdminUser, ctx: Context) -> AnalysisState:
+    status = ctx.analyzer.status()
+    return AnalysisState(
+        total=status.total,
+        trickplay_done=status.trickplay_done,
+        loudness_done=status.loudness_done,
+        current=status.current,
+    )
+
+
 # --- maintenance ---------------------------------------------------------------------
 
 Action = Literal["search-index", "artwork", "verify", "nfo", "cache"]

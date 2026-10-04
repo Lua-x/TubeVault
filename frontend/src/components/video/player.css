@@ -329,3 +329,28 @@
 .vjs-tubevault .vjs-tubevault-cast.vjs-tubevault-cast-on {
   color: #0a84ff;
 }
+
+/* Seek preview above the progress line (trickplay.ts) */
+.vjs-tubevault .vjs-progress-control {
+  position: relative;
+}
+
+.vjs-tubevault-trickplay {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 30px);
+  z-index: 3;
+  border-radius: 10px;
+  background-color: #000;
+  background-repeat: no-repeat;
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.25),
+    0 12px 32px rgb(0 0 0 / 0.5);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease-out;
+}
+
+.vjs-tubevault-trickplay.is-visible {
+  opacity: 1;
+}

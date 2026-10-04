@@ -277,6 +277,8 @@ def client(
         connectivity=connectivity,
         feeds=feeds.fetch,
         notification_sender=sender.send,
+        # Tests run the analysis themselves (ctx.analyzer.run_once), not in the background.
+        media_analysis=False,
     )
     with TestClient(app, headers=HEADERS) as test_client:
         yield test_client

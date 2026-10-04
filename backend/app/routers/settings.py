@@ -31,6 +31,8 @@ def update_settings(body: AppSettings, _: AdminUser, db: DbSession, ctx: Context
     ctx.downloads.wake()  # concurrency may have changed
     if body.dlna.enabled != previous.dlna.enabled:
         ctx.dlna.apply()
+    if body.analysis != previous.analysis:
+        ctx.analyzer.wake()
     if body.library.layout != before.layout:
         ctx.library_tasks.relayout(body.library)
     elif body.library.write_nfo != before.write_nfo:

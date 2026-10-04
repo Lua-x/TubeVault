@@ -11,6 +11,7 @@ import { api, ApiError } from "@/lib/api";
 import { apiUrl } from "@/lib/base";
 import type {
   AdminOverview,
+  AnalysisState,
   ApiToken,
   AppSettings,
   Backup,
@@ -240,6 +241,21 @@ export function useSaveSettings() {
 }
 
 const DLNA_STATUS = [...keys.settings, "dlna"] as const;
+
+/** Progress of the media analysis; polled while it still has work. */
+export function useAnalysisState(enabled: boolean) {
+  return useQuery({
+    queryKey: ["admin", "analysis"],
+    queryFn: () => api.get<AnalysisState>("admin/analysis"),
+    enabled,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      return data && (data.trickplay_done < data.total || data.loudness_done < data.total)
+        ? 5000
+        : false;
+    },
+  });
+}
 
 export function useDlnaStatus(enabled: boolean) {
   return useQuery({

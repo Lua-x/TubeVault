@@ -105,6 +105,15 @@ class BackupOptions(BaseModel):
     keep: int = Field(default=7, ge=1, le=60)
 
 
+class AnalysisOptions(BaseModel):
+    """Background work per video, done once, at low priority."""
+
+    # Small preview pictures while seeking.
+    trickplay: bool = True
+    # Measure how loud a video is, so the player can even out loud and quiet ones.
+    loudness: bool = True
+
+
 class DlnaOptions(BaseModel):
     """Smart TVs, consoles and VLC find the library in the home network (no login)."""
 
@@ -125,6 +134,7 @@ class AppSettings(BaseModel):
     backup: BackupOptions = Field(default_factory=BackupOptions)
     automation: AutomationOptions = Field(default_factory=AutomationOptions)
     dlna: DlnaOptions = Field(default_factory=DlnaOptions)
+    analysis: AnalysisOptions = Field(default_factory=AnalysisOptions)
 
 
 QUEUE_PAUSED_KEY = "queue_paused"

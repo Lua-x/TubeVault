@@ -45,7 +45,7 @@ from app.routers import (
     videos,
     ws,
 )
-from app.services.app_settings import TranscodeOptions, load_app_settings
+from app.services.app_settings import AnalysisOptions, TranscodeOptions, load_app_settings
 from app.services.auth import bootstrap_admin, purge_expired_sessions
 from app.services.backups import apply_staged_restore
 from app.services.catalog import Catalog, YtDlpCatalog
@@ -62,6 +62,7 @@ from app.services.rss import FeedFetcher, RssWatcher, fetch_feed_ids
 from app.services.search import ensure_search_index
 from app.services.subscriptions import SubscriptionChecker
 from app.services.upgrades import QualityUpgrades
+from app.workers.analyzer import MediaAnalyzer
 from app.workers.download_manager import DownloadManager
 from app.workers.library_tasks import LibraryTasks
 from app.workers.scheduler import SubscriptionScheduler
@@ -264,6 +265,7 @@ def create_app(
     connectivity: Connectivity | None = None,
     feeds: FeedFetcher | None = None,
     notification_sender: Sender | None = None,
+    media_analysis: bool = True,
 ) -> FastAPI:
     settings = settings or Settings()
     init_storage(settings)
@@ -322,14 +324,29 @@ def create_app(
             scheduler.wake()
 
     connectivity.on_change = connectivity_changed
-    manager.on_download_finished = scheduler.request_cleanup
 
     def transcode_options() -> TranscodeOptions:
         with sessions() as db:
             return load_app_settings(db).transcoding
 
     transcoder = Transcoder(settings, transcode_options)
-    manager.on_file_replaced = transcoder.purge
+
+    def analysis_options() -> AnalysisOptions:
+        with sessions() as db:
+            return load_app_settings(db).analysis
+
+    analyzer = MediaAnalyzer(settings, sessions, analysis_options)
+
+    def file_replaced(video_id: int) -> None:
+        transcoder.purge(video_id)
+        analyzer.forget(video_id)
+
+    def download_finished() -> None:
+        scheduler.request_cleanup()
+        analyzer.wake()
+
+    manager.on_file_replaced = file_replaced
+    manager.on_download_finished = download_finished
     library_tasks = LibraryTasks(settings, sessions, events)
     comment_fetcher = CommentFetcher(sessions, downloader, events, connectivity)
     podcast_prefetch = AudioPrefetch(transcoder)
@@ -354,6 +371,7 @@ def create_app(
         comments=comment_fetcher,
         podcasts=podcast_prefetch,
         dlna=dlna_service,
+        analyzer=analyzer,
     )
 
     @asynccontextmanager
@@ -364,6 +382,8 @@ def create_app(
         scheduler.start()
         transcoder.start()
         await asyncio.to_thread(dlna_service.apply)
+        if media_analysis:
+            analyzer.start()
         if restored:
             library_tasks.verify_files()  # the backup may know files that are gone now
         else:
@@ -373,6 +393,7 @@ def create_app(
             yield
         finally:
             await asyncio.to_thread(dlna_service.stop)
+            await asyncio.to_thread(analyzer.stop)
             await asyncio.to_thread(library_tasks.wait, 10.0)
             await asyncio.to_thread(transcoder.stop)
             await asyncio.to_thread(scheduler.stop)

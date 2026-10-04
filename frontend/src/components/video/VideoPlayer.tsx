@@ -15,6 +15,8 @@ import german from "video.js/dist/lang/de.json";
 
 import { apiUrl } from "@/lib/base";
 import { addCastButton } from "./castButton";
+import { evenOut, updateLevel } from "./loudness";
+import { addTrickplay } from "./trickplay";
 import { thumbnailUrl } from "@/lib/media";
 import type { SponsorSegment, VideoDetail } from "@/lib/types";
 
@@ -60,6 +62,8 @@ interface VideoPlayerProps {
   playbackRate?: number;
   /** The viewer picked another speed in the player. */
   onRateChange?: (rate: number) => void;
+  /** Even out loud and quiet videos with the measured loudness. */
+  normalizeVolume?: boolean;
   /** Rendered inside the player element, so it stays visible in fullscreen. */
   overlay?: ReactNode;
   /** Saved on this device: poster and tracks come from local (object) URLs. */
@@ -302,6 +306,14 @@ export const VideoPlayer = forwardRef<PlayerHandle, VideoPlayerProps>(
       player.on("play", () => {
         playRequested.current = true;
         latest.current.onPlay?.();
+        const media = player.el()?.querySelector("video");
+        if (media && !latest.current.local) {
+          void evenOut(
+            media,
+            latest.current.video.loudness_lufs,
+            latest.current.normalizeVolume ?? true,
+          );
+        }
       });
       player.on("timeupdate", () => {
         const time = player.currentTime() ?? 0;
@@ -368,6 +380,31 @@ export const VideoPlayer = forwardRef<PlayerHandle, VideoPlayerProps>(
         applyRate(player, props.playbackRate);
       }
     }, [props.playbackRate, fileKey]);
+
+    // The level follows the setting and a measurement that arrives later.
+    const loudness = video.loudness_lufs;
+    const normalize = props.normalizeVolume ?? true;
+    useEffect(() => {
+      const media = playerRef.current?.el()?.querySelector("video");
+      if (media) updateLevel(media, loudness, normalize);
+    }, [loudness, normalize, fileKey]);
+
+    // Seek previews, once the server made them (they may arrive while watching).
+    const trickplayKey = !props.local && video.trickplay ? video.trickplay.version : 0;
+    useEffect(() => {
+      const player = playerRef.current;
+      const info = latest.current.video.trickplay;
+      if (!player || player.isDisposed() || !trickplayKey || !info) return;
+      let remove: () => void = () => undefined;
+      let active = true;
+      player.ready(() => {
+        if (active) remove = addTrickplay(player, latest.current.video.id, info);
+      });
+      return () => {
+        active = false;
+        remove();
+      };
+    }, [trickplayKey, fileKey]);
 
     // Segments usually arrive after the player was created.
     useEffect(() => {

@@ -79,6 +79,12 @@ class Video(Base):
     comments_fetched_at: Mapped[datetime | None]
     comment_count: Mapped[int | None]
     sponsorblock_cut: Mapped[bool] = mapped_column(default=False)
+    # Media analysis (app/workers/analyzer.py): integrated loudness (EBU R128) and the
+    # seek-preview sheets; the *_at columns say the part was tried, also when it failed.
+    loudness_lufs: Mapped[float | None]
+    loudness_at: Mapped[datetime | None]
+    trickplay: Mapped[dict[str, Any] | None]
+    trickplay_at: Mapped[datetime | None]
     updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
 
     channel: Mapped[Channel | None] = relationship(back_populates="videos")

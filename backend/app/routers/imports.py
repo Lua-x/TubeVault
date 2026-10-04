@@ -121,6 +121,7 @@ def start_import(body: ImportRequest, user: AdminUser, ctx: Context) -> dict[str
                     log.exception("Import von %s fehlgeschlagen", candidate.relative)
                 progress.step(candidate.title)
             ctx.importer.run_scan(db)
+        ctx.analyzer.wake()
         parts = [f"{imported} importiert"]
         if skipped:
             parts.append(f"{skipped} übersprungen")

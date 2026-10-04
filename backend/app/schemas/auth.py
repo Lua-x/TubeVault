@@ -65,6 +65,8 @@ class Preferences(BaseModel):
     watch_later_keep_watched: bool | None = None
     # Playback speed per channel ("12": 1.5); always sent as a whole, speed 1 is left out.
     channel_rates: dict[str, float] | None = None
+    # Even out loud and quiet videos (measured by the media analysis).
+    normalize_volume: bool | None = None
 
     @field_validator("channel_rates")
     @classmethod

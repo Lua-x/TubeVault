@@ -7,6 +7,25 @@ export interface Preferences {
   watch_later_keep_watched?: boolean;
   /** Playback speed per channel id; speed 1 is left out. */
   channel_rates?: Record<string, number>;
+  /** Even out loud and quiet videos (default on). */
+  normalize_volume?: boolean;
+}
+
+export interface Trickplay {
+  interval: number;
+  width: number;
+  height: number;
+  columns: number;
+  rows: number;
+  count: number;
+  version: number;
+}
+
+export interface AnalysisState {
+  total: number;
+  trickplay_done: number;
+  loudness_done: number;
+  current: string | null;
 }
 
 export interface User {
@@ -169,6 +188,9 @@ export interface VideoDetail extends VideoSummary {
   sponsor_segments: SponsorSegment[];
   comments_fetched_at: string | null;
   comment_count: number | null;
+  /** Integrated loudness (LUFS) from the media analysis. */
+  loudness_lufs: number | null;
+  trickplay: Trickplay | null;
 }
 
 export interface Comment {
@@ -349,6 +371,7 @@ export interface AppSettings {
   backup: BackupOptions;
   automation: { rss: boolean; upgrade_quality: boolean };
   dlna: DlnaOptions;
+  analysis: { trickplay: boolean; loudness: boolean };
 }
 
 export interface DlnaOptions {

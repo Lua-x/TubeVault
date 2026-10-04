@@ -91,6 +91,11 @@ class Settings(BaseSettings):
         return self.media_dir / ".tubevault" / "cache"
 
     @property
+    def trickplay_dir(self) -> Path:
+        """Seek previews (sprite sheets) per video; recreated when missing."""
+        return self.media_dir / ".tubevault" / "trickplay"
+
+    @property
     def temp_dir(self) -> Path:
         """Partial downloads, on the media volume so finished files can be moved atomically."""
         return self.media_dir / ".tubevault" / "tmp"

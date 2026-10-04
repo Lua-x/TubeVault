@@ -28,6 +28,8 @@ def video_summaries(db: Session, user_id: int, videos: Iterable[Video]) -> list[
 
 def video_detail(db: Session, user_id: int, video: Video) -> VideoDetail:
     detail = VideoDetail.model_validate(video)
+    if detail.trickplay and video.trickplay_at:
+        detail.trickplay.version = int(video.trickplay_at.timestamp())
     state = progress_map(db, user_id, [video.id]).get(video.id)
     detail.progress = WatchState.model_validate(state) if state else None
     return detail

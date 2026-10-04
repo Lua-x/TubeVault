@@ -12,6 +12,7 @@ import {
   useUsers,
 } from "@/api/queries";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { AnalysisGroup } from "@/components/settings/AnalysisGroup";
 import { DlnaGroup } from "@/components/settings/DlnaGroup";
 import { LibraryGroup, LibraryTaskStatus } from "@/components/settings/LibraryGroup";
 import { TokensGroup } from "@/components/settings/TokensGroup";
@@ -144,6 +145,14 @@ function PlaybackSection() {
           description="Sonst verschwindet ein Video von der Liste, sobald du es gesehen hast."
           checked={preferences.watch_later_keep_watched === true}
           onChange={(watch_later_keep_watched) => void update({ watch_later_keep_watched })}
+        />
+      </Row>
+      <Row>
+        <Switch
+          label="Lautstärke angleichen"
+          description="Laute Videos werden leiser, leise etwas lauter – sobald der Server ein Video vermessen hat. Nicht auf iPhone und iPad."
+          checked={preferences.normalize_volume !== false}
+          onChange={(normalize_volume) => void update({ normalize_volume })}
         />
       </Row>
       <Row>
@@ -418,6 +427,11 @@ function DownloadForm({ initial }: { initial: AppSettings }) {
         onChange={(patch) =>
           setDraft({ ...draft, transcoding: { ...draft.transcoding, ...patch } })
         }
+      />
+
+      <AnalysisGroup
+        value={draft.analysis}
+        onChange={(patch) => setDraft({ ...draft, analysis: { ...draft.analysis, ...patch } })}
       />
 
       <div className="flex flex-col gap-3">

@@ -16,6 +16,7 @@ import { PageSpinner } from "@/components/ui/Spinner";
 import { PlaybackStatus } from "@/components/video/QualityMenu";
 import { VideoPlayer } from "@/components/video/VideoPlayer";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { useAuth } from "@/hooks/auth";
 import { useChannelRate } from "@/hooks/useChannelRate";
 import { usePlaybackSource } from "@/hooks/usePlaybackSource";
 import type { VideoDetail, VideoSummary } from "@/lib/types";
@@ -166,6 +167,7 @@ function TvPlayerView({ video, listId }: { video: VideoDetail; listId: number | 
   const { data: list } = usePlaylist(listId);
   const container = useRef<HTMLElement>(null);
   const [channelRate, saveChannelRate] = useChannelRate(video.channel?.id);
+  const { user } = useAuth();
   useDocumentTitle(video.title);
   const index = list?.videos.findIndex((v) => v.id === video.id) ?? -1;
   const next = list && index >= 0 ? list.videos[index + 1] : undefined;
@@ -209,6 +211,7 @@ function TvPlayerView({ video, listId }: { video: VideoDetail; listId: number | 
         autoplay
         playbackRate={channelRate}
         onRateChange={saveChannelRate}
+        normalizeVolume={user?.preferences.normalize_volume !== false}
         onSave={(position, duration, reason) => {
           void reportProgress(video.id, position, duration).then(() => {
             if (reason === "unmount" || reason === "ended") {

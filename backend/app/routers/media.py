@@ -71,6 +71,21 @@ def thumbnail(video_id: int, user: CurrentUser, db: DbSession, settings: AppConf
     return FileResponse(path, media_type=media_type, headers={"Cache-Control": MEDIA_CACHE})
 
 
+@router.get("/{video_id}/trickplay/{sheet}.jpg")
+def trickplay_sheet(
+    video_id: int, sheet: int, user: CurrentUser, db: DbSession, settings: AppConfig
+) -> FileResponse:
+    """One sheet of seek previews (see app/services/analysis.py)."""
+    _video(db, video_id, user)
+    path = settings.trickplay_dir / str(video_id) / f"{sheet}.jpg"
+    if sheet < 1 or not path.is_file():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Keine Vorschaubilder")
+    # The address carries a version (?v=…), so a long cache is safe.
+    return FileResponse(
+        path, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=2592000"}
+    )
+
+
 @router.get("/{video_id}/subtitles/{subtitle_id}.vtt")
 def subtitle(
     video_id: int, subtitle_id: int, user: CurrentUser, db: DbSession, settings: AppConfig

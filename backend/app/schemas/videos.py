@@ -48,6 +48,19 @@ class SponsorSegmentOut(ApiModel):
     end_s: float
 
 
+class TrickplayOut(BaseModel):
+    """Seek previews: sheets of columns×rows pictures, one every `interval` seconds."""
+
+    interval: int
+    width: int
+    height: int
+    columns: int
+    rows: int
+    count: int
+    # Changes when the sheets are made again – part of their address, against stale caches.
+    version: int = 0
+
+
 class VideoSummary(ApiModel):
     id: int
     youtube_id: str
@@ -82,6 +95,9 @@ class VideoDetail(VideoSummary):
     downloaded_at: datetime | None
     sponsorblock_cut: bool
     sponsor_segments: list[SponsorSegmentOut]
+    # Integrated loudness (LUFS) for evening out the volume; None until measured.
+    loudness_lufs: float | None = None
+    trickplay: TrickplayOut | None = None
     comments_fetched_at: datetime | None
     comment_count: int | None
 

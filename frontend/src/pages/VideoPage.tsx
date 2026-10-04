@@ -259,6 +259,7 @@ function VideoView({ video, playlistId, autoplay }: VideoViewProps) {
           onSegmentChange={setCurrentSegment}
           playbackRate={channelRate}
           onRateChange={saveChannelRate}
+          normalizeVolume={user?.preferences.normalize_volume !== false}
           overlay={
             <>
               {playback.showMenu && (
