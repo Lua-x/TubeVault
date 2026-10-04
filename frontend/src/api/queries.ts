@@ -23,6 +23,7 @@ import type {
   Container,
   CreatedApiToken,
   DlnaStatus,
+  FamilyDevice,
   HardwareInfo,
   HomeFeed,
   HwAccel,
@@ -295,6 +296,9 @@ export function useUpdateUser() {
       may_add?: boolean;
       channel_access?: "all" | "selected";
       channel_ids?: number[];
+      on_family_devices?: boolean;
+      /** Digits to set, "" to remove. */
+      pin?: string;
     }) => api.patch<User>(`users/${id}`, body),
     onSuccess: () => client.invalidateQueries({ queryKey: keys.users }),
   });
@@ -940,5 +944,49 @@ export function useCastLink(videoId: number, enabled: boolean) {
     staleTime: 6 * 3600_000,
     gcTime: 6 * 3600_000,
     retry: false,
+  });
+}
+
+// --- family devices ("Wer schaut?") ------------------------------------------------------
+
+const FAMILY_DEVICES = ["family", "devices"] as const;
+
+export function useFamilyDevices(enabled: boolean) {
+  return useQuery({
+    queryKey: FAMILY_DEVICES,
+    queryFn: () => api.get<FamilyDevice[]>("family/devices"),
+    enabled,
+  });
+}
+
+export function useCreateFamilyDevice() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) => api.post<FamilyDevice>("family/devices", { name }),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: FAMILY_DEVICES });
+      void client.invalidateQueries({ queryKey: ["auth", "status"] });
+    },
+  });
+}
+
+export function useRemoveFamilyDevice() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.delete(`family/devices/${id}`),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: FAMILY_DEVICES });
+      void client.invalidateQueries({ queryKey: ["auth", "status"] });
+    },
+  });
+}
+
+/** Own account: appear on family devices, set or remove the PIN ("" removes it). */
+export function useFamilySettings() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { on_family_devices?: boolean; pin?: string }) =>
+      api.put<User>("auth/me/family", body),
+    onSuccess: () => void client.invalidateQueries({ queryKey: ["auth", "status"] }),
   });
 }

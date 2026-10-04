@@ -43,6 +43,9 @@ export interface User {
   can_add: boolean;
   /** Sees only the channels chosen for it. */
   restricted: boolean;
+  /** Shown on family devices ("Wer schaut?"). */
+  on_family_devices: boolean;
+  has_pin: boolean;
   /** False for accounts created through the OIDC provider until a password is set. */
   has_password: boolean;
   oidc_linked: boolean;
@@ -56,6 +59,24 @@ export interface AuthStatus {
   password_login: boolean;
   /** False: a pure media server – nothing to add, subscribe or download. */
   youtube: boolean;
+  /** This browser is a family device (its name): "Wer schaut?" instead of the login. */
+  family_device: string | null;
+}
+
+export interface FamilyProfile {
+  id: number;
+  username: string;
+  has_pin: boolean;
+  restricted: boolean;
+}
+
+export interface FamilyDevice {
+  id: number;
+  name: string;
+  created_at: string;
+  last_used_at: string | null;
+  /** The browser asking is this device. */
+  current: boolean;
 }
 
 export interface Channel {

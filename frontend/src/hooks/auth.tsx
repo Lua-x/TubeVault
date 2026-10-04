@@ -15,6 +15,8 @@ interface AuthContextValue {
   loginWithCode: (ticket: string, code: string) => Promise<void>;
   setup: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  /** On a family device: become another profile (with its PIN, if it has one). */
+  switchProfile: (userId: number, pin?: string) => Promise<void>;
   refresh: () => Promise<unknown>;
   /** Merges into the signed-in user's preferences (optimistically). */
   updatePreferences: (patch: Preferences) => Promise<void>;
@@ -38,6 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         oidc_name: old?.oidc_name ?? null,
         password_login: old?.password_login ?? true,
         youtube: old?.youtube ?? true,
+        family_device: old?.family_device ?? null,
         setup_required: user ? false : (old?.setup_required ?? false),
         user,
       }));
@@ -93,6 +96,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Drop everything else that was loaded for this user. (Clearing the whole cache
         // would also unhook the status query from its observer – the app wouldn't notice.)
         client.removeQueries({ predicate: (query) => query.queryKey[0] !== STATUS_KEY[0] });
+      },
+      switchProfile: async (userId, pin) => {
+        // quiet401: a wrong PIN must not sign the current profile out.
+        const next = await request<User>(
+          "POST",
+          "family/switch",
+          { user_id: userId, pin: pin || null },
+          { quiet401: true },
+        );
+        // Nothing of the profile before stays visible.
+        client.removeQueries({ predicate: (query) => query.queryKey[0] !== STATUS_KEY[0] });
+        setUser(next);
       },
       refresh: () => query.refetch(),
       updatePreferences: async (patch) => {

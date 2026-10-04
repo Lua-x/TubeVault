@@ -38,6 +38,8 @@ export function UserDialog({
   const [selected, setSelected] = useState(() => new Set(user.channel_ids));
   const [filter, setFilter] = useState("");
   const [password, setPassword] = useState("");
+  const [onFamily, setOnFamily] = useState(user.on_family_devices);
+  const [pin, setPin] = useState("");
 
   const fail = (err: unknown) =>
     toast(err instanceof Error ? err.message : "Das hat nicht geklappt", "error");
@@ -60,6 +62,8 @@ export function UserDialog({
         channel_access: access,
         channel_ids: [...selected],
         ...(password ? { password } : {}),
+        on_family_devices: onFamily,
+        ...(pin ? { pin } : {}),
       },
       {
         onSuccess: () => {
@@ -153,6 +157,32 @@ export function UserDialog({
               />
             )}
           </>
+        )}
+
+        <Switch
+          label="Auf Familiengeräten zeigen"
+          description={
+            isAdmin || user.two_factor
+              ? "„Wer schaut?“ auf dem Fernseher & Co. – für Admins und Konten mit Zwei-Faktor-Anmeldung nur mit PIN."
+              : "„Wer schaut?“ auf dem Fernseher & Co. – ein Tipp genügt, auf Wunsch mit PIN."
+          }
+          checked={onFamily}
+          onChange={setOnFamily}
+        />
+        {onFamily && (
+          <TextField
+            label={user.has_pin ? "Neue PIN" : "PIN"}
+            type="password"
+            inputMode="numeric"
+            autoComplete="off"
+            pattern="[0-9]{4,8}"
+            maxLength={8}
+            placeholder={
+              user.has_pin ? "Leer lassen, um sie zu behalten" : "4 bis 8 Ziffern (optional)"
+            }
+            value={pin}
+            onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
+          />
         )}
 
         <TextField

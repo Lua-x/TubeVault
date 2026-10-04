@@ -25,6 +25,7 @@ from app.models import ApiToken, User, UserSession
 from app.schemas.auth import (
     AuthStatus,
     Credentials,
+    FamilySettings,
     PasswordChange,
     Preferences,
     RecoveryCodes,
@@ -40,7 +41,7 @@ from app.schemas.auth import (
     UserOut,
 )
 from app.services import auth as auth_service
-from app.services import two_factor
+from app.services import family, two_factor
 from app.services.app_settings import youtube_enabled
 from app.services.tokens import create_token
 
@@ -62,6 +63,7 @@ def auth_status(request: Request, db: DbSession, settings: AppConfig) -> AuthSta
         oidc_name=settings.oidc_name if settings.oidc_enabled else None,
         password_login=password_login_allowed(settings),
         youtube=youtube_enabled(db),
+        family_device=device.name if (device := family.device_from_request(request, db)) else None,
     )
 
 
@@ -179,6 +181,17 @@ def me(user: CurrentUser) -> UserOut:
 @router.put("/me/preferences")
 def update_preferences(body: Preferences, user: CurrentUser, db: DbSession) -> UserOut:
     user.preferences = {**(user.preferences or {}), **body.model_dump(exclude_none=True)}
+    db.commit()
+    return UserOut.model_validate(user)
+
+
+@router.put("/me/family")
+def update_family_settings(body: FamilySettings, user: SessionUser, db: DbSession) -> UserOut:
+    """Appear on family devices ("Wer schaut?"), with or without a PIN."""
+    try:
+        family.apply_settings(user, body.on_family_devices, body.pin)
+    except family.FamilySettingsError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
     db.commit()
     return UserOut.model_validate(user)
 

@@ -2,6 +2,7 @@
 
 from app.models.channel import Channel
 from app.models.comment import Comment
+from app.models.family import FamilyDevice
 from app.models.job import (
     ACTIVE_JOB_STATUSES,
     FINISHED_JOB_STATUSES,
@@ -24,6 +25,7 @@ __all__ = [
     "Comment",
     "DownloadJob",
     "ErrorKind",
+    "FamilyDevice",
     "ItemState",
     "JobStage",
     "JobStatus",

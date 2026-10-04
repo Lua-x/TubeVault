@@ -30,6 +30,7 @@ from app.routers import (
     comments,
     dlna,
     downloads,
+    family,
     history,
     home,
     imports,
@@ -185,6 +186,7 @@ def _api_router() -> APIRouter:
     for module in (
         system,
         auth,
+        family,
         oidc,
         users,
         home,

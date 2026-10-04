@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import Column, ForeignKey, Index, String, Table, func
+from sqlalchemy import Column, ForeignKey, Index, String, Table, false, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base, utcnow
@@ -45,6 +45,9 @@ class User(Base):
     oidc_subject: Mapped[str | None] = mapped_column(String(255), unique=True, index=True)
     # Secret part of the podcast feed addresses (read-only, renewable); None = feeds off.
     feed_token: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)
+    # "Wer schaut?" on family devices: shown there, optionally behind a PIN (argon2 hash).
+    on_family_devices: Mapped[bool] = mapped_column(default=False, server_default=false())
+    pin_hash: Mapped[str | None] = mapped_column(String(255))
 
     sessions: Mapped[list[UserSession]] = relationship(
         back_populates="user", cascade="all, delete-orphan", passive_deletes=True
@@ -76,6 +79,15 @@ class User(Base):
     @property
     def two_factor(self) -> bool:
         return self.totp_enabled_at is not None and bool(self.totp_secret)
+
+    @property
+    def has_pin(self) -> bool:
+        return bool(self.pin_hash)
+
+    @property
+    def needs_pin(self) -> bool:
+        """Admins and 2FA accounts only appear on family devices behind a PIN."""
+        return self.is_admin or self.two_factor
 
 
 # Usernames are unique regardless of case.

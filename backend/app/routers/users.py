@@ -10,7 +10,7 @@ from app.core.security import hash_password
 from app.models import Channel, User
 from app.schemas.auth import NewUser, UserOut, UserUpdate
 from app.services import auth as auth_service
-from app.services import two_factor
+from app.services import family, two_factor
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -31,6 +31,11 @@ def create_user(body: NewUser, _: AdminUser, db: DbSession) -> UserOut:
         raise HTTPException(status.HTTP_409_CONFLICT, "Diesen Benutzernamen gibt es schon.")
     user = auth_service.create_user(db, body.username, body.password, is_admin=body.is_admin)
     _apply_access(db, user, body.channel_access, body.may_add, body.channel_ids)
+    if body.on_family_devices is not None or body.pin is not None:
+        try:
+            family.apply_settings(user, body.on_family_devices, body.pin)
+        except family.FamilySettingsError as exc:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
     db.commit()
     return UserOut.model_validate(user)
 
@@ -66,6 +71,11 @@ def update_user(user_id: int, body: UserUpdate, admin: AdminUser, db: DbSession)
         if user.id != admin.id:
             user.sessions.clear()
     _apply_access(db, user, body.channel_access, body.may_add, body.channel_ids)
+    if body.on_family_devices is not None or body.pin is not None:
+        try:
+            family.apply_settings(user, body.on_family_devices, body.pin)
+        except family.FamilySettingsError as exc:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
     db.commit()
     return UserOut.model_validate(user)
 

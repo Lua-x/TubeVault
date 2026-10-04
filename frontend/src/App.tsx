@@ -1,6 +1,6 @@
 import { WifiOff } from "lucide-react";
 import { motion } from "motion/react";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router";
 
 import { AppShell } from "@/components/layout/AppShell";
@@ -39,8 +39,10 @@ function Home() {
 
 // Pages for settings, administration and the download side load when they are opened –
 // the start screen on a phone or TV doesn't wait for them.
-const page = <K extends string>(load: () => Promise<Record<K, React.ComponentType>>, name: K) =>
-  lazy(() => load().then((m) => ({ default: m[name] })));
+const page = <K extends string, P extends object>(
+  load: () => Promise<Record<K, React.ComponentType<P>>>,
+  name: K,
+) => lazy(() => load().then((m) => ({ default: m[name] })));
 const AdminPage = page(() => import("@/pages/AdminPage"), "AdminPage");
 const DownloadsPage = page(() => import("@/pages/DownloadsPage"), "DownloadsPage");
 const ImportPage = page(() => import("@/pages/ImportPage"), "ImportPage");
@@ -139,8 +141,12 @@ function OfflineApp({ retry }: { retry: () => void }) {
   );
 }
 
+const ProfilesPage = page(() => import("@/pages/ProfilesPage"), "ProfilesPage");
+
 export function App() {
   const { status, isLoading, error, user, refresh } = useAuth();
+  // On a family device: the profile choice, unless someone wants the password login.
+  const [passwordLogin, setPasswordLogin] = useState(false);
 
   if (isLoading) return <PageSpinner />;
   if (error instanceof ApiError && error.status === 0) {
@@ -155,6 +161,19 @@ export function App() {
     );
   }
   if (status.setup_required) return <SetupPage />;
+  if (!user && status.family_device && !passwordLogin) {
+    return (
+      <BrowserRouter basename={basePath().replace(/\/$/, "") || "/"}>
+        <Suspense fallback={<PageSpinner />}>
+          <ProfilesPage
+            signedOut
+            tv={isTvBrowser() && chosenView() !== "standard"}
+            onPasswordLogin={() => setPasswordLogin(true)}
+          />
+        </Suspense>
+      </BrowserRouter>
+    );
+  }
   if (!user) return <LoginPage />;
 
   return (
@@ -163,6 +182,14 @@ export function App() {
         <AudioPlayerProvider>
           <LiveEventsProvider>
             <Routes>
+              <Route
+                path="/profiles"
+                element={
+                  <Suspense fallback={<PageSpinner />}>
+                    <ProfilesPage />
+                  </Suspense>
+                }
+              />
               <Route
                 path="/tv/*"
                 element={

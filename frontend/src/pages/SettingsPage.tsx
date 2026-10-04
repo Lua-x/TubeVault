@@ -14,6 +14,7 @@ import {
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AnalysisGroup } from "@/components/settings/AnalysisGroup";
 import { DlnaGroup } from "@/components/settings/DlnaGroup";
+import { FamilyDevicesGroup, FamilyGroup } from "@/components/settings/FamilyGroup";
 import { LibraryGroup, LibraryTaskStatus } from "@/components/settings/LibraryGroup";
 import { TokensGroup } from "@/components/settings/TokensGroup";
 import { TranscodeGroup } from "@/components/settings/TranscodeGroup";
@@ -59,6 +60,8 @@ export function SettingsPage() {
         {user.is_admin && <DownloadSection />}
         <AccountSection />
         <TwoFactorGroup />
+        <FamilyGroup />
+        {user.is_admin && <FamilyDevicesGroup />}
         <PodcastGroup />
         <TokensGroup />
         {user.is_admin && <UsersSection />}

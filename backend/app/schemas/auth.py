@@ -18,7 +18,14 @@ class Credentials(BaseModel):
 ChannelAccess = Literal["all", "selected"]
 
 
-class NewUser(BaseModel):
+class FamilySettings(BaseModel):
+    """Partial: None leaves a field as it is; an empty PIN removes it."""
+
+    on_family_devices: bool | None = None
+    pin: str | None = Field(default=None, max_length=8)
+
+
+class NewUser(FamilySettings):
     username: str = Field(pattern=USERNAME_PATTERN)
     password: str = Field(min_length=8, max_length=1024)
     is_admin: bool = False
@@ -37,7 +44,7 @@ class SetupRequest(BaseModel):
     password: str = Field(min_length=8, max_length=1024)
 
 
-class UserUpdate(BaseModel):
+class UserUpdate(FamilySettings):
     is_admin: bool | None = None
     password: str | None = Field(default=None, min_length=8, max_length=1024)
     channel_access: ChannelAccess | None = None
@@ -97,6 +104,9 @@ class UserOut(ApiModel):
     restricted: bool = False
     has_password: bool = True
     oidc_linked: bool = False
+    # "Wer schaut?" on family devices.
+    on_family_devices: bool = False
+    has_pin: bool = False
 
 
 class TwoFactorChallenge(BaseModel):
@@ -137,6 +147,8 @@ class AuthStatus(BaseModel):
     password_login: bool = True
     # False: a pure media server – nothing to add, subscribe or download.
     youtube: bool = True
+    # This browser is a family device (its name): show "Wer schaut?" instead of the login.
+    family_device: str | None = None
 
 
 class TokenCreate(BaseModel):

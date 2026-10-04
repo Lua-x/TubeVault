@@ -1,7 +1,8 @@
-import { ListVideo, LogOut, Plus } from "lucide-react";
-import { NavLink } from "react-router";
+import { ListVideo, LogOut, Plus, UsersRound } from "lucide-react";
+import { NavLink, useNavigate } from "react-router";
 
 import { usePlaylists } from "@/api/queries";
+import { ProfileAvatar } from "@/components/family/ProfileAvatar";
 import { IconButton } from "@/components/ui/Button";
 import { useAuth } from "@/hooks/auth";
 import { cn } from "@/lib/cn";
@@ -40,7 +41,8 @@ function SidebarLink({ item, badge }: { item: NavItem; badge?: number }) {
 }
 
 export function Sidebar({ onAdd }: { onAdd: () => void }) {
-  const { user, logout } = useAuth();
+  const { user, status, logout } = useAuth();
+  const navigate = useNavigate();
   const active = useActiveDownloadCount();
   const { data: playlists } = usePlaylists();
   // "Später ansehen" has its own place above.
@@ -102,15 +104,18 @@ export function Sidebar({ onAdd }: { onAdd: () => void }) {
       </nav>
 
       <div className="mt-4 flex items-center gap-3 border-t border-separator px-2 pt-4">
-        <div className="flex size-8 items-center justify-center rounded-full bg-surface text-[13px] font-semibold uppercase">
-          {user?.username.slice(0, 1)}
-        </div>
+        {user && <ProfileAvatar id={user.id} name={user.username} className="size-8 text-[13px]" />}
         <div className="min-w-0 flex-1">
           <p className="truncate text-[14px] font-medium">{user?.username}</p>
           <p className="text-[12px] text-tertiary">
             {user?.is_admin ? "Administrator" : "Benutzer"}
           </p>
         </div>
+        {status?.family_device && (
+          <IconButton label="Profil wechseln" onClick={() => navigate("/profiles")}>
+            <UsersRound className="size-[18px]" strokeWidth={1.75} />
+          </IconButton>
+        )}
         <IconButton label="Abmelden" onClick={() => void logout()}>
           <LogOut className="size-[18px]" strokeWidth={1.75} />
         </IconButton>

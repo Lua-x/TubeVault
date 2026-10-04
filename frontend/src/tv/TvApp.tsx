@@ -17,9 +17,12 @@ import { PlaybackStatus } from "@/components/video/QualityMenu";
 import { VideoPlayer } from "@/components/video/VideoPlayer";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { useAuth } from "@/hooks/auth";
+import { ProfileAvatar } from "@/components/family/ProfileAvatar";
 import { useChannelRate } from "@/hooks/useChannelRate";
 import { usePlaybackSource } from "@/hooks/usePlaybackSource";
 import type { VideoDetail, VideoSummary } from "@/lib/types";
+
+import { ProfilesPage } from "@/pages/ProfilesPage";
 
 import { chooseView, useInitialFocus, useTvNavigation } from "./navigation";
 import { TvChannelTile, TvPlaylistTile, TvRow, TvVideoTile } from "./TvTile";
@@ -37,6 +40,7 @@ function TvHome() {
   const navigate = useNavigate();
   const { data: home } = useHome();
   const { data: playlists } = usePlaylists();
+  const { user, status } = useAuth();
   useTvNavigation();
   useInitialFocus(Boolean(home));
   if (!home) return <PageSpinner />;
@@ -57,18 +61,36 @@ function TvHome() {
           <img src="favicon.svg" alt="" className="size-[max(2rem,2.4vw)]" />
           TubeVault
         </h1>
-        <button
-          type="button"
-          data-tv-focus
-          data-tv-key="standard-view"
-          onClick={() => {
-            chooseView("standard");
-            navigate("/");
-          }}
-          className="rounded-full bg-surface px-[1.4vw] py-[0.6vw] text-[max(15px,1vw)] font-medium text-secondary outline-none focus:bg-primary focus:text-canvas"
-        >
-          Normale Ansicht
-        </button>
+        <div className="flex items-center gap-3">
+          {status?.family_device && user && (
+            <button
+              type="button"
+              data-tv-focus
+              data-tv-key="switch-profile"
+              onClick={() => navigate("/tv/profiles")}
+              className="flex items-center gap-2.5 rounded-full bg-surface py-[0.4vw] pr-[1.4vw] pl-[0.4vw] text-[max(15px,1vw)] font-medium text-secondary outline-none focus:bg-primary focus:text-canvas"
+            >
+              <ProfileAvatar
+                id={user.id}
+                name={user.username}
+                className="size-[max(2rem,2.2vw)] text-[max(14px,1vw)]"
+              />
+              {user.username}
+            </button>
+          )}
+          <button
+            type="button"
+            data-tv-focus
+            data-tv-key="standard-view"
+            onClick={() => {
+              chooseView("standard");
+              navigate("/");
+            }}
+            className="rounded-full bg-surface px-[1.4vw] py-[0.6vw] text-[max(15px,1vw)] font-medium text-secondary outline-none focus:bg-primary focus:text-canvas"
+          >
+            Normale Ansicht
+          </button>
+        </div>
       </header>
       {rows.map(
         ([title, videos]) =>
@@ -252,6 +274,7 @@ export function TvApp() {
       <Route path="channels/:id" element={<TvChannel />} />
       <Route path="playlists/:id" element={<TvPlaylist />} />
       <Route path="play/:id" element={<TvPlayer />} />
+      <Route path="profiles" element={<ProfilesPage tv />} />
     </Routes>
   );
 }
