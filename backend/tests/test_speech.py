@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import sys
 import textwrap
 from pathlib import Path
 from typing import Any
@@ -301,7 +303,7 @@ def test_downloads_stay_quiet(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
     engine.download_model("small")
     assert engine.model_ready("small") and not (engine.model_dir("small") / ".cache").exists()
     pip, download = seen
-    assert "faster-whisper>=1.1,<2" in pip[0] and "--target" in pip[0]
+    assert "faster-whisper>=1.1,<2" in pip[0] and "--only-binary=:all:" in pip[0]
     assert download[1]["HF_HUB_DISABLE_TELEMETRY"] == "1" and "HF_HUB_OFFLINE" not in download[1]
     engine.transcribe("small", tmp_path / "a.mp4", tmp_path / "a.vtt", None)
     # Recognition itself never goes online.
@@ -310,3 +312,14 @@ def test_downloads_stay_quiet(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
         "Kein Platz mehr auf dem Laufwerk."
     )
     assert "Verbindung" in speech._friendly("requests.exceptions.ConnectionError: boom")
+
+
+def test_secrets_stay_with_the_server(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OIDC_CLIENT_SECRET", "geheim")
+    monkeypatch.setenv("ADMIN_PASSWORD", "geheim")
+    monkeypatch.setenv("HTTPS_PROXY", "http://proxy:3128")
+    engine = Speech(Settings(config_dir=tmp_path / "config", media_dir=tmp_path / "media"))
+    script = "import json, os; print(json.dumps(dict(os.environ)))"
+    seen = json.loads(engine._run([sys.executable, "-c", script], 30, {"EXTRA": "1"}))
+    assert "OIDC_CLIENT_SECRET" not in seen and "ADMIN_PASSWORD" not in seen
+    assert seen["HTTPS_PROXY"] == "http://proxy:3128" and seen["EXTRA"] == "1"

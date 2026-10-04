@@ -9,6 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.routers import party
+from app.services.rooms import MAX_PER_OWNER, Member, RoomError, Rooms
 from tests.conftest import FakeDownloader, add_and_wait
 from tests.test_access import _login
 from tests.test_remote import _until
@@ -89,3 +90,19 @@ def test_only_who_may_see_the_video(admin: TestClient, videos: dict[str, int]) -
     kids_room = kid.post("/api/party", json={"video_id": videos["kids"]}).json()
     with admin.websocket_connect(f"/api/party/{kids_room['id']}") as socket:
         assert _until(socket, "joined")["video_id"] == videos["kids"]
+
+
+def test_one_account_cant_take_all_rooms() -> None:
+    rooms = Rooms()
+    first = rooms.create("party", owner_id=1, video_id=1)
+    for _ in range(MAX_PER_OWNER - 1):
+        rooms.create("party", owner_id=1, video_id=1)
+    # One more: the oldest unused room makes way.
+    rooms.create("party", owner_id=1, video_id=1)
+    assert rooms.get(first.id) is None and rooms.count == MAX_PER_OWNER
+    # All in use: refused – others can still open rooms.
+    for room in list(rooms._rooms.values()):
+        room.members.append(Member(user_id=1, username="a", role="host"))
+    with pytest.raises(RoomError):
+        rooms.create("party", owner_id=1, video_id=1)
+    assert rooms.create("party", owner_id=2, video_id=1).owner_id == 2

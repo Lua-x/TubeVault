@@ -39,6 +39,13 @@ DOWNLOAD_TIMEOUT_S = 3600
 TRANSCRIBE_TIMEOUT_S = 6 * 3600
 
 _BACKEND_ROOT = Path(__file__).resolve().parents[2]
+# What the child processes may see of the server's environment – no passwords, no
+# client secrets: pip and Hugging Face only need paths, locale and proxy settings.
+_PASSED_ENV = re.compile(
+    r"^(PATH|HOME|LANG|LC_\w+|TZ|TMPDIR|XDG_CACHE_HOME|SSL_CERT_\w+|REQUESTS_CA_BUNDLE"
+    r"|PIP_INDEX_URL|PIP_EXTRA_INDEX_URL|PIP_TRUSTED_HOST|PIP_CERT"
+    r"|(HTTPS?|NO|ALL)_PROXY|(https?|no|all)_proxy)$"
+)
 
 
 class SpeechError(Exception):
@@ -133,6 +140,8 @@ class Speech:
             "30",
             "--retries",
             "2",
+            # Wheels only: nothing is built, no setup.py of some package runs.
+            "--only-binary=:all:",
             "--target",
             str(staging),
             PACKAGE,
@@ -216,7 +225,8 @@ class Speech:
         return self._run([*_nice(), sys.executable, "-m", "app.speech_job", *args], timeout, env)
 
     def _run(self, command: list[str], timeout: int, env: dict[str, str]) -> str:
-        environment = {**os.environ, **env}
+        environment = {k: v for k, v in os.environ.items() if _PASSED_ENV.match(k)}
+        environment.update(env)
         try:
             process = subprocess.Popen(  # noqa: S603 – our interpreter, our arguments
                 command,

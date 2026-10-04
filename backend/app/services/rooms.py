@@ -21,6 +21,8 @@ Role = Literal["tv", "phone", "host", "guest"]
 CODE_TTL_S = 600
 QUEUE_SIZE = 64
 MAX_ROOMS = 500
+# Per account, so one account can't use up all rooms.
+MAX_PER_OWNER = 20
 
 
 @dataclass(eq=False)
@@ -78,6 +80,12 @@ class Rooms:
 
     def create(self, kind: Kind, owner_id: int, video_id: int | None = None) -> Room:
         self.prune()
+        own = [r for r in self._rooms.values() if r.owner_id == owner_id]
+        if len(own) >= MAX_PER_OWNER:
+            empty = [r for r in own if not r.members]
+            if not empty:
+                raise RoomError("Du hast schon zu viele Räume offen.")
+            self.close(min(empty, key=lambda r: r.created))  # the oldest unused one goes
         if len(self._rooms) >= MAX_ROOMS:
             raise RoomError("Gerade sind zu viele Räume offen.")
         room = Room(kind=kind, owner_id=owner_id, video_id=video_id)
