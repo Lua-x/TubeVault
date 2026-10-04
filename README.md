@@ -49,6 +49,22 @@
 
 ## Funktionen
 
+**Version 0.9 – Familie & Wohnzimmer**
+
+- **„Wer schaut?“:** Auf Familiengeräten wie dem Fernseher oder dem Tablet in der Küche
+  wählt man sein Profil mit einem Tipp statt sich anzumelden – Admins und Erwachsene auf
+  Wunsch hinter einer PIN, Kinderprofile ohne
+- **Handy als Fernbedienung:** Code vom Fernseher eintippen oder scannen, dann steuert das
+  Handy die TV-Ansicht und schickt Videos auf den Fernseher
+- **Gemeinsam schauen:** einen Link teilen, und alle sehen dasselbe Video im Gleichtakt –
+  jeder darf pausieren und spulen
+- **Vorschaubilder beim Spulen** und **gleiche Lautstärke** für laute und leise Videos,
+  einmal pro Video im Hintergrund berechnet
+- **Untertitel per Spracherkennung** für Videos ohne Untertitel, auf deinem Server – das
+  Programm wird erst auf Knopfdruck geladen
+- **Tempo pro Kanal:** 1,5× beim Podcast-Kanal, normal bei der Musik – der Player merkt sich
+  die Geschwindigkeit für jeden Kanal
+
 **Version 0.8 – Wohnzimmer & Media-Server**
 
 - **Auf den Fernseher:** ein Knopf im Player schickt das Video per Chromecast oder AirPlay
@@ -260,8 +276,8 @@ Eine Vorlage für eine `.env`-Datei liegt in [`.env.example`](.env.example).
 
 | Pfad | Inhalt |
 | ---- | ------ |
-| `/config` | Datenbank (`tubevault.db`), Sicherungen (`backups/`), Logs (`logs/`), aktualisiertes yt-dlp (`.runtime/`) |
-| `/media` | Videos, Thumbnails, Untertitel, NFOs – der Unterordner `.tubevault/` enthält nur temporäre Downloads und den Umwandlungs-Cache |
+| `/config` | Datenbank (`tubevault.db`), Sicherungen (`backups/`), Logs (`logs/`), aktualisiertes yt-dlp und – falls eingerichtet – die Spracherkennung (`.runtime/`), Sprachmodelle (`models/`) |
+| `/media` | Videos, Thumbnails, Untertitel, NFOs – der Unterordner `.tubevault/` enthält nur temporäre Downloads, den Umwandlungs-Cache und die Vorschaubilder fürs Spulen |
 | `/import` | Optional: vorhandene Videos zum Importieren (darf schreibgeschützt sein, dann „Kopieren“ wählen) |
 
 Ordnerstruktur in `/media` (Standard „TubeVault“):
@@ -326,6 +342,9 @@ TubeVault ein reiner Media-Server für deine vorhandenen und eigenen Videos:
   hinzufügen“, Abos und Downloads verschwinden aus der App, die API lehnt sie ab
 - die Aufräumregeln der Abos pausieren, damit die Bibliothek nicht nach und nach schrumpft
 - neue Videos kommen über **Verwaltung → Import** dazu
+
+Einzige Ausnahme, nur auf deinen Klick: das Einrichten der
+[Spracherkennung](#untertitel-per-spracherkennung) lädt einmalig Programm und Modell.
 
 Abos, Warteschlange und Einstellungen bleiben gespeichert; wer den Downloader wieder
 einschaltet, macht genau dort weiter.
@@ -725,6 +744,89 @@ Drei Wege, je nachdem, was im Wohnzimmer steht:
   sehen darf – ein Kinderprofil bleibt auch auf dem Fernseher ein Kinderprofil. Gespielt wird
   die Originaldatei; MP4 mit H.264 verstehen praktisch alle Fernseher, MKV und WebM nicht jeder.
 
+### Wer schaut? (Familiengeräte)
+
+Auf dem Fernseher oder dem Familien-Tablet soll sich niemand mit Passwort anmelden müssen.
+Dafür gibt es **Familiengeräte**:
+
+1. Auf dem Gerät als Admin anmelden und unter **Einstellungen → Familiengeräte** „Dieses Gerät
+   als Familiengerät einrichten“ wählen. Das Gerät bekommt ein eigenes Cookie (400 Tage gültig).
+2. Jedes Konto legt unter **Einstellungen → Wer schaut?** selbst fest, ob es dort erscheint –
+   für Kinderprofile macht das ein Admin in der Benutzerverwaltung. Admins und Konten mit
+   Zwei-Faktor-Anmeldung erscheinen nur mit PIN (4–8 Ziffern); alle anderen können eine setzen.
+3. Statt der Anmeldung zeigt das Gerät nun die Profile. Gewechselt wird über „Profil wechseln“
+   in der Seitenleiste oder oben in der TV-Ansicht – das vorige Profil wird dabei abgemeldet.
+
+Nach fünf falschen PINs wartet das Profil 15 Minuten. Ein Familiengerät lässt sich in den
+Einstellungen jederzeit entfernen; es zeigt dann sofort wieder die normale Anmeldung.
+Auf allen anderen Geräten ändert sich nichts.
+
+### Handy als Fernbedienung
+
+In der TV-Ansicht oben rechts **Fernbedienung** wählen: Der Fernseher zeigt einen QR-Code und
+einen sechsstelligen Code (10 Minuten gültig). Auf dem Handy den QR-Code scannen oder in
+TubeVault **Fernbedienung** öffnen und den Code eintippen. Danach steuert das Handy Pause,
+Spulen und Zurück, zeigt, was läuft, und auf jeder Videoseite schickt **Auf Fernseher** das
+Video direkt hin. Das Handy bleibt auch nach einem Neuladen verbunden; der Fernseher kann die
+Verbindung jederzeit trennen. Beide Geräte müssen bei TubeVault angemeldet sein – das Handy
+mit seinem eigenen Konto. Falsch geratene Codes bremst TubeVault aus.
+
+### Gemeinsam schauen
+
+Auf der Videoseite **Gemeinsam schauen** öffnet einen Raum mit einem Link zum Teilen. Wer ihn
+öffnet, sieht dasselbe Video an derselben Stelle; Abspielen, Pause und Spulen gelten für alle,
+und wer ein paar Sekunden hinterherhinkt, wird sanft wieder herangeholt. Mitmachen kann jedes
+Konto, das dieses Video sehen darf – ein Kinderprofil kommt nicht in einen Raum mit einem Video
+außerhalb seiner Kanäle. Der Raum schließt sich zehn Minuten nachdem alle gegangen sind.
+Gut für Fernbeziehung und Familie auf mehreren Sofas; über das Internet braucht es dafür einen
+[Reverse Proxy](#reverse-proxy) mit WebSockets.
+
+### Vorschaubilder und Lautstärke
+
+Unter **Einstellungen → Medienanalyse** (ab Werk an) schaut sich TubeVault jedes Video einmal
+im Hintergrund an, mit niedrigster Priorität:
+
+- **Vorschaubilder beim Spulen:** kleine Bilder über der Zeitleiste, etwa 1–2 MB pro Stunde
+  Video in `/media/.tubevault/trickplay`.
+- **Lautheit messen** (EBU R128): Mit **Einstellungen → Wiedergabe → Lautstärke angleichen**
+  werden laute Videos leiser und leise etwas lauter (höchstens +6 dB, mit Begrenzer gegen
+  Übersteuern). Auf iPhone und iPad geht das wegen Safari nicht.
+
+Ein neues Video kommt gleich nach dem Download dran, die vorhandene Bibliothek nach und nach.
+Wird eine Datei ersetzt (bessere Qualität), wird sie neu vermessen.
+
+### Untertitel per Spracherkennung
+
+Für eigene Videos und alles ohne Untertitel kann TubeVault Untertitel aus der Tonspur erzeugen
+– mit [faster-whisper](https://github.com/SYSTRAN/faster-whisper), ganz auf deinem Server.
+Programm und Modell sind **nicht** im Image, damit es klein bleibt und nichts ungefragt lädt:
+
+1. Unter **Einstellungen → Untertitel per Spracherkennung** ein Modell wählen und
+   **Einrichten** klicken. TubeVault installiert dann einmalig faster-whisper von PyPI
+   (rund 450 MB in `/config/.runtime/speech`) und lädt das Modell von Hugging Face nach
+   `/config/models`:
+
+   | Modell | Größe | |
+   | ------ | ----- | - |
+   | `tiny` | 75 MB | am schnellsten, für einen Raspberry Pi |
+   | `base` | 145 MB | meist die beste Wahl |
+   | `small` | 485 MB | genauer, etwa dreimal langsamer, braucht rund 1 GB RAM |
+
+2. Auf einer Videoseite **Untertitel erzeugen** klicken – oder **Eigene Videos ohne
+   Untertitel** für alle auf einmal, oder **Neue eigene Videos automatisch** einschalten.
+
+Die Erkennung läuft als eigener Prozess mit niedrigster Priorität auf der Hälfte der
+CPU-Kerne und geht dabei nicht ins Internet. Die Untertitel landen als
+`Titel [ID].de.speech.vtt` neben dem Video (Jellyfin & Co. lesen „de“ daraus), heißen im
+Player „Deutsch (Spracherkennung)“ und tauchen auch in einem gerade laufenden Video auf.
+Noch einmal erzeugen ersetzt die alten. **Entfernen** löscht Programm und Modelle wieder;
+erzeugte Untertitel bleiben.
+
+Ohne Internet am Server: das Modell auf einem anderen Rechner von
+`huggingface.co/Systran/faster-whisper-base` laden (`model.bin`, `config.json`,
+`tokenizer.json`, `vocabulary.txt`) und nach `/config/models/faster-whisper-base/` legen.
+Das Programm selbst braucht beim Einrichten Zugang zu PyPI.
+
 ## Reverse Proxy
 
 TubeVault funktioniert hinter Nginx, Nginx Proxy Manager, Caddy und Traefik – inklusive
@@ -875,7 +977,8 @@ und veröffentlicht ein Release.
 
 TubeVault sendet keine Telemetrie und lädt keine externen Skripte oder Schriften – eine
 Content-Security-Policy erzwingt das auch im Browser. Ist der YouTube-Downloader aus
-(**Nur Media-Server**), geht keine einzige Verbindung nach außen. Sonst nur zu:
+(**Nur Media-Server**), geht keine Verbindung nach außen – außer du richtest die
+Spracherkennung ein. Sonst nur zu:
 
 - **YouTube:** Downloads, Abo-Prüfungen samt RSS-Feeds, das Nachladen besserer Qualität und –
   nur wenn eingeschaltet – Kommentare.
@@ -887,9 +990,13 @@ Content-Security-Policy erzwingt das auch im Browser. Ist der YouTube-Downloader
   Video du schaust.
 - **Deinen Benachrichtigungsdienst**, nur wenn du einen einträgst.
 - **Deinen Anmeldedienst** (OIDC), nur wenn du einen einrichtest.
+- **PyPI und Hugging Face**, einmalig, wenn ein Admin die Spracherkennung **einrichtet**
+  (Programm bzw. Modell, ohne Anmeldung und mit abgeschalteter Telemetrie). Die Erkennung
+  selbst läuft danach offline; Ton und Text verlassen den Server nie.
 
 Der DLNA-Server (wenn eingeschaltet) kündigt sich per Multicast nur im lokalen Netz an und
-antwortet nur Geräten aus dem Heimnetz.
+antwortet nur Geräten aus dem Heimnetz. Fernbedienung und „Gemeinsam schauen“ laufen nur über
+deinen Server; Räume und Codes liegen im Arbeitsspeicher und sind nach einem Neustart weg.
 
 Mit „Aufs Gerät“ gespeicherte Videos liegen nur im Browser des jeweiligen Geräts; TubeVault
 erfährt davon nichts außer dem Download selbst. Podcast-Feeds holt deine App direkt bei
