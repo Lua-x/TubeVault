@@ -11,6 +11,7 @@ import {
   RefreshCw,
   Trash2,
   Tv2,
+  UsersRound,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
@@ -18,6 +19,7 @@ import { Link, useLocation, useNavigate, useParams, useSearchParams } from "reac
 import {
   keys,
   reportProgress,
+  useCreateParty,
   useDeleteVideo,
   useRedownloadVideo,
   usePlaylist,
@@ -459,6 +461,7 @@ interface VideoActionsProps {
 function VideoActions({ video, onWatchedChange }: VideoActionsProps) {
   const { user } = useAuth();
   const remote = useRemoteControl();
+  const party = useCreateParty();
   const [confirming, setConfirming] = useState(false);
   const [addingToPlaylist, setAddingToPlaylist] = useState(false);
   const [redownloading, setRedownloading] = useState(false);
@@ -519,6 +522,20 @@ function VideoActions({ video, onWatchedChange }: VideoActionsProps) {
       <button type="button" onClick={() => setAddingToPlaylist(true)} className={actionClass}>
         <ListPlus className="size-4" strokeWidth={2} />
         Zur Playlist
+      </button>
+      <button
+        type="button"
+        disabled={party.isPending}
+        onClick={() =>
+          party.mutate(video.id, {
+            onSuccess: (room) => navigate(`/party/${room.id}`),
+            onError: (err) => toast(err.message, "error"),
+          })
+        }
+        className={actionClass}
+      >
+        <UsersRound className="size-4" strokeWidth={2} />
+        Gemeinsam schauen
       </button>
       {remote.status === "paired" && (
         <button

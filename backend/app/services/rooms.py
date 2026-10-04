@@ -51,6 +51,8 @@ class Room:
     # Watching together: which video, with what the owner may see.
     video_id: int | None = None
     created: float = field(default_factory=time.monotonic)
+    # Since when nobody is in it (a party room waits a while for a reload).
+    idle_since: float | None = None
 
     def with_role(self, *roles: Role) -> list[Member]:
         return [m for m in self.members if m.role in roles]
@@ -67,7 +69,15 @@ class Rooms:
         # Rejoin tokens: a paired phone comes back after a reload without a new code.
         self._tokens: dict[str, tuple[str, int]] = {}
 
+    def prune(self, max_age_s: float = 600) -> None:
+        """Rooms nobody joined (a party link never opened) don't stay forever."""
+        now = time.monotonic()
+        for room in [r for r in self._rooms.values() if not r.members]:
+            if now - (room.idle_since or room.created) > max_age_s:
+                self.close(room)
+
     def create(self, kind: Kind, owner_id: int, video_id: int | None = None) -> Room:
+        self.prune()
         if len(self._rooms) >= MAX_ROOMS:
             raise RoomError("Gerade sind zu viele Räume offen.")
         room = Room(kind=kind, owner_id=owner_id, video_id=video_id)
@@ -115,12 +125,18 @@ class Rooms:
 
     def join(self, room: Room, member: Member) -> None:
         room.members.append(member)
+        room.idle_since = None
 
     def leave(self, room: Room, member: Member) -> None:
         if member in room.members:
             room.members.remove(member)
-        if not room.members:
+        if room.members:
+            return
+        if room.kind == "remote":
             self.close(room)
+        else:
+            # Watching together survives a reload; prune() ends it after a while.
+            room.idle_since = time.monotonic()
 
     def close(self, room: Room) -> None:
         self._rooms.pop(room.id, None)
@@ -141,7 +157,10 @@ class Rooms:
                 member.send(message)
 
     def presence(self, room: Room) -> list[Message]:
-        return [{"id": m.id, "name": m.username, "role": m.role} for m in room.members]
+        return [
+            {"id": m.id, "user_id": m.user_id, "name": m.username, "role": m.role}
+            for m in room.members
+        ]
 
     @property
     def count(self) -> int:

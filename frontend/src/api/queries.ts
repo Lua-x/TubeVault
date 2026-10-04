@@ -990,3 +990,11 @@ export function useFamilySettings() {
     onSuccess: () => void client.invalidateQueries({ queryKey: ["auth", "status"] }),
   });
 }
+
+/** Watching together: a room for one video, joined through its link. */
+export function useCreateParty() {
+  return useMutation({
+    mutationFn: (videoId: number) =>
+      api.post<{ id: string; video_id: number }>("party", { video_id: videoId }),
+  });
+}
