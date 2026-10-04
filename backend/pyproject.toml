@@ -53,7 +53,7 @@ plugins = ["pydantic.mypy"]
 exclude = ["app/migrations/"]
 
 [[tool.mypy.overrides]]
-module = ["yt_dlp.*"]
+module = ["yt_dlp.*", "faster_whisper.*", "huggingface_hub.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

@@ -26,6 +26,7 @@ from app.workers.analyzer import MediaAnalyzer
 from app.workers.download_manager import DownloadManager
 from app.workers.library_tasks import LibraryTasks
 from app.workers.scheduler import SubscriptionScheduler
+from app.workers.speech import SpeechWorker
 from app.workers.transcoder import Transcoder
 
 
@@ -49,6 +50,7 @@ class AppContext:
     podcasts: AudioPrefetch
     dlna: DlnaService
     analyzer: MediaAnalyzer
+    speech: SpeechWorker
     login_throttle: LoginThrottle = field(default_factory=LoginThrottle)
     login_tickets: LoginTickets = field(default_factory=LoginTickets)
     pin_throttle: PinThrottle = field(default_factory=PinThrottle)

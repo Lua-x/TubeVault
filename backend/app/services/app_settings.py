@@ -114,6 +114,29 @@ class AnalysisOptions(BaseModel):
     loudness: bool = True
 
 
+SpeechModel = Literal["tiny", "base", "small"]
+_LANGUAGE = re.compile(r"^[a-z]{2,3}$")
+
+
+class SpeechOptions(BaseModel):
+    """Subtitles from speech recognition – only once an admin has set it up."""
+
+    # Bigger is more accurate and slower: tiny ~75 MB, base ~145 MB, small ~485 MB.
+    model: SpeechModel = "base"
+    # "auto": recognised from the first seconds; otherwise e.g. "de".
+    language: str = "auto"
+    # New own videos (import) without subtitles get some by themselves.
+    auto_own_videos: bool = False
+
+    @field_validator("language")
+    @classmethod
+    def _check_language(cls, value: str) -> str:
+        value = value.strip().lower()
+        if value != "auto" and not _LANGUAGE.match(value):
+            raise ValueError("Sprache als Kürzel wie de oder en – oder auto")
+        return value
+
+
 class DlnaOptions(BaseModel):
     """Smart TVs, consoles and VLC find the library in the home network (no login)."""
 
@@ -135,6 +158,7 @@ class AppSettings(BaseModel):
     automation: AutomationOptions = Field(default_factory=AutomationOptions)
     dlna: DlnaOptions = Field(default_factory=DlnaOptions)
     analysis: AnalysisOptions = Field(default_factory=AnalysisOptions)
+    speech: SpeechOptions = Field(default_factory=SpeechOptions)
 
 
 QUEUE_PAUSED_KEY = "queue_paused"

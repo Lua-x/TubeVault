@@ -90,6 +90,7 @@ function handleEvent(client: QueryClient, event: LiveEvent) {
         void client.invalidateQueries({ queryKey: keys.channels });
         void client.invalidateQueries({ queryKey: keys.system });
         void client.invalidateQueries({ queryKey: keys.importOverview });
+        if (event.task.kind === "speech") void client.invalidateQueries({ queryKey: keys.speech });
       }
       break;
     case "ping":

@@ -48,7 +48,12 @@ from app.routers import (
     videos,
     ws,
 )
-from app.services.app_settings import AnalysisOptions, TranscodeOptions, load_app_settings
+from app.services.app_settings import (
+    AnalysisOptions,
+    SpeechOptions,
+    TranscodeOptions,
+    load_app_settings,
+)
 from app.services.auth import bootstrap_admin, purge_expired_sessions
 from app.services.backups import apply_staged_restore
 from app.services.catalog import Catalog, YtDlpCatalog
@@ -63,12 +68,14 @@ from app.services.oidc import OidcClient
 from app.services.podcasts import AudioPrefetch
 from app.services.rss import FeedFetcher, RssWatcher, fetch_feed_ids
 from app.services.search import ensure_search_index
+from app.services.speech import Speech
 from app.services.subscriptions import SubscriptionChecker
 from app.services.upgrades import QualityUpgrades
 from app.workers.analyzer import MediaAnalyzer
 from app.workers.download_manager import DownloadManager
 from app.workers.library_tasks import LibraryTasks
 from app.workers.scheduler import SubscriptionScheduler
+from app.workers.speech import SpeechWorker
 from app.workers.transcoder import Transcoder
 
 log = logging.getLogger(__name__)
@@ -272,6 +279,7 @@ def create_app(
     feeds: FeedFetcher | None = None,
     notification_sender: Sender | None = None,
     media_analysis: bool = True,
+    speech_recognition: bool = True,
 ) -> FastAPI:
     settings = settings or Settings()
     init_storage(settings)
@@ -343,6 +351,12 @@ def create_app(
 
     analyzer = MediaAnalyzer(settings, sessions, analysis_options)
 
+    def speech_options() -> SpeechOptions:
+        with sessions() as db:
+            return load_app_settings(db).speech
+
+    speech = SpeechWorker(settings, sessions, events, Speech(settings), speech_options)
+
     def file_replaced(video_id: int) -> None:
         transcoder.purge(video_id)
         analyzer.forget(video_id)
@@ -378,6 +392,7 @@ def create_app(
         podcasts=podcast_prefetch,
         dlna=dlna_service,
         analyzer=analyzer,
+        speech=speech,
     )
 
     @asynccontextmanager
@@ -390,6 +405,8 @@ def create_app(
         await asyncio.to_thread(dlna_service.apply)
         if media_analysis:
             analyzer.start()
+        if speech_recognition:
+            speech.start()
         if restored:
             library_tasks.verify_files()  # the backup may know files that are gone now
         else:
@@ -400,6 +417,7 @@ def create_app(
         finally:
             await asyncio.to_thread(dlna_service.stop)
             await asyncio.to_thread(analyzer.stop)
+            await asyncio.to_thread(speech.stop)
             await asyncio.to_thread(library_tasks.wait, 10.0)
             await asyncio.to_thread(transcoder.stop)
             await asyncio.to_thread(scheduler.stop)

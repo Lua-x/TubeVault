@@ -277,8 +277,9 @@ def client(
         connectivity=connectivity,
         feeds=feeds.fetch,
         notification_sender=sender.send,
-        # Tests run the analysis themselves (ctx.analyzer.run_once), not in the background.
+        # Tests run analysis and speech recognition themselves (run_once), not in the background.
         media_analysis=False,
+        speech_recognition=False,
     )
     with TestClient(app, headers=HEADERS) as test_client:
         yield test_client

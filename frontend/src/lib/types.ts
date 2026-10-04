@@ -21,6 +21,27 @@ export interface Trickplay {
   version: number;
 }
 
+export type SpeechModel = "tiny" | "base" | "small";
+
+export interface SpeechOptions {
+  model: SpeechModel;
+  /** "auto" or a language code like "de". */
+  language: string;
+  auto_own_videos: boolean;
+}
+
+export interface SpeechState {
+  installed: string | null;
+  model: SpeechModel;
+  ready: boolean;
+  models: { size: SpeechModel; mb: number; ready: boolean }[];
+  current: string | null;
+  queued: number;
+  last_error: string | null;
+  /** Own videos without any subtitles. */
+  missing: number;
+}
+
 export interface AnalysisState {
   total: number;
   trickplay_done: number;
@@ -393,6 +414,7 @@ export interface AppSettings {
   automation: { rss: boolean; upgrade_quality: boolean };
   dlna: DlnaOptions;
   analysis: { trickplay: boolean; loudness: boolean };
+  speech: SpeechOptions;
 }
 
 export interface DlnaOptions {

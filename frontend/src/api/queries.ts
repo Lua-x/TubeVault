@@ -45,6 +45,8 @@ import type {
   QueueState,
   RemuxStatus,
   Segments,
+  SpeechModel,
+  SpeechState,
   Subscription,
   SubscriptionDetail,
   SubscriptionSettings,
@@ -81,6 +83,7 @@ export const keys = {
   settings: ["settings"] as const,
   users: ["users"] as const,
   system: ["system"] as const,
+  speech: ["admin", "speech"] as const,
 };
 
 export type VideoSort = "relevance" | "added" | "newest" | "oldest" | "title";
@@ -255,6 +258,51 @@ export function useAnalysisState(enabled: boolean) {
         ? 5000
         : false;
     },
+  });
+}
+
+/** Speech recognition: set up or not, and what it is working on (polled while busy). */
+export function useSpeechState(enabled: boolean, settingUp = false) {
+  return useQuery({
+    queryKey: keys.speech,
+    queryFn: () => api.get<SpeechState>("admin/speech"),
+    enabled,
+    staleTime: 30_000,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      return settingUp || (data && (data.current || data.queued > 0)) ? 3000 : false;
+    },
+  });
+}
+
+export function useSpeechSetup() {
+  return useMutation({
+    mutationFn: (model: SpeechModel) => api.post<LibraryTask>("admin/speech/setup", { model }),
+  });
+}
+
+export function useSpeechMissing() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post<{ queued: number }>("admin/speech/missing"),
+    onSettled: () => client.invalidateQueries({ queryKey: keys.speech }),
+  });
+}
+
+export function useSpeechRemove() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.delete<SpeechState>("admin/speech"),
+    onSuccess: (data) => client.setQueryData(keys.speech, data),
+  });
+}
+
+export function useSpeechSubtitles() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (videoId: number) =>
+      api.post<{ queued: number }>(`videos/${videoId}/subtitles/speech`),
+    onSettled: () => client.invalidateQueries({ queryKey: keys.speech }),
   });
 }
 

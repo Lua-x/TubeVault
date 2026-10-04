@@ -16,6 +16,7 @@ import { AnalysisGroup } from "@/components/settings/AnalysisGroup";
 import { DlnaGroup } from "@/components/settings/DlnaGroup";
 import { FamilyDevicesGroup, FamilyGroup } from "@/components/settings/FamilyGroup";
 import { LibraryGroup, LibraryTaskStatus } from "@/components/settings/LibraryGroup";
+import { SpeechGroup } from "@/components/settings/SpeechGroup";
 import { TokensGroup } from "@/components/settings/TokensGroup";
 import { TranscodeGroup } from "@/components/settings/TranscodeGroup";
 import { PodcastGroup } from "@/components/podcasts/PodcastGroup";
@@ -449,6 +450,11 @@ function DownloadForm({ initial }: { initial: AppSettings }) {
       <AnalysisGroup
         value={draft.analysis}
         onChange={(patch) => setDraft({ ...draft, analysis: { ...draft.analysis, ...patch } })}
+      />
+
+      <SpeechGroup
+        value={draft.speech}
+        onChange={(patch) => setDraft({ ...draft, speech: { ...draft.speech, ...patch } })}
       />
 
       <div className="flex flex-col gap-3">

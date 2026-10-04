@@ -321,6 +321,23 @@ def redownload(video_id: int, user: AdminUser, db: DbSession, ctx: Context) -> J
     return payload
 
 
+@router.post("/{video_id}/subtitles/speech", status_code=status.HTTP_202_ACCEPTED)
+def speech_subtitles(video_id: int, user: AdminUser, db: DbSession, ctx: Context) -> dict[str, int]:
+    """Subtitles from speech recognition, made on this server; replaces earlier ones."""
+    video = _get_video(db, video_id, user)
+    if not ctx.speech.ready():
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Die Spracherkennung ist nicht eingerichtet (Einstellungen → Spracherkennung).",
+        )
+    if video.status is not VideoStatus.READY or not video_file_exists(
+        ctx.settings.media_dir, video
+    ):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Die Videodatei fehlt.")
+    ctx.speech.enqueue([video.id])
+    return {"queued": ctx.speech.status().queued}
+
+
 @router.delete("/{video_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_video(
     video_id: int,

@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
+  Captions,
   Check,
   CircleCheck,
   Clock,
@@ -25,6 +26,8 @@ import {
   usePlaylist,
   useSegments,
   useSetWatched,
+  useSpeechState,
+  useSpeechSubtitles,
   useToggleWatchLater,
   useVideo,
   useWatchLater,
@@ -468,6 +471,8 @@ function VideoActions({ video, onWatchedChange }: VideoActionsProps) {
   const remove = useDeleteVideo();
   const redownload = useRedownloadVideo();
   const setWatched = useSetWatched();
+  const { data: speech } = useSpeechState(Boolean(user?.is_admin));
+  const makeSubtitles = useSpeechSubtitles();
   const toast = useToast();
   const navigate = useNavigate();
   const watched = video.progress?.watched ?? false;
@@ -565,6 +570,27 @@ function VideoActions({ video, onWatchedChange }: VideoActionsProps) {
           <ExternalLink className="size-4" strokeWidth={2} />
           Auf YouTube
         </a>
+      )}
+      {user?.is_admin && speech?.ready && (
+        <button
+          type="button"
+          disabled={makeSubtitles.isPending}
+          onClick={() =>
+            makeSubtitles.mutate(video.id, {
+              onSuccess: ({ queued }) =>
+                toast(
+                  queued > 1
+                    ? `Untertitel kommen dran – ${queued - 1} vorher in der Reihe`
+                    : "Untertitel werden erzeugt – sie erscheinen von selbst im Player",
+                ),
+              onError: (err) => toast(err.message, "error"),
+            })
+          }
+          className={actionClass}
+        >
+          <Captions className="size-4" strokeWidth={2} />
+          Untertitel erzeugen
+        </button>
       )}
       {user?.is_admin && user.can_add && !video.is_local && (
         <button type="button" onClick={() => setRedownloading(true)} className={actionClass}>

@@ -1,4 +1,4 @@
-"""Admin dashboard: statistics, logs, yt-dlp updates, restart and maintenance."""
+"""Admin dashboard: statistics, logs, yt-dlp updates, restart, maintenance and add-ons."""
 
 from __future__ import annotations
 
@@ -34,9 +34,11 @@ from app.routers.oidc import redirect_uri as oidc_redirect_uri
 from app.routers.system import ffmpeg_version
 from app.services import backups, notifications
 from app.services.access import require_youtube
-from app.services.app_settings import load_app_settings
+from app.services.app_settings import SpeechModel as SpeechSize
+from app.services.app_settings import load_app_settings, save_app_settings
 from app.services.catalog import channel_url
 from app.services.search import is_sqlite, rebuild
+from app.services.speech import MODELS, SpeechError
 from app.services.subscriptions import store_channel_art
 from app.services.ytdlp_updater import (
     _version_in,
@@ -327,6 +329,104 @@ def analysis_state(_: AdminUser, ctx: Context) -> AnalysisState:
         loudness_done=status.loudness_done,
         current=status.current,
     )
+
+
+# --- speech recognition ----------------------------------------------------------------
+
+
+class SpeechModel(BaseModel):
+    size: str
+    mb: int
+    ready: bool
+
+
+class SpeechState(BaseModel):
+    installed: str | None
+    model: str
+    ready: bool
+    models: list[SpeechModel]
+    current: str | None
+    queued: int
+    last_error: str | None
+    # Own videos without any subtitles – what "Alle erkennen" would queue.
+    missing: int
+
+
+def _speech_state(ctx: Context) -> SpeechState:
+    with ctx.sessions() as db:
+        size = load_app_settings(db).speech.model
+    engine = ctx.speech.speech
+    status = ctx.speech.status()
+    return SpeechState(
+        installed=engine.installed(),
+        model=size,
+        ready=engine.ready(size),
+        models=[
+            SpeechModel(size=name, mb=mb, ready=engine.model_ready(name))
+            for name, mb in MODELS.items()
+        ],
+        current=status.current,
+        queued=status.queued,
+        last_error=status.last_error,
+        missing=len(ctx.speech.own_videos_without_subtitles()),
+    )
+
+
+@router.get("/speech")
+def speech_state(_: AdminUser, ctx: Context) -> SpeechState:
+    return _speech_state(ctx)
+
+
+class SpeechSetup(BaseModel):
+    # Chosen in the settings before saving: set up and use this one.
+    model: SpeechSize | None = None
+
+
+@router.post("/speech/setup")
+def speech_setup(_: AdminUser, ctx: Context, body: SpeechSetup | None = None) -> dict[str, Any]:
+    """The one place that downloads: the program from PyPI, the model from Hugging Face."""
+    with ctx.sessions() as db:
+        app_settings = load_app_settings(db)
+        size = body.model if body and body.model else app_settings.speech.model
+        if size != app_settings.speech.model:
+            app_settings.speech.model = size
+            save_app_settings(db, app_settings)
+    engine = ctx.speech.speech
+
+    def work(progress: Progress) -> str:
+        progress.total(2)
+        try:
+            if engine.installed() is None:
+                engine.install()
+            progress.step("Programm installiert")
+            if not engine.model_ready(size):
+                engine.download_model(size)
+            progress.step(f"Modell „{size}“ bereit")
+        except SpeechError as exc:
+            raise RuntimeError(str(exc)) from exc
+        return "Spracherkennung ist bereit"
+
+    try:
+        return ctx.library_tasks.run("speech", "Spracherkennung einrichten", work).as_dict()
+    except TaskBusyError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+
+
+@router.post("/speech/missing", status_code=status.HTTP_202_ACCEPTED)
+def speech_missing(_: AdminUser, ctx: Context) -> dict[str, int]:
+    if not ctx.speech.ready():
+        raise HTTPException(status.HTTP_409_CONFLICT, "Erst die Spracherkennung einrichten.")
+    return {"queued": ctx.speech.enqueue(ctx.speech.own_videos_without_subtitles())}
+
+
+@router.delete("/speech")
+def speech_remove(_: AdminUser, ctx: Context) -> SpeechState:
+    """Frees the space again: program and models; the subtitles made so far stay."""
+    status_now = ctx.speech.status()
+    if status_now.current or status_now.queued or ctx.library_tasks.busy():
+        raise HTTPException(status.HTTP_409_CONFLICT, "Erst die laufende Arbeit abwarten.")
+    ctx.speech.speech.uninstall()
+    return _speech_state(ctx)
 
 
 # --- maintenance ---------------------------------------------------------------------

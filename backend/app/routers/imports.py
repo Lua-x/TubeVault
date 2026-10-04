@@ -99,6 +99,7 @@ def start_import(body: ImportRequest, user: AdminUser, ctx: Context) -> dict[str
             library = app_settings.library
             # Media-server mode: what YouTube knows is not asked for.
             fetch = body.fetch_metadata and app_settings.youtube_enabled
+            listen = app_settings.speech.auto_own_videos and ctx.speech.ready()
             for candidate in candidates:
                 try:
                     video = ctx.importer.import_one(
@@ -112,6 +113,8 @@ def start_import(body: ImportRequest, user: AdminUser, ctx: Context) -> dict[str
                     )
                     imported += 1
                     ctx.events.publish("video.updated", video={"id": video.id})
+                    if listen and video.is_local and not video.subtitles:
+                        ctx.speech.enqueue([video.id])
                 except ImportSkippedError:
                     db.rollback()
                     skipped += 1

@@ -152,6 +152,29 @@ function applyRate(player: Player, rate = 1) {
   if (player.playbackRate() !== rate) player.playbackRate(rate);
 }
 
+/** Brings the player's subtitle tracks in line with the video's subtitles. */
+function syncSubtitles(player: Player, video: VideoDetail, local?: LocalFiles) {
+  const wanted = new Map<string, VideoDetail["subtitles"][number]>();
+  for (const sub of video.subtitles) {
+    const src = local
+      ? local.subtitles[sub.id]
+      : apiUrl(`videos/${video.id}/subtitles/${sub.id}.vtt`);
+    if (src) wanted.set(src, sub);
+  }
+  const list = player.remoteTextTracks() as unknown as ArrayLike<TextTrack & { src?: string }>;
+  for (const track of Array.from(list)) {
+    if (track.kind !== "subtitles") continue;
+    if (track.src && wanted.has(track.src)) wanted.delete(track.src);
+    else player.removeRemoteTextTrack(track as never);
+  }
+  for (const [src, sub] of wanted) {
+    player.addRemoteTextTrack(
+      { kind: "subtitles", src, srclang: sub.lang, label: sub.label },
+      true,
+    );
+  }
+}
+
 export const VideoPlayer = forwardRef<PlayerHandle, VideoPlayerProps>(
   function VideoPlayer(props, ref) {
     const { video, segments, overlay } = props;
@@ -253,21 +276,6 @@ export const VideoPlayer = forwardRef<PlayerHandle, VideoPlayerProps>(
         player.el().appendChild(host);
         setOverlayHost(host);
 
-        for (const sub of video.subtitles) {
-          const src = local
-            ? local.subtitles[sub.id]
-            : apiUrl(`videos/${video.id}/subtitles/${sub.id}.vtt`);
-          if (!src) continue;
-          player.addRemoteTextTrack(
-            {
-              kind: "subtitles",
-              src,
-              srclang: sub.lang,
-              label: sub.label,
-            },
-            true,
-          );
-        }
         const chapters = local ? local.chapters : apiUrl(`videos/${video.id}/chapters.vtt`);
         if (video.chapters.length > 0 && chapters) {
           player.addRemoteTextTrack(
@@ -405,6 +413,20 @@ export const VideoPlayer = forwardRef<PlayerHandle, VideoPlayerProps>(
         remove();
       };
     }, [trickplayKey, fileKey]);
+
+    // Subtitles, also those made while watching (speech recognition); replaced ones go.
+    const subtitleKey = video.subtitles.map((sub) => sub.id).join(",");
+    useEffect(() => {
+      const player = playerRef.current;
+      if (!player || player.isDisposed()) return;
+      let active = true;
+      player.ready(() => {
+        if (active) syncSubtitles(player, latest.current.video, latest.current.local);
+      });
+      return () => {
+        active = false;
+      };
+    }, [subtitleKey, fileKey]);
 
     // Segments usually arrive after the player was created.
     useEffect(() => {
