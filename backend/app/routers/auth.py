@@ -102,9 +102,10 @@ def login(
         raise HTTPException(
             status.HTTP_403_FORBIDDEN, "Die Anmeldung mit Passwort ist abgeschaltet."
         )
-    throttle = ctx.login_throttle
+    throttle, accounts = ctx.login_throttle, ctx.account_throttle
     key = _client_key(request)
-    if throttle.is_blocked(key):
+    account = f"account:{body.username.strip().lower()}"
+    if throttle.is_blocked(key) or accounts.is_blocked(account):
         raise HTTPException(
             status.HTTP_429_TOO_MANY_REQUESTS,
             "Zu viele fehlgeschlagene Anmeldungen. Bitte in einigen Minuten erneut versuchen.",
@@ -112,8 +113,10 @@ def login(
     user = auth_service.find_user(db, body.username)
     if not verify_password(user.password_hash if user else None, body.password) or user is None:
         throttle.record_failure(key)
+        accounts.record_failure(account)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Benutzername oder Passwort ist falsch.")
     throttle.reset(key)
+    accounts.reset(account)
     if needs_rehash(user.password_hash):
         user.password_hash = hash_password(body.password)
         db.commit()

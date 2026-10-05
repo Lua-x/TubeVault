@@ -112,11 +112,15 @@ test("a kids profile only sees its channels", async ({ page, browser }) => {
       password: "kinder-passwort",
       channel_access: "selected",
       channel_ids: [allowed.id],
-      can_add: false,
+      may_add: false,
     },
   });
   expect(created.status()).toBe(201);
-  const kid = (await created.json()) as { username: string };
+  const kid = (await created.json()) as { username: string; can_add: boolean };
+  expect(kid.can_add).toBe(false);
+  // The admin has the add button on the library page …
+  await page.goto("/library");
+  await expect(page.getByRole("button", { name: "Video hinzufügen" })).toBeVisible();
 
   const context = await browser.newContext();
   const kidPage = await context.newPage();
@@ -126,7 +130,9 @@ test("a kids profile only sees its channels", async ({ page, browser }) => {
   for (const other of channels.slice(1)) {
     await expect(kidPage.getByText(other.name)).toHaveCount(0);
   }
-  // Watch-only: nothing to add.
+  // … the watch-only kid doesn't, and the library only holds the allowed channel.
+  await kidPage.goto("/library");
+  await expect(kidPage.getByRole("heading", { level: 1, name: "Bibliothek" })).toBeVisible();
   await expect(kidPage.getByRole("button", { name: "Video hinzufügen" })).toHaveCount(0);
   await context.close();
 });

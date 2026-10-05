@@ -54,6 +54,11 @@ class AppContext:
     # How the port was chosen: "env" (PORT), "legacy" (8096 from before 1.0) or "default".
     port_source: str = "default"
     login_throttle: LoginThrottle = field(default_factory=LoginThrottle)
+    # Per account as well: the client address can be faked when TubeVault is reachable
+    # without a proxy (X-Forwarded-For), and guesses can come from many addresses.
+    account_throttle: LoginThrottle = field(
+        default_factory=lambda: LoginThrottle(max_failures=20, window_seconds=900)
+    )
     login_tickets: LoginTickets = field(default_factory=LoginTickets)
     pin_throttle: PinThrottle = field(default_factory=PinThrottle)
     rooms: Rooms = field(default_factory=Rooms)

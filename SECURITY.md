@@ -39,10 +39,17 @@ What TubeVault protects, and what it relies on:
 - **Browser:** cookies are `HttpOnly` and `SameSite=Lax`, state-changing requests need a custom
   header (CSRF), WebSockets check the origin, and a Content Security Policy blocks external
   scripts.
-- **Brute force:** wrong passwords, two-factor codes, family-device PINs and remote pairing codes
-  are rate-limited.
+- **Brute force:** wrong passwords (per address and per account), two-factor codes,
+  family-device PINs and remote pairing codes are rate-limited.
 - **Files:** every path from the database is checked to stay inside `/media`; ffmpeg and yt-dlp
-  only get paths and arguments TubeVault built itself.
+  only get paths and arguments TubeVault built itself. Backups are checked before they are
+  restored (format, integrity, size, schema version).
+- **Child processes:** speech recognition only sees a short list of environment variables –
+  no passwords or client secrets.
 - **Not in scope:** TubeVault trusts its admins and the host it runs on. It should be reachable
-  from the internet only through a reverse proxy with HTTPS. Content downloaded from YouTube is
-  played as media, never executed.
+  from the internet only through a reverse proxy with HTTPS – then set `FORWARDED_ALLOW_IPS` to
+  the proxy's address, so client addresses can't be faked with `X-Forwarded-For`. Content
+  downloaded from YouTube is played as media, never executed.
+
+Every change runs through tests that check each API route needs a sign-in (except the ones
+listed above), CodeQL code scanning, and Dependabot for dependency updates.

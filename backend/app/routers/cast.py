@@ -65,7 +65,10 @@ def cast_link(
     )
 
 
-@router.api_route("/cast/{user_id}/{video_id}/{expires}/{signature}.mp4", methods=["GET", "HEAD"])
+@router.head(
+    "/cast/{user_id}/{video_id}/{expires}/{signature}.mp4", operation_id="cast_stream_head"
+)
+@router.get("/cast/{user_id}/{video_id}/{expires}/{signature}.mp4")
 def cast_stream(
     user_id: int,
     video_id: int,

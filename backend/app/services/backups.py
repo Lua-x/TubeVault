@@ -38,6 +38,9 @@ DB_NAME = "tubevault.db"
 MANIFEST = "backup.json"
 NAME_RE = re.compile(r"^tubevault-backup-(\d{8}-\d{6})(-auto)?\.zip$")
 MAX_UPLOAD_BYTES = 4 * 1024**3
+# Unpacked: a real database is a few hundred MB at most – this stops "zip bombs".
+MAX_DATABASE_BYTES = 16 * 1024**3
+SPARE_BYTES = 200 * 1024**2
 AUTO_INTERVAL = timedelta(hours=23)  # daily, a little early so the time doesn't drift
 
 
@@ -202,6 +205,12 @@ def check_archive(path: Path, extract_to: Path) -> dict[str, Any]:
         if not isinstance(manifest, dict) or manifest.get("app") != "TubeVault":
             raise BackupError("Das ist keine TubeVault-Sicherung.")
         extract_to.parent.mkdir(parents=True, exist_ok=True)
+        # The size in the archive bounds what reading it can produce.
+        size = archive.getinfo(DB_NAME).file_size
+        if size > MAX_DATABASE_BYTES:
+            raise BackupError("Die Datenbank in der Sicherung ist unplausibel groß.")
+        if size + SPARE_BYTES > shutil.disk_usage(extract_to.parent).free:
+            raise BackupError("Nicht genug freier Speicher, um die Sicherung einzuspielen.")
         with archive.open(DB_NAME) as source, extract_to.open("wb") as target:
             shutil.copyfileobj(source, target)
 

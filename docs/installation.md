@@ -96,7 +96,7 @@ languages, SponsorBlock, transcoding, folder layout, users …) is set in the ap
 | `BASE_PATH` | empty | Sub-path behind a reverse proxy, e.g. `/tubevault` |
 | `ADMIN_USER` / `ADMIN_PASSWORD` | empty | Creates an admin on first start (password ≥ 8 characters). Empty = set up in the browser |
 | `YTDLP_AUTO_UPDATE` | `true` | Update yt-dlp to the newest version on every start |
-| `FORWARDED_ALLOW_IPS` | `*` | IPs of reverse proxies whose `X-Forwarded-*` headers are trusted |
+| `FORWARDED_ALLOW_IPS` | `*` | IPs of reverse proxies whose `X-Forwarded-*` headers are trusted. If TubeVault is reachable without the proxy too, set the proxy's address (e.g. `172.18.0.2`) |
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
 | `SESSION_DAYS` | `30` | How long a sign-in stays valid |
 | `IMPORT_DIR` | `/import` | Folder that **Verwaltung → Import** takes existing videos from |
