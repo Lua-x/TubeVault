@@ -17,8 +17,11 @@ if [ "$(id -u)" = "0" ]; then
   [ "$(id -u tubevault)" = "$PUID" ] || usermod -o -u "$PUID" tubevault >/dev/null
 
   mkdir -p /config /media/.tubevault
-  # /config is small: fix everything that is not ours yet.
+  # /config is small: fix everything that is not ours yet – owner and the owner's rights
+  # (e.g. after `chmod -R 644` or copying it with a tool that drops the x bit on folders).
   find /config \! -user "$PUID" -exec chown "$PUID:$PGID" {} + 2>/dev/null || true
+  find /config -type d \! -perm -u=rwx -exec chmod u+rwx {} + 2>/dev/null || true
+  find /config -type f \! -perm -u=rw -exec chmod u+rw {} + 2>/dev/null || true
   # /media can be huge (or a share with root squash): only touch our own folders.
   chown "$PUID:$PGID" /media 2>/dev/null || true
   find /media/.tubevault \! -user "$PUID" -exec chown "$PUID:$PGID" {} + 2>/dev/null || true
@@ -40,8 +43,9 @@ if [ "$(id -u)" = "0" ]; then
 fi
 
 # --- unprivileged from here on ---------------------------------------------------
-if [ ! -w /config ]; then
-  echo "[tubevault] /config is not writable for uid $(id -u). Check the volume permissions." >&2
+if [ ! -w /config ] || [ ! -x /config ] || [ ! -r /config ]; then
+  echo "[tubevault] uid $(id -u) can't use /config (it needs read, write and enter rights)." >&2
+  echo "[tubevault] On the host: sudo chown -R $(id -u):$(id -g) ./config && sudo chmod -R u+rwX ./config" >&2
   exit 1
 fi
 

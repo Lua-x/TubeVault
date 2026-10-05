@@ -2,7 +2,7 @@
 
 | Problem | Solution |
 | ------- | -------- |
-| `/config is not writable` in the log | `PUID`/`PGID` don't match the folder permissions, or with `user:` the folder doesn't belong to that user |
+| `can't use /config` or `PermissionError … /config` in the log | The `config` folder lacks rights for the user TubeVault runs as – often after `chmod -R 644` or copying it with a tool that drops the "enter" (x) right of folders. Started as root (the default), TubeVault repairs this itself; with `user:` run `sudo chown -R 1000:1000 ./config && sudo chmod -R u+rwX ./config` on the host (with your IDs) |
 | Not reachable after updating to 1.0 | Installs from before 1.0 keep port 8096 unless `PORT` is set. If you changed `ports:` to `8823:8823`, also set `PORT=8823` – see [port](installation.md#port) |
 | Port 8823 is taken | Set another one: `PORT=9000` and `ports: ["9000:9000"]` |
 | Forgotten password | `docker exec -it tubevault python -m app reset-password <user>` |
