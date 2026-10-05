@@ -22,7 +22,8 @@ Important: the TV has to reach the address you open TubeVault under in the brows
 
 In the TV's browser (Fire TV, Android TV, Tizen, webOS …) a view with big tiles opens by
 itself, fully usable with the arrow keys of the remote: OK plays and pauses, left/right seeks,
-back goes back and lands on the tile you chose last. On other devices it is under
+back goes back and lands on the tile you chose last. **Normale Ansicht** (normal view) at the top
+leaves it. On other devices it is under
 **Einstellungen → Darstellung → TV-Ansicht** (settings → appearance → TV view) or at `/tv`.
 
 ## DLNA
@@ -49,6 +50,9 @@ H.264 is understood by practically every TV, MKV and WebM not by all.
 Nobody wants to type a password on the TV or the family tablet. That's what **family devices**
 are for:
 
+<img src="screenshots/profiles-tv-dark.png" width="640" alt="'Wer schaut?' on a family device: three round profile pictures with initials, the admin profile marked with a lock for its PIN." />
+
+
 1. Sign in on the device as an admin and choose **Dieses Gerät als Familiengerät einrichten**
    (set up this device as a family device) under **Einstellungen → Familiengeräte** (settings →
    family devices). The device gets its own cookie, valid for 400 days.
@@ -65,13 +69,17 @@ device.
 
 ## Phone as a remote
 
-In the TV view choose **Fernbedienung** (remote) at the top right: the TV shows a QR code and a
-six-digit code (valid for 10 minutes). On the phone, scan the QR code or open **Fernbedienung**
+<img src="screenshots/remote-phone-dark.png" width="220" align="right" alt="The phone as a remote: connected to the TV, showing the video playing there with a timeline and buttons for back, skip and pause." />
+
+In the TV view choose **Handy verbinden** (connect phone) at the top right: the TV shows a QR
+code and a six-digit code (valid for 10 minutes). On the phone, scan the QR code or open **Fernbedienung**
 in TubeVault and type the code. From then on the phone controls pause, seeking and back, shows
 what's playing, and on every video page **Auf Fernseher** (to TV) sends the video straight
 there. The phone stays connected after a reload; the TV can end the connection at any time. Both
 devices have to be signed in to TubeVault – the phone with its own account. Wrong codes slow
 guessing down.
+
+<br clear="right" />
 
 ## Watch together
 
@@ -83,3 +91,5 @@ The room closes ten minutes after everyone has left.
 
 Good for long-distance relationships and family on several sofas; over the internet this needs
 a [reverse proxy](reverse-proxy.md) with WebSockets.
+
+<img src="screenshots/party-desktop-dark.png" width="640" alt="Watching together: a room with two people, an invite button and a 'Mitschauen' button to join the playback." />

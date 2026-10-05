@@ -42,7 +42,15 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/tv-dark.png" width="640" alt="The TV view: big tiles for continue watching and watch later, the selected tile outlined in white – usable with the arrow keys of a remote." />
+  <img src="docs/screenshots/tv-dark.png" width="560" alt="The TV view: big tiles for continue watching and watch later, the selected tile outlined in white – usable with the arrow keys of a remote." />
+  &nbsp;
+  <img src="docs/screenshots/remote-phone-dark.png" width="180" alt="The phone as a remote: connected to the TV, showing the video playing there with a timeline and buttons for back, skip and pause." />
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/profiles-tv-dark.png" width="420" alt="'Wer schaut?' on a family device: three round profile pictures with initials, the admin profile marked with a lock for its PIN." />
+  &nbsp;
+  <img src="docs/screenshots/party-desktop-dark.png" width="420" alt="Watching together: a room with two people, an invite button and a 'Mitschauen' button to join the playback." />
 </p>
 
 > The screenshots show demo videos made with `backend/scripts/seed_demo.py`.
