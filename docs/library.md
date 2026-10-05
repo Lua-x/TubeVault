@@ -5,6 +5,7 @@
 - [Import and your own videos](#import-and-your-own-videos)
 - [Media server only](#media-server-only)
 - [MP4 or MKV?](#mp4-or-mkv)
+- [Quality](#quality)
 - [Comments](#comments)
 - [Watch later and history](#watch-later-and-history)
 - [SponsorBlock](#sponsorblock)
@@ -103,15 +104,17 @@ Both work – globally in the settings or per video in the "add video" dialog.
 
 - **MP4 (default):** plays directly in every browser, Safari and iPhone/iPad included. With
   "prefer H.264" compatibility is at its best.
+- **MKV:** a flexible container that plays directly in Chrome, Edge and Firefox. Safari and iOS
+  get a remuxed copy automatically (see [playback on every device](watching.md#playback-on-every-device)).
 
-**Quality** works like in Pinchflat: TubeVault takes the best resolution up to the limit you set
+## Quality
+
+Quality works like in Pinchflat: TubeVault takes the best resolution up to the limit you set
 (**Maximale Qualität**, measured on the shorter side, so Shorts in portrait come in full
 1080×1920) and only then prefers H.264 between formats of that resolution. YouTube offers H.264
 up to 1080p; for 1440p and 4K it has only VP9 or AV1, and those are taken then. Nothing is
 re-encoded – the file holds YouTube's original streams. Devices that can't play VP9/AV1 directly
 (older iPhones, some TVs) get a converted stream while watching.
-- **MKV:** a flexible container that plays directly in Chrome, Edge and Firefox. Safari and iOS
-  get a remuxed copy automatically (see [playback on every device](watching.md#playback-on-every-device)).
 
 ## Comments
 
