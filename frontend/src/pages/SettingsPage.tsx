@@ -313,7 +313,7 @@ function DownloadForm({ initial }: { initial: AppSettings }) {
             <Row>
               <Switch
                 label="H.264 bevorzugen"
-                description="Beste Kompatibilität. YouTube bietet H.264 nur bis 1080p an."
+                description="Bei gleicher Auflösung H.264 nehmen – läuft überall direkt. Über 1080p gibt es bei YouTube nur VP9/AV1; das lädt TubeVault dann in voller Auflösung."
                 checked={downloads.prefer_h264}
                 onChange={(prefer_h264) => update({ prefer_h264 })}
               />

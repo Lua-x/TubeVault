@@ -32,23 +32,31 @@ WINDOW = timedelta(days=7)
 MIN_AGE = timedelta(hours=1)
 RECHECK = timedelta(hours=12)
 PER_ROUND = 3
-DEFAULT_TARGET = 1080  # "best quality": anything above 1080p only on request
+# "Beste Qualität": up to 4K by itself; 8K only on request ("Neu laden").
+BEST_TARGET = 2160
 
 
 def utcnow() -> datetime:
     return datetime.now(UTC)
 
 
-def best_height(info: dict[str, Any], max_height: int | None) -> int | None:
+def resolution(width: Any, height: Any) -> int | None:
+    """The shorter side – what "1080p" means, for portrait videos (Shorts) too."""
+    sides = [side for side in (width, height) if isinstance(side, int) and side > 0]
+    return min(sides) if sides else None
+
+
+def best_resolution(info: dict[str, Any], limit: int | None) -> int | None:
     """Highest video resolution YouTube offers now, within the limit."""
-    heights = [
-        fmt["height"]
+    found = [
+        resolution(fmt.get("width"), fmt.get("height"))
         for fmt in info.get("formats") or []
-        if isinstance(fmt.get("height"), int) and fmt.get("vcodec") not in (None, "none")
+        if fmt.get("vcodec") not in (None, "none")
     ]
-    if max_height:
-        heights = [height for height in heights if height <= max_height]
-    return max(heights, default=None)
+    values = [value for value in found if value is not None]
+    if limit:
+        values = [value for value in values if value <= limit]
+    return max(values, default=None)
 
 
 def subscription_options(db: Session, video: Video) -> dict[str, Any]:
@@ -129,8 +137,9 @@ class QualityUpgrades:
                 options = DownloadOptions.model_validate(
                     settings.downloads.model_dump() | subscription_options(db, video)
                 )
-                target = options.max_height or DEFAULT_TARGET
-                if video.height is not None and video.height < target:
+                target = options.max_height or BEST_TARGET
+                current = resolution(video.width, video.height)
+                if current is not None and current < target:
                     candidates.append((video, options))
             queued: list[int] = []
             for video, options in candidates[:PER_ROUND]:
@@ -142,11 +151,10 @@ class QualityUpgrades:
                 except Exception as exc:
                     log.info("Qualität von %s nicht prüfbar: %s", video.youtube_id, exc)
                     continue
-                best = best_height(meta.raw, options.max_height)
-                if best is not None and video.height is not None and best > video.height:
-                    log.info(
-                        "Bessere Qualität für „%s“: %sp statt %sp", video.title, best, video.height
-                    )
+                best = best_resolution(meta.raw, options.max_height or BEST_TARGET)
+                current = resolution(video.width, video.height)
+                if best is not None and current is not None and best > current:
+                    log.info("Bessere Qualität für „%s“: %sp statt %sp", video.title, best, current)
                     queued.append(queue_upgrade(db, video).id)
         if queued and self.on_queued:
             self.on_queued(queued)

@@ -48,7 +48,7 @@ Under **Abos → Abonnieren** (subscriptions → subscribe) you add a channel
   – new videos usually arrive within minutes without listing the whole channel all the time.
   Can be turned off under **Einstellungen → Automatik** (settings → automation).
 - **Better quality later:** right after an upload YouTube often only offers low resolutions.
-  If a video is below the target quality (the subscription's limit, otherwise 1080p),
+  If a video is below the target quality (the limit you set; with "Beste verfügbare" up to 4K),
   TubeVault asks again up to twice a day during the first 7 days and replaces the file as soon
   as a better one exists. Watch progress and playlists stay, and the old version plays until
   the swap. Admins can fetch any video again with **Neu laden** (reload) on its page, e.g.
@@ -102,7 +102,14 @@ exactly where it stopped.
 Both work – globally in the settings or per video in the "add video" dialog.
 
 - **MP4 (default):** plays directly in every browser, Safari and iPhone/iPad included. With
-  "prefer H.264" compatibility is at its best (YouTube offers H.264 up to 1080p).
+  "prefer H.264" compatibility is at its best.
+
+**Quality** works like in Pinchflat: TubeVault takes the best resolution up to the limit you set
+(**Maximale Qualität**, measured on the shorter side, so Shorts in portrait come in full
+1080×1920) and only then prefers H.264 between formats of that resolution. YouTube offers H.264
+up to 1080p; for 1440p and 4K it has only VP9 or AV1, and those are taken then. Nothing is
+re-encoded – the file holds YouTube's original streams. Devices that can't play VP9/AV1 directly
+(older iPhones, some TVs) get a converted stream while watching.
 - **MKV:** a flexible container that plays directly in Chrome, Edge and Firefox. Safari and iOS
   get a remuxed copy automatically (see [playback on every device](watching.md#playback-on-every-device)).
 

@@ -8,7 +8,7 @@ from typing import Any
 from fastapi.testclient import TestClient
 
 from app.models import Video
-from app.services.upgrades import QualityUpgrades, best_height
+from app.services.upgrades import QualityUpgrades, best_resolution, resolution
 from tests.conftest import HEADERS, FakeDownloader, add_and_wait, wait_for
 
 
@@ -32,18 +32,22 @@ def _files(client: TestClient, video: Video) -> list[str]:
     return sorted(p.name for p in folder.iterdir())
 
 
-def test_best_height() -> None:
+def test_best_resolution() -> None:
     info = {
         "formats": [
-            {"height": 360, "vcodec": "avc1"},
-            {"height": 2160, "vcodec": "vp9"},
-            {"height": 1080, "vcodec": "avc1"},
+            {"width": 640, "height": 360, "vcodec": "avc1"},
+            {"width": 3840, "height": 2160, "vcodec": "vp9"},
+            {"width": 1920, "height": 1080, "vcodec": "avc1"},
             {"height": None, "vcodec": "none"},  # audio
         ]
     }
-    assert best_height(info, None) == 2160
-    assert best_height(info, 1080) == 1080
-    assert best_height({}, None) is None
+    assert best_resolution(info, None) == 2160
+    assert best_resolution(info, 1080) == 1080
+    assert best_resolution({}, None) is None
+    # Portrait (a Short): 1080x1920 is "1080p".
+    short = {"formats": [{"width": 1080, "height": 1920, "vcodec": "avc1"}]}
+    assert best_resolution(short, 1080) == 1080
+    assert resolution(1080, 1920) == 1080 and resolution(None, 720) == 720
 
 
 def test_redownload_replaces_the_file_in_place(

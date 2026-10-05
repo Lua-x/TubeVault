@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -116,13 +117,75 @@ def test_retry_policy() -> None:
     assert retry_delay(ErrorKind.RATE_LIMITED, 1).total_seconds() == 900
 
 
-def test_build_format() -> None:
-    selector, sort = build_format(DownloadOptions(max_height=720, prefer_h264=True))
-    assert selector == "bv*[height<=?720]+ba/b[height<=?720]/bv*+ba/b"
-    assert sort == ["vcodec:h264", "acodec:aac"]
-    selector, sort = build_format(DownloadOptions(max_height=None, prefer_h264=False))
-    assert selector == "bv*+ba/b"
-    assert sort == []
+def _yt_format(fid: str, vcodec: str, width: int | None, height: int | None, tbr: int) -> Any:
+    ext = "webm" if vcodec in ("vp9", "opus") else ("m4a" if vcodec == "none" else "mp4")
+    acodec = {"opus": "opus"}.get(vcodec, "mp4a.40.2" if vcodec == "none" else "none")
+    fmt = {
+        "format_id": fid,
+        "ext": ext,
+        "vcodec": "none" if vcodec == "opus" else vcodec,
+        "acodec": acodec,
+        "tbr": tbr,
+        "url": f"https://example.invalid/{fid}",
+        "protocol": "https",
+    }
+    if height:
+        fmt |= {"width": width, "height": height}
+    return fmt
+
+
+# What YouTube offers for a 4K video: H.264 only up to 1080p, above that VP9 and AV1.
+LANDSCAPE = [
+    _yt_format("140", "none", None, None, 129),
+    _yt_format("251", "opus", None, None, 135),
+    _yt_format("137", "avc1.640028", 1920, 1080, 4400),
+    _yt_format("248", "vp9", 1920, 1080, 2700),
+    _yt_format("399", "av01.0.08M.08", 1920, 1080, 2100),
+    _yt_format("271", "vp9", 2560, 1440, 9000),
+    _yt_format("313", "vp9", 3840, 2160, 18000),
+    _yt_format("401", "av01.0.13M.08", 3840, 2160, 13500),
+]
+# A Short: portrait, so "1080p" is 1080 wide and 1920 high.
+PORTRAIT = [
+    _yt_format("140", "none", None, None, 129),
+    _yt_format("135", "avc1.4d401f", 480, 854, 600),
+    _yt_format("136", "avc1.4d401f", 720, 1280, 1200),
+    _yt_format("137", "avc1.640028", 1080, 1920, 2500),
+]
+
+
+def _picked(formats: list[Any], **options: Any) -> tuple[str, int | None]:
+    from yt_dlp import YoutubeDL
+
+    selector, sort = build_format(DownloadOptions(**options))
+    info = {
+        "id": "x",
+        "title": "x",
+        "formats": [dict(f) for f in formats],
+        "extractor": "youtube",
+        "extractor_key": "Youtube",
+        "webpage_url": "https://youtu.be/x",
+    }
+    params = {"quiet": True, "format": selector, "format_sort": sort, "simulate": True}
+    with YoutubeDL(params) as ydl:  # type: ignore[arg-type]
+        chosen = ydl.process_ie_result(info, download=False)
+    return chosen["format_id"], chosen.get("height")
+
+
+def test_format_choice_like_pinchflat() -> None:
+    """Resolution first; H.264 only between formats of the same resolution."""
+    assert _picked(LANDSCAPE, max_height=1080, prefer_h264=True) == ("137+140", 1080)
+    # 4K wanted: the 4K stream, even with H.264 preferred (YouTube has none above 1080p).
+    assert _picked(LANDSCAPE, max_height=2160, prefer_h264=True) == ("313+140", 2160)
+    assert _picked(LANDSCAPE, max_height=None, prefer_h264=True) == ("313+140", 2160)
+    assert _picked(LANDSCAPE, max_height=1440, prefer_h264=True) == ("271+140", 1440)
+    # Without the preference: the most efficient codec and the better audio.
+    assert _picked(LANDSCAPE, max_height=2160, prefer_h264=False) == ("401+251", 2160)
+    # Shorts count by their shorter side – full 1080x1920, not a small fallback.
+    assert _picked(PORTRAIT, max_height=1080, prefer_h264=True) == ("137+140", 1920)
+    assert _picked(PORTRAIT, max_height=720, prefer_h264=True) == ("136+140", 1280)
+    # Nothing small enough: the smallest there is instead of failing.
+    assert _picked(LANDSCAPE, max_height=360, prefer_h264=True) == ("137+140", 1080)
 
 
 def test_pick_subtitles_prefers_manual_and_original_auto() -> None:

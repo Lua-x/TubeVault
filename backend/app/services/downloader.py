@@ -127,19 +127,18 @@ class Downloader(Protocol):
 
 
 def build_format(options: DownloadOptions) -> tuple[str, list[str]]:
-    """Format selector and sort order for yt-dlp.
+    """Format selector and sort order for yt-dlp – the same approach as Pinchflat.
 
-    The height limit is strict as long as a matching format exists; otherwise we fall back
-    to whatever is available instead of failing. H.264/AAC is preferred for compatibility
-    (plays directly in every browser, including Safari and iOS).
+    Resolution comes first: `res:N` takes the best resolution up to N, measured on the
+    shorter side so portrait videos (Shorts) count right, and the smallest larger one only
+    if nothing fits. H.264/AAC is only preferred between formats of that resolution: YouTube
+    offers H.264 up to 1080p, above that only VP9/AV1 – and those are taken then, instead
+    of dropping to 1080p. Nothing is re-encoded; the streams are only put into one file.
     """
-    if options.max_height:
-        h = f"[height<=?{options.max_height}]"
-        selector = f"bv*{h}+ba/b{h}/bv*+ba/b"
-    else:
-        selector = "bv*+ba/b"
-    sort = ["vcodec:h264", "acodec:aac"] if options.prefer_h264 else []
-    return selector, sort
+    sort = [f"res:{options.max_height}" if options.max_height else "res"]
+    if options.prefer_h264:
+        sort.append("+codec:avc:m4a")
+    return "bv*+ba/b", sort
 
 
 def _escape_template(value: str) -> str:
