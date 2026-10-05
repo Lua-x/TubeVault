@@ -22,7 +22,13 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, selectinload, sessionmaker
 
 from app.config import Settings
-from app.core.errors import classify_error, clean_message, is_retryable, retry_delay
+from app.core.errors import (
+    classify_error,
+    clean_message,
+    is_disk_full,
+    is_retryable,
+    retry_delay,
+)
 from app.core.events import EventBus
 from app.models import (
     ACTIVE_JOB_STATUSES,
@@ -39,7 +45,12 @@ from app.models import (
 from app.schemas.jobs import JobOut
 from app.schemas.videos import VideoSummary
 from app.services import nfo, sponsorblock
-from app.services.app_settings import DownloadOptions, load_app_settings, queue_paused
+from app.services.app_settings import (
+    DownloadOptions,
+    load_app_settings,
+    queue_paused,
+    set_queue_paused,
+)
 from app.services.connectivity import Connectivity
 from app.services.downloader import (
     DownloadCancelledError,
@@ -59,6 +70,10 @@ log = logging.getLogger(__name__)
 
 MAX_WORKERS = 5
 OFFLINE_RETRY = timedelta(minutes=1)
+DISK_FULL_MESSAGE = (
+    "Kein Speicherplatz mehr frei – die Warteschlange ist angehalten. Platz schaffen und unter "
+    "Downloads fortsetzen."
+)
 OFFLINE_MESSAGE = (
     "Keine Internetverbindung – der Download startet automatisch, sobald das Netz zurück ist."
 )
@@ -539,6 +554,9 @@ class DownloadManager:
             log.info("Download %s %s", job_id, "pausiert" if reason == "pause" else "eingereiht")
 
     def _handle_error(self, job_id: int, exc: Exception, temp_dir: Any) -> None:
+        if is_disk_full(exc):
+            self._handle_disk_full(job_id, temp_dir)
+            return
         kind = classify_error(exc)
         message = clean_message(exc)
         with self._session() as db:
@@ -620,6 +638,35 @@ class DownloadManager:
         video = db.get(Video, job.video_id)
         if video is not None and video.status is not VideoStatus.READY:
             video.status = status
+
+    def _handle_disk_full(self, job_id: int, temp_dir: Any) -> None:
+        """Not the video's fault, and every further download would fail the same way: stop the
+        queue instead of burning through everyone's attempts, and say why."""
+        cleanup_temp(temp_dir)  # the partial download is what filled the disk last
+        with self._session() as db:
+            job = db.get(DownloadJob, job_id)
+            if job is None:
+                return
+            job.status = JobStatus.QUEUED
+            job.attempts = max(job.attempts - 1, 0)
+            job.error_kind = ErrorKind.UNKNOWN
+            job.error_message = DISK_FULL_MESSAGE
+            job.stage = None
+            job.speed = None
+            job.eta = None
+            job.next_attempt_at = None
+            self._reset_video(db, job, VideoStatus.PENDING)
+            was_paused = queue_paused(db)
+            set_queue_paused(db, True)  # commits the job as well
+            self._publish_job(db, job_id)
+        self._events.publish("queue.state", paused=True)
+        log.error("Kein Speicherplatz mehr – Warteschlange angehalten (Download %s)", job_id)
+        if not was_paused and self._notifier:
+            self._notifier.notify(
+                "disk_low",
+                "Speicher voll",
+                "Kein Speicherplatz mehr frei – die Download-Warteschlange ist angehalten.",
+            )
 
     def _publish_job(self, db: Session, job_id: int) -> None:
         job = load_job(db, job_id)

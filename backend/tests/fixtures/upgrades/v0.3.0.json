@@ -1,0 +1,34 @@
+{
+  "password": "geheim123",
+  "playlist": {
+    "name": "Lieblinge",
+    "videos": 2
+  },
+  "progress": {
+    "position_s": 42,
+    "video": 1
+  },
+  "schema": "0003",
+  "settings": {
+    "downloads.container": "mkv",
+    "downloads.max_height": 720,
+    "downloads.sponsorblock_mode": "skip",
+    "downloads.subtitle_languages": [
+      "de",
+      "fr"
+    ],
+    "max_concurrent_downloads": 3
+  },
+  "subscriptions": [
+    "Test Channel"
+  ],
+  "users": [
+    "admin",
+    "familie"
+  ],
+  "youtube_ids": [
+    "upgrade0001",
+    "upgrade0002",
+    "upgrade0003"
+  ]
+}

@@ -38,6 +38,8 @@ npx prettier --check src
 npm run typecheck
 npm test
 npm run build
+npm run e2e          # browser tests against a real server with demo videos
+                     # (needs uv and ffmpeg; first time: npx playwright install chromium)
 ```
 
 ## Layout

@@ -1,0 +1,22 @@
+{
+  "password": "geheim123",
+  "schema": "0001",
+  "settings": {
+    "downloads.container": "mkv",
+    "downloads.max_height": 720,
+    "downloads.subtitle_languages": [
+      "de",
+      "fr"
+    ],
+    "max_concurrent_downloads": 3
+  },
+  "users": [
+    "admin",
+    "familie"
+  ],
+  "youtube_ids": [
+    "upgrade0001",
+    "upgrade0002",
+    "upgrade0003"
+  ]
+}

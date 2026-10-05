@@ -1,0 +1,40 @@
+{
+  "backup": true,
+  "password": "geheim123",
+  "playlist": {
+    "name": "Lieblinge",
+    "videos": 2
+  },
+  "progress": {
+    "position_s": 42,
+    "video": 1
+  },
+  "schema": "0007",
+  "settings": {
+    "automation.rss": false,
+    "backup.keep": 9,
+    "downloads.container": "mkv",
+    "downloads.max_height": 720,
+    "downloads.sponsorblock_mode": "skip",
+    "downloads.subtitle_languages": [
+      "de",
+      "fr"
+    ],
+    "library.write_nfo": false,
+    "max_concurrent_downloads": 3,
+    "transcoding.max_height": 720
+  },
+  "subscriptions": [
+    "Test Channel"
+  ],
+  "token": "tv_ZC7C044h7v7ha6vYIQTjnKtO9o-3ke3BJEs-Fl3uV20",
+  "users": [
+    "admin",
+    "familie"
+  ],
+  "youtube_ids": [
+    "upgrade0001",
+    "upgrade0002",
+    "upgrade0003"
+  ]
+}

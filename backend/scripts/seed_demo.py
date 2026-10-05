@@ -7,10 +7,12 @@ Watch progress and playlists are created for the first admin, so sign in once (o
 ADMIN_USER/ADMIN_PASSWORD) before seeding to get them.
 
 Useful when YouTube is not reachable, e.g. for UI work or screenshots.
+DEMO_VIDEO_SECONDS=15 makes every video that short – quick, e.g. for the browser tests.
 """
 
 from __future__ import annotations
 
+import os
 import random
 import subprocess
 import sys
@@ -92,7 +94,7 @@ def main() -> None:
             channel_id, channel_name, handle = CHANNELS[index % len(CHANNELS)]
             youtube_id = f"demo{index:07d}"
             uploaded = today - timedelta(days=index * 9 + random.randint(0, 6))
-            duration = DURATIONS[index]
+            duration = int(os.environ.get("DEMO_VIDEO_SECONDS") or DURATIONS[index])
             meta = VideoMetadata(
                 youtube_id=youtube_id,
                 title=title,

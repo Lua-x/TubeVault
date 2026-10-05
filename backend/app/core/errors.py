@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import socket
 import ssl
 from datetime import timedelta
@@ -89,6 +90,14 @@ def classify_error(exc: BaseException) -> ErrorKind:
     ):
         return ErrorKind.NETWORK
     return ErrorKind.UNKNOWN
+
+
+def is_disk_full(exc: BaseException) -> bool:
+    """No space left – yt-dlp and ffmpeg only pass the message on, so look at both."""
+    if isinstance(exc, OSError) and exc.errno == errno.ENOSPC:
+        return True
+    message = str(exc).lower()
+    return "no space left on device" in message or "errno 28" in message
 
 
 def is_retryable(kind: ErrorKind) -> bool:
