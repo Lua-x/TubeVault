@@ -3,6 +3,9 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  # Run by hand (Actions → Release → Run workflow) to bring the notes of all existing
+  # releases in line with docs/releases/, e.g. after translating them.
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -14,6 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Create or update release
+        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
@@ -29,3 +33,18 @@ jobs:
           else
             gh release create "$TAG" --title "TubeVault ${TAG}" --generate-notes --verify-tag
           fi
+
+      - name: Sync notes of earlier releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for notes in docs/releases/v*.md; do
+            tag="$(basename "$notes" .md)"
+            # Only releases that exist; a file for an unreleased version waits for its tag.
+            gh release view "$tag" >/dev/null 2>&1 || continue
+            current="$(gh release view "$tag" --json body --jq .body)"
+            if [ "$current" != "$(cat "$notes")" ]; then
+              gh release edit "$tag" --notes-file "$notes"
+              echo "Updated notes of $tag"
+            fi
+          done

@@ -7,9 +7,9 @@ services:
     container_name: tubevault
     ports:
       - "8823:8823"
-    # Optional: DLNA for smart TVs (Einstellungen → Fernseher im Heimnetz). TVs find servers
-    # by multicast, which only reaches the container in the host network – `ports:` is then
-    # ignored and TubeVault listens on port 8823 of the host directly.
+    # Optional: DLNA for smart TVs (Einstellungen → Fernseher im Heimnetz, docs/living-room.md).
+    # TVs find servers by multicast, which only reaches the container in the host network –
+    # `ports:` is then ignored and TubeVault listens on port 8823 of the host directly.
     # network_mode: host
     environment:
       - PUID=1000
@@ -20,7 +20,7 @@ services:
       # - ADMIN_PASSWORD=change-me-please
       # Optional: serve below a sub-path behind a reverse proxy
       # - BASE_PATH=/tubevault
-      # Optional: login via Authelia, Authentik, Keycloak, … (see README → Anmeldung)
+      # Optional: login via Authelia, Authentik, Keycloak, … (see docs/users-and-login.md)
       # - PUBLIC_URL=https://tube.example.com
       # - OIDC_ISSUER=https://auth.example.com
       # - OIDC_CLIENT_ID=tubevault
