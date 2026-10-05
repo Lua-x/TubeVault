@@ -1,6 +1,6 @@
 [project]
 name = "tubevault"
-version = "0.9.0"
+version = "1.0.0"
 description = "Self-hosted media server for YouTube content"
 readme = "../README.md"
 license = "AGPL-3.0-or-later"
