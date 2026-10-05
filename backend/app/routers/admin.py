@@ -92,6 +92,8 @@ class Overview(BaseModel):
     downloads_per_day: list[DayCount]
     versions: dict[str, str | None]
     uptime_s: float
+    port: int
+    port_source: str
     hwaccel: str
     transcode_sessions: int
 
@@ -199,6 +201,8 @@ def overview(_: AdminUser, db: DbSession, ctx: Context) -> Overview:
             "sqlite": sqlite3.sqlite_version,
         },
         uptime_s=round(uptime_s()),
+        port=ctx.settings.port or 0,
+        port_source=ctx.port_source,
         hwaccel=options.hwaccel,
         transcode_sessions=len(ctx.transcoder.sessions()),
     )

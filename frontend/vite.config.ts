@@ -34,7 +34,7 @@ function serviceWorkerBuildId(): Plugin {
   };
 }
 
-const backend = process.env.TUBEVAULT_BACKEND ?? "http://127.0.0.1:8096";
+const backend = process.env.TUBEVAULT_BACKEND ?? "http://127.0.0.1:8823";
 
 export default defineConfig({
   // Relative asset paths: the server injects <base href> for the configured BASE_PATH,

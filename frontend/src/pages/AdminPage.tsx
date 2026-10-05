@@ -256,9 +256,25 @@ function SystemGroup({ data }: { data: AdminOverview }) {
     ["Laufende Umwandlungen", String(data.transcode_sessions)],
     ["Umwandlungs-Cache", formatBytes(data.cache_size) || "0 B"],
     ["Datenbank", formatBytes(data.database_size)],
+    ["Port", String(data.port)],
   ];
   return (
-    <Group title="System">
+    <Group
+      title="System"
+      footer={
+        data.port_source === "legacy" ? (
+          <>
+            TubeVault läuft noch auf dem alten Port {data.port}, dem Standard von Jellyfin. Seit 1.0
+            ist 8823 vorgesehen: zum Umstellen in der Compose-Datei{" "}
+            <code className="font-mono text-[12px]">ports: &quot;8823:8823&quot;</code> und{" "}
+            <code className="font-mono text-[12px]">PORT=8823</code> eintragen und den Container neu
+            erstellen. Wer bei {data.port} bleibt, setzt{" "}
+            <code className="font-mono text-[12px]">PORT={data.port}</code> – dann verschwindet
+            dieser Hinweis.
+          </>
+        ) : undefined
+      }
+    >
       {rows.map(([label, value]) => (
         <Row key={label} className="flex justify-between gap-4 text-[15px]">
           <span>{label}</span>

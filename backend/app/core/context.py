@@ -51,6 +51,8 @@ class AppContext:
     dlna: DlnaService
     analyzer: MediaAnalyzer
     speech: SpeechWorker
+    # How the port was chosen: "env" (PORT), "legacy" (8096 from before 1.0) or "default".
+    port_source: str = "default"
     login_throttle: LoginThrottle = field(default_factory=LoginThrottle)
     login_tickets: LoginTickets = field(default_factory=LoginTickets)
     pin_throttle: PinThrottle = field(default_factory=PinThrottle)

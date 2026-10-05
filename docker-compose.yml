@@ -6,10 +6,10 @@ services:
     build: .
     container_name: tubevault
     ports:
-      - "8096:8096"
+      - "8823:8823"
     # Optional: DLNA for smart TVs (Einstellungen → Fernseher im Heimnetz). TVs find servers
     # by multicast, which only reaches the container in the host network – `ports:` is then
-    # ignored and TubeVault listens on port 8096 of the host directly.
+    # ignored and TubeVault listens on port 8823 of the host directly.
     # network_mode: host
     environment:
       - PUID=1000

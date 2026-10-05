@@ -65,7 +65,6 @@ ENV PATH="/app/.venv/bin:${PATH}" \
     HOME="/tmp" \
     CONFIG_DIR="/config" \
     MEDIA_DIR="/media" \
-    PORT=8096 \
     PUID=1000 \
     PGID=1000 \
     TZ="Etc/UTC" \
@@ -79,11 +78,12 @@ COPY backend/app ./app
 COPY --from=frontend /src/dist ./app/static
 COPY --chmod=755 docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 
-EXPOSE 8096
+# 8823 by default; installs from before 1.0 keep 8096 unless PORT is set (app/core/ports.py).
+EXPOSE 8823
 VOLUME ["/config", "/media"]
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-  CMD ["python", "-c", "import os, urllib.request as u; u.urlopen('http://127.0.0.1:%s/api/health' % os.environ.get('PORT', '8096'), timeout=4)"]
+  CMD ["python", "-m", "app", "healthcheck"]
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["python", "-m", "app"]

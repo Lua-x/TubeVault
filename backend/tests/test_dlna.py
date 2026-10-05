@@ -114,7 +114,7 @@ def test_off_by_default_and_only_for_the_home_network(admin: TestClient, tv: Tes
     _configure(admin, enabled=True, name="Wohnzimmer")
     status = admin.get("/api/settings/dlna").json()
     assert status["running"] is True and status["error"] is None
-    assert status["description_url"].endswith(":8096/dlna/description.xml")
+    assert status["description_url"].endswith(":8823/dlna/description.xml")
     assert len(FakeSsdp.started) == 1 and FakeSsdp.started[0].udn.startswith("uuid:")
 
     response = tv.get("/dlna/description.xml")

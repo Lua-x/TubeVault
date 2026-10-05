@@ -1,4 +1,4 @@
-"""Command line: `python -m app [serve|update-ytdlp|reset-password]`."""
+"""Command line: `python -m app [serve|healthcheck|update-ytdlp|reset-password|reset-2fa]`."""
 
 from __future__ import annotations
 
@@ -18,12 +18,18 @@ def serve(settings: Settings) -> None:
     import uvicorn
 
     from app.core.lifecycle import register_server, restart_requested
+    from app.core.ports import resolve_port
 
+    listen = resolve_port(settings)
+    # For the container's health check, which can't know about installs from before 1.0.
+    with contextlib.suppress(OSError):
+        settings.runtime_dir.mkdir(parents=True, exist_ok=True)
+        (settings.runtime_dir / "port").write_text(str(listen.port), encoding="utf-8")
     config = uvicorn.Config(
         "app.main:create_app",
         factory=True,
         host=settings.host,
-        port=settings.port,
+        port=listen.port,
         proxy_headers=True,
         forwarded_allow_ips=settings.forwarded_allow_ips,
         log_config=None,
@@ -37,6 +43,24 @@ def serve(settings: Settings) -> None:
         logging.getLogger("app").info("TubeVault startet neu …")
         # Same PID (the container keeps running), fresh interpreter (new yt-dlp is imported).
         os.execv(sys.executable, [sys.executable, "-m", "app", "serve"])  # noqa: S606
+
+
+def healthcheck(settings: Settings) -> int:
+    """Docker's HEALTHCHECK: is the server answering on its port?"""
+    import urllib.request
+
+    from app.core.ports import resolve_port
+
+    try:
+        port = int((settings.runtime_dir / "port").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        port = resolve_port(settings).port
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/health", timeout=4):
+            return 0
+    except OSError as exc:
+        print(f"unhealthy: {exc}", file=sys.stderr)
+        return 1
 
 
 def youtube_enabled_on_disk(settings: Settings) -> bool:
@@ -124,6 +148,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(prog="tubevault")
     sub = parser.add_subparsers(dest="command")
     sub.add_parser("serve", help="Start the web server (default)")
+    sub.add_parser("healthcheck", help="Exit 0 if the server answers")
     update = sub.add_parser("update-ytdlp", help="Update yt-dlp in /config/.runtime")
     update.add_argument("--if-enabled", action="store_true", help="Respect YTDLP_AUTO_UPDATE")
     reset = sub.add_parser("reset-password", help="Set a new password for a user")
@@ -133,6 +158,8 @@ def main() -> int:
     args = parser.parse_args()
 
     settings = Settings()
+    if args.command == "healthcheck":
+        return healthcheck(settings)
     if args.command == "update-ytdlp":
         update_ytdlp(settings, args.if_enabled)
         return 0

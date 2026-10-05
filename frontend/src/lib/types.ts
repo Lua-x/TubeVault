@@ -589,6 +589,9 @@ export interface AdminOverview {
   downloads_per_day: DayCount[];
   versions: Record<string, string | null>;
   uptime_s: number;
+  port: number;
+  /** "legacy": 8096 kept from before 1.0 because PORT isn't set. */
+  port_source: "env" | "legacy" | "default";
   hwaccel: HwAccel;
   transcode_sessions: number;
 }

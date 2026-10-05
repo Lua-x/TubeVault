@@ -73,15 +73,16 @@ jobs:
           done
           docker run --rm --entrypoint ffmpeg tubevault:smoke -hide_banner -loglevel error \
             -f lavfi -i testsrc2=size=640x360:duration=2 -c:v libx264 -f null -
-          docker run -d --name smoke -p 8096:8096 \
+          docker run -d --name smoke -p 8823:8823 \
             -e ADMIN_USER=admin -e ADMIN_PASSWORD=smoke-test-1234 -e YTDLP_AUTO_UPDATE=false \
             tubevault:smoke
           for _ in $(seq 1 30); do
-            curl -fs http://127.0.0.1:8096/api/health && break
+            curl -fs http://127.0.0.1:8823/api/health && break
             sleep 2
           done
-          curl -fs http://127.0.0.1:8096/api/health
-          curl -fs http://127.0.0.1:8096/ | grep -q '<base href="/" />'
+          curl -fs http://127.0.0.1:8823/api/health
+          curl -fs http://127.0.0.1:8823/ | grep -q '<base href="/" />'
+          docker exec smoke python -m app healthcheck
           docker logs smoke 2>&1 | tail -n 20
           docker rm -f smoke
 

@@ -18,6 +18,7 @@ from app import __version__
 from app.config import Settings
 from app.core.context import AppContext
 from app.core.events import EventBus
+from app.core.ports import resolve_port
 from app.core.security import CSRF_HEADER
 from app.db import make_engine, make_session_factory
 from app.logging_setup import setup_logging
@@ -287,6 +288,9 @@ def create_app(
         setup_logging(settings.log_level, settings.logs_dir)
 
     restored = apply_staged_restore(settings)
+    # Before the migrations: they mark installs from before 1.0 (see app/core/ports.py).
+    listen = resolve_port(settings)
+    settings.port = listen.port
     engine = make_engine(settings.db_url)
     run_migrations(engine)
     ensure_search_index(engine)
@@ -393,6 +397,7 @@ def create_app(
         dlna=dlna_service,
         analyzer=analyzer,
         speech=speech,
+        port_source=listen.source,
     )
 
     @asynccontextmanager

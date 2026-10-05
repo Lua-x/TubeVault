@@ -6,7 +6,7 @@ from functools import cached_property
 from pathlib import Path
 from typing import Literal
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR"]
@@ -22,7 +22,8 @@ class Settings(BaseSettings):
     )
 
     host: str = "0.0.0.0"
-    port: int = 8096
+    # Unset: 8823, or 8096 for installs from before 1.0 (see app/core/ports.py).
+    port: int | None = Field(default=None, ge=1, le=65535)
     base_path: str = ""
     forwarded_allow_ips: str = "*"
     log_level: LogLevel = "INFO"
