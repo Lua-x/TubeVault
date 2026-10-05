@@ -154,10 +154,34 @@ PORTRAIT = [
 ]
 
 
+# Right after an upload: only small H.264 versions (one of them with sound) and VP9 1080p.
+FRESH = [
+    _yt_format("140", "none", None, None, 129),
+    _yt_format("251", "opus", None, None, 135),
+    {
+        "format_id": "18",
+        "ext": "mp4",
+        "vcodec": "avc1.42001E",
+        "acodec": "mp4a.40.2",
+        "width": 640,
+        "height": 360,
+        "tbr": 500,
+        "url": "https://example.invalid/18",
+        "protocol": "https",
+    },
+    _yt_format("136", "avc1.4d401f", 1280, 720, 1500),
+    _yt_format("248", "vp9", 1920, 1080, 2700),
+]
+
+
 def _picked(formats: list[Any], **options: Any) -> tuple[str, int | None]:
+    return _choose(formats, *build_format(DownloadOptions(**options)))
+
+
+def _choose(formats: list[Any], selector: str, sort: list[str]) -> tuple[str, int | None]:
+    """The format yt-dlp itself picks for these options – nothing is downloaded."""
     from yt_dlp import YoutubeDL
 
-    selector, sort = build_format(DownloadOptions(**options))
     info = {
         "id": "x",
         "title": "x",
@@ -186,6 +210,29 @@ def test_format_choice_like_pinchflat() -> None:
     assert _picked(PORTRAIT, max_height=720, prefer_h264=True) == ("136+140", 1280)
     # Nothing small enough: the smallest there is instead of failing.
     assert _picked(LANDSCAPE, max_height=360, prefer_h264=True) == ("137+140", 1080)
+
+
+# Pinchflat's media profiles, and what its QualityOptionBuilder hands yt-dlp for them
+# (with its default codec preferences, avc and m4a).
+PINCHFLAT_RESOLUTIONS = (4320, 2160, 1440, 1080, 720, 480, 360)
+
+
+def _pinchflat(formats: list[Any], resolution: int) -> tuple[str, int | None]:
+    return _choose(formats, "bestvideo*+bestaudio/best", [f"res:{resolution}", "+codec:avc:m4a"])
+
+
+@pytest.mark.parametrize("formats", [LANDSCAPE, PORTRAIT, FRESH], ids=["4k", "short", "fresh"])
+def test_same_choice_as_pinchflat(formats: list[Any]) -> None:
+    """Every Pinchflat profile has a TubeVault setting that takes exactly the same streams –
+    so the same file, the same size. Pinchflat's 8K profile is "Beste verfügbare"."""
+    for resolution in PINCHFLAT_RESOLUTIONS:
+        limit = None if resolution == 4320 else resolution
+        assert _picked(formats, max_height=limit) == _pinchflat(formats, resolution), resolution
+
+
+def test_best_quality_is_the_default() -> None:
+    assert DownloadOptions().max_height is None
+    assert _picked(LANDSCAPE) == ("313+140", 2160)
 
 
 def test_pick_subtitles_prefers_manual_and_original_auto() -> None:

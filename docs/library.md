@@ -15,8 +15,9 @@
 **Video hinzufügen** (add video, the plus button) takes a YouTube link and downloads the video
 with [yt-dlp](https://github.com/yt-dlp/yt-dlp) and ffmpeg – with title, description, channel,
 upload date, thumbnail, chapters and subtitles (manual ones and the automatic ones in the
-original language). Format and quality can be chosen per video; the defaults live under
-**Einstellungen → Downloads** (settings → downloads).
+original language). Format and quality can be chosen per video under **Optionen** – the dialog
+remembers what you picked last, for your account on every device. The defaults live under
+**Einstellungen → Downloads** (settings → downloads); changes there are saved right away.
 
 The download queue shows live progress, can pause and resume single downloads (partial files
 are kept) or the whole queue, and retries automatically with a backoff after network errors
@@ -109,12 +110,20 @@ Both work – globally in the settings or per video in the "add video" dialog.
 
 ## Quality
 
-Quality works like in Pinchflat: TubeVault takes the best resolution up to the limit you set
-(**Maximale Qualität**, measured on the shorter side, so Shorts in portrait come in full
+By default TubeVault downloads the **best available quality** – 4K (or even 8K) when YouTube has
+it. **Maximale Qualität** (maximum quality) sets a limit instead, e.g. to save space.
+
+The choice works exactly like in Pinchflat, with the same yt-dlp options: TubeVault takes the best
+resolution up to the limit (measured on the shorter side, so Shorts in portrait come in full
 1080×1920) and only then prefers H.264 between formats of that resolution. YouTube offers H.264
-up to 1080p; for 1440p and 4K it has only VP9 or AV1, and those are taken then. Nothing is
+up to 1080p; for 1440p and 4K it has only VP9 or AV1, and those are taken then. For every
+Pinchflat profile a test checks that TubeVault picks the very same streams – "Beste verfügbare"
+matches Pinchflat's 4320p profile, "4K (2160p)" its 2160p profile, and so on. Nothing is
 re-encoded – the file holds YouTube's original streams. Devices that can't play VP9/AV1 directly
 (older iPhones, some TVs) get a converted stream while watching.
+
+What a video was downloaded in is listed under **Details** on its page: resolution, video and
+audio codec, size.
 
 ## Comments
 

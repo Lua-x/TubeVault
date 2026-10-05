@@ -86,6 +86,21 @@ test("a playback preference survives a reload", async ({ page }) => {
   await expect(toggle).toHaveAttribute("aria-checked", before ?? "true");
 });
 
+test("download settings are saved without a save button", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/settings");
+  const quality = page.getByLabel("Maximale Qualität");
+  await expect(quality).toHaveValue(""); // best available by default
+  await quality.selectOption("1080");
+  await expect(page.getByText("Gespeichert", { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(quality).toHaveValue("1080");
+  await quality.selectOption(""); // back as it was
+  await expect(page.getByText("Gespeichert", { exact: true }).first()).toBeVisible();
+  await page.reload();
+  await expect(quality).toHaveValue("");
+});
+
 test("the TV view works with the arrow keys", async ({ page }) => {
   await signIn(page);
   await page.goto("/tv");

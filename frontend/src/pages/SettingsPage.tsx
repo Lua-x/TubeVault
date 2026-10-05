@@ -1,5 +1,5 @@
 import { ChevronRight, ShieldCheck } from "lucide-react";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router";
 
 import {
@@ -201,6 +201,12 @@ const HEIGHTS: { value: string; label: string }[] = [
   { value: "360", label: "360p" },
 ];
 
+/** Focus is in a text field: save once it's left, not on every key. */
+function typing(): boolean {
+  const el = document.activeElement;
+  return el instanceof HTMLInputElement && !["checkbox", "radio", "range"].includes(el.type);
+}
+
 function DownloadSection() {
   const { data } = useAppSettings();
   return data ? <DownloadForm initial={data} /> : null;
@@ -212,46 +218,97 @@ function DownloadForm({ initial }: { initial: AppSettings }) {
   const toast = useToast();
   const [draft, setDraft] = useState<AppSettings>(initial);
   const [languages, setLanguages] = useState(initial.downloads.subtitle_languages.join(", "));
+  const [confirmMove, setConfirmMove] = useState<AppSettings | null>(null);
+  const [failed, setFailed] = useState(false);
 
+  // Every change is saved by itself, like the playback settings – nothing gets lost by
+  // leaving the page. Text fields are saved when they lose focus (or with Enter).
+  const latest = useRef(initial); // the newest draft
+  const stored = useRef(JSON.stringify(initial)); // what the server has
+  const busy = useRef(false);
+  const timer = useRef<number | undefined>(undefined);
+
+  const flush = async (): Promise<void> => {
+    window.clearTimeout(timer.current);
+    const next = latest.current;
+    if (busy.current || JSON.stringify(next) === stored.current) return;
+    busy.current = true;
+    try {
+      const result = await save.mutateAsync(next);
+      stored.current = JSON.stringify(result);
+      if (latest.current === next) {
+        latest.current = result;
+        setDraft(result);
+      }
+      setFailed(false);
+      toast("Gespeichert");
+    } catch (err) {
+      setFailed(true);
+      toast(err instanceof Error ? err.message : "Speichern fehlgeschlagen", "error");
+      return; // the next change tries again
+    } finally {
+      busy.current = false;
+    }
+    if (JSON.stringify(latest.current) !== stored.current) void flush(); // changed meanwhile
+  };
+  const flushRef = useRef(flush);
+  useEffect(() => {
+    flushRef.current = flush;
+  });
+  // Leaving the page right after a change still saves it.
+  useEffect(() => () => void flushRef.current(), []);
+
+  const change = (next: AppSettings) => {
+    latest.current = next;
+    setDraft(next);
+    window.clearTimeout(timer.current);
+    if (!typing()) timer.current = window.setTimeout(() => void flushRef.current(), 400);
+  };
   const downloads = draft.downloads;
   const update = (patch: Partial<AppSettings["downloads"]>) =>
-    setDraft({ ...draft, downloads: { ...downloads, ...patch } });
+    change({ ...draft, downloads: { ...downloads, ...patch } });
 
-  const [savedLayout, setSavedLayout] = useState(initial.library.layout);
-  const [confirmMove, setConfirmMove] = useState<AppSettings | null>(null);
+  const commitLanguages = () => {
+    const subtitle_languages = languages
+      .split(/[,\s]+/)
+      .map((l) => l.trim().toLowerCase())
+      .filter((l, i, all) => l && all.indexOf(l) === i);
+    setLanguages(subtitle_languages.join(", "));
+    latest.current = {
+      ...latest.current,
+      downloads: { ...latest.current.downloads, subtitle_languages },
+    };
+    setDraft(latest.current);
+  };
 
-  const persist = async (next: AppSettings) => {
+  const changeLibrary = (patch: Partial<AppSettings["library"]>) => {
+    const next = { ...draft, library: { ...draft.library, ...patch } };
+    // Moving every file deserves a confirmation first.
+    if (next.library.layout !== saved.library.layout) setConfirmMove(next);
+    else change(next);
+  };
+  const confirmLayout = () => {
+    if (!confirmMove) return;
+    latest.current = confirmMove;
+    setDraft(confirmMove);
     setConfirmMove(null);
-    try {
-      const saved = await save.mutateAsync(next);
-      setDraft(saved);
-      setSavedLayout(saved.library.layout);
-      setLanguages(saved.downloads.subtitle_languages.join(", "));
-      toast("Einstellungen gespeichert");
-    } catch (err) {
-      toast(err instanceof Error ? err.message : "Speichern fehlgeschlagen", "error");
-    }
+    void flush();
   };
 
   const submit = (event: FormEvent) => {
-    event.preventDefault();
-    const next: AppSettings = {
-      ...draft,
-      downloads: {
-        ...downloads,
-        subtitle_languages: languages
-          .split(/[,\s]+/)
-          .map((l) => l.trim())
-          .filter(Boolean),
-      },
-    };
-    // Moving every file deserves a confirmation.
-    if (next.library.layout !== savedLayout) setConfirmMove(next);
-    else void persist(next);
+    event.preventDefault(); // Enter in a text field
+    commitLanguages();
+    void flush();
   };
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-9">
+    <form
+      onSubmit={submit}
+      onBlur={(event) => {
+        if (event.target instanceof HTMLInputElement) void flush();
+      }}
+      className="flex flex-col gap-9"
+    >
       <Group
         title="Betrieb"
         footer={
@@ -265,7 +322,7 @@ function DownloadForm({ initial }: { initial: AppSettings }) {
             label="YouTube-Downloader"
             description="Aus, wenn TubeVault nur deine vorhandenen und eigenen Videos zeigen soll."
             checked={draft.youtube_enabled}
-            onChange={(youtube_enabled) => setDraft({ ...draft, youtube_enabled })}
+            onChange={(youtube_enabled) => change({ ...draft, youtube_enabled })}
           />
         </Row>
       </Group>
@@ -324,7 +381,7 @@ function DownloadForm({ initial }: { initial: AppSettings }) {
                 label="Gleichzeitige Downloads"
                 value={String(draft.max_concurrent_downloads)}
                 onChange={(e) =>
-                  setDraft({ ...draft, max_concurrent_downloads: Number(e.target.value) })
+                  change({ ...draft, max_concurrent_downloads: Number(e.target.value) })
                 }
               >
                 {[1, 2, 3, 4, 5].map((n) => (
@@ -342,7 +399,7 @@ function DownloadForm({ initial }: { initial: AppSettings }) {
                 label="Neue Videos schneller finden"
                 description="Schaut alle 15 Minuten in den RSS-Feed jedes Abos – die gründliche Prüfung läuft weiter im eingestellten Intervall."
                 checked={draft.automation.rss}
-                onChange={(rss) => setDraft({ ...draft, automation: { ...draft.automation, rss } })}
+                onChange={(rss) => change({ ...draft, automation: { ...draft.automation, rss } })}
               />
             </Row>
             <Row>
@@ -351,7 +408,7 @@ function DownloadForm({ initial }: { initial: AppSettings }) {
                 description="Kurz nach dem Upload hat YouTube oft nur niedrige Auflösungen. TubeVault schaut in den ersten 7 Tagen nach und ersetzt die Datei, sobald es eine bessere gibt."
                 checked={draft.automation.upgrade_quality}
                 onChange={(upgrade_quality) =>
-                  setDraft({ ...draft, automation: { ...draft.automation, upgrade_quality } })
+                  change({ ...draft, automation: { ...draft.automation, upgrade_quality } })
                 }
               />
             </Row>
@@ -379,6 +436,7 @@ function DownloadForm({ initial }: { initial: AppSettings }) {
                 hint="Sprachcodes, durch Komma getrennt, z. B. de, en"
                 value={languages}
                 onChange={(e) => setLanguages(e.target.value)}
+                onBlur={commitLanguages}
               />
             </Row>
           </Group>
@@ -442,40 +500,37 @@ function DownloadForm({ initial }: { initial: AppSettings }) {
 
       <TranscodeGroup
         value={draft.transcoding}
-        onChange={(patch) =>
-          setDraft({ ...draft, transcoding: { ...draft.transcoding, ...patch } })
-        }
+        onChange={(patch) => change({ ...draft, transcoding: { ...draft.transcoding, ...patch } })}
       />
 
       <AnalysisGroup
         value={draft.analysis}
-        onChange={(patch) => setDraft({ ...draft, analysis: { ...draft.analysis, ...patch } })}
+        onChange={(patch) => change({ ...draft, analysis: { ...draft.analysis, ...patch } })}
       />
 
       <SpeechGroup
         value={draft.speech}
-        onChange={(patch) => setDraft({ ...draft, speech: { ...draft.speech, ...patch } })}
+        onChange={(patch) => change({ ...draft, speech: { ...draft.speech, ...patch } })}
       />
 
       <div className="flex flex-col gap-3">
-        <LibraryGroup
-          value={draft.library}
-          onChange={(patch) => setDraft({ ...draft, library: { ...draft.library, ...patch } })}
-        />
+        <LibraryGroup value={draft.library} onChange={changeLibrary} />
         <LibraryTaskStatus />
       </div>
 
       <DlnaGroup
         value={draft.dlna}
         saved={saved.dlna}
-        onChange={(patch) => setDraft({ ...draft, dlna: { ...draft.dlna, ...patch } })}
+        onChange={(patch) => change({ ...draft, dlna: { ...draft.dlna, ...patch } })}
       />
 
-      <div className="flex justify-end">
-        <Button type="submit" loading={save.isPending}>
-          Speichern
-        </Button>
-      </div>
+      <p role="status" className="px-1 text-[13px] text-secondary">
+        {save.isPending
+          ? "Wird gespeichert …"
+          : failed
+            ? "Die letzte Änderung ist nicht gespeichert – bitte prüfen."
+            : "Änderungen werden sofort gespeichert."}
+      </p>
 
       <Dialog
         open={confirmMove != null}
@@ -491,11 +546,7 @@ function DownloadForm({ initial }: { initial: AppSettings }) {
           <Button type="button" variant="secondary" onClick={() => setConfirmMove(null)}>
             Abbrechen
           </Button>
-          <Button
-            type="button"
-            loading={save.isPending}
-            onClick={() => confirmMove && void persist(confirmMove)}
-          >
+          <Button type="button" loading={save.isPending} onClick={confirmLayout}>
             Umziehen
           </Button>
         </div>

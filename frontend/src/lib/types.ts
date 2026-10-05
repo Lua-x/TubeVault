@@ -9,6 +9,14 @@ export interface Preferences {
   channel_rates?: Record<string, number>;
   /** Even out loud and quiet videos (default on). */
   normalize_volume?: boolean;
+  /** Last options picked in "Video hinzufügen"; missing = "Standard". */
+  add_video?: AddVideoChoices;
+}
+
+export interface AddVideoChoices {
+  container?: Container;
+  max_height?: MaxHeight;
+  comments?: boolean;
 }
 
 export interface Trickplay {

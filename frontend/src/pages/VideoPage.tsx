@@ -617,9 +617,9 @@ function VideoActions({ video, onWatchedChange }: VideoActionsProps) {
       <Dialog open={redownloading} onClose={() => setRedownloading(false)} title="Video neu laden?">
         <p className="text-[15px] text-secondary">
           TubeVault lädt „{video.title}“ mit den aktuellen Einstellungen noch einmal
-          {video.height ? ` (jetzt: ${formatResolution(video.height)})` : ""} – etwa in besserer
-          Qualität – und ersetzt die Datei, sobald der Download fertig ist. Bis dahin läuft die
-          jetzige Fassung weiter; Wiedergabestand und Playlists bleiben erhalten.
+          {video.height ? ` (jetzt: ${formatResolution(video.height, video.width)})` : ""} – etwa in
+          besserer Qualität – und ersetzt die Datei, sobald der Download fertig ist. Bis dahin läuft
+          die jetzige Fassung weiter; Wiedergabestand und Playlists bleiben erhalten.
         </p>
         <div className="mt-6 flex justify-end gap-3">
           <Button variant="secondary" onClick={() => setRedownloading(false)}>
@@ -705,7 +705,7 @@ function FileInfo({ video, skipped }: { video: VideoDetail; skipped: number }) {
       : "";
   const rows: [string, string][] = [
     ["Dauer", formatDuration(video.duration_s)],
-    ["Auflösung", formatResolution(video.height)],
+    ["Auflösung", formatResolution(video.height, video.width)],
     ["Video", codecLabel(video.vcodec)],
     ["Audio", codecLabel(video.acodec)],
     ["Format", video.container?.toUpperCase() ?? ""],

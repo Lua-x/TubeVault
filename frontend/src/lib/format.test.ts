@@ -48,5 +48,7 @@ describe("labels", () => {
     expect(codecLabel("none")).toBe("");
     expect(formatResolution(2160)).toBe("4K");
     expect(formatResolution(720)).toBe("720p");
+    expect(formatResolution(1920, 1080)).toBe("1080p");
+    expect(formatResolution(3840, 2160)).toBe("4K");
   });
 });

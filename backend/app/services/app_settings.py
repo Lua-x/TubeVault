@@ -29,7 +29,8 @@ class DownloadOptions(BaseModel):
     """Options that decide how a single video is downloaded."""
 
     container: Container = "mp4"
-    max_height: MaxHeight | None = 1080
+    # None: the best available quality (up to 8K, if YouTube has it).
+    max_height: MaxHeight | None = None
     prefer_h264: bool = True
     subtitles: bool = True
     auto_subtitles: bool = True

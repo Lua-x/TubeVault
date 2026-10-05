@@ -8,9 +8,10 @@ import { Dialog } from "@/components/ui/Dialog";
 import { TextField } from "@/components/ui/Input";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Select } from "@/components/ui/Select";
+import { useAuth } from "@/hooks/auth";
 import { useToast } from "@/hooks/toast";
 import { cn } from "@/lib/cn";
-import type { Container, MaxHeight } from "@/lib/types";
+import type { AddVideoChoices, Container, MaxHeight } from "@/lib/types";
 
 type ContainerChoice = "default" | Container;
 
@@ -30,14 +31,30 @@ interface AddVideoDialogProps {
 }
 
 export function AddVideoDialog({ open, onClose, initialUrl }: AddVideoDialogProps) {
+  const { user, updatePreferences } = useAuth();
+  // The options picked last time (kept in the account, so on every device).
+  const remembered = user?.preferences.add_video ?? {};
   const [url, setUrl] = useState(initialUrl ?? "");
   const [advanced, setAdvanced] = useState(false);
-  const [container, setContainer] = useState<ContainerChoice>("default");
-  const [quality, setQuality] = useState("");
-  const [comments, setComments] = useState<"default" | "yes" | "no">("default");
+  const [container, setContainer] = useState<ContainerChoice>(remembered.container ?? "default");
+  const [quality, setQuality] = useState(
+    remembered.max_height ? String(remembered.max_height) : "",
+  );
+  const [comments, setComments] = useState<"default" | "yes" | "no">(
+    remembered.comments == null ? "default" : remembered.comments ? "yes" : "no",
+  );
   const add = useAddVideo();
   const toast = useToast();
   const navigate = useNavigate();
+
+  // Shown next to the collapsed "Optionen", so remembered choices don't go unnoticed.
+  const summary = [
+    QUALITIES.find((q) => q.value === quality && q.value)?.label,
+    container === "default" ? undefined : container.toUpperCase(),
+    comments === "default" ? undefined : comments === "yes" ? "Kommentare an" : "Kommentare aus",
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   const close = () => {
     onClose();
@@ -46,13 +63,17 @@ export function AddVideoDialog({ open, onClose, initialUrl }: AddVideoDialogProp
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    const choices: AddVideoChoices = {
+      container: container === "default" ? undefined : container,
+      max_height: quality ? (Number(quality) as MaxHeight) : undefined,
+      comments: comments === "default" ? undefined : comments === "yes",
+    };
     try {
-      await add.mutateAsync({
-        url: url.trim(),
-        container: container === "default" ? undefined : container,
-        max_height: quality ? (Number(quality) as MaxHeight) : undefined,
-        comments: comments === "default" ? undefined : comments === "yes",
-      });
+      await add.mutateAsync({ url: url.trim(), ...choices });
+      if (!sameChoices(choices, remembered)) {
+        // Not worth an error message: the download itself is on its way.
+        updatePreferences({ add_video: choices }).catch(() => undefined);
+      }
       toast("Download gestartet");
       setUrl("");
       close();
@@ -92,6 +113,7 @@ export function AddVideoDialog({ open, onClose, initialUrl }: AddVideoDialogProp
               strokeWidth={2}
             />
             Optionen
+            {!advanced && summary && <span className="font-normal text-tertiary">· {summary}</span>}
           </button>
           {advanced && (
             <div className="mt-3 flex flex-col gap-4 rounded-2xl bg-surface/50 p-4">
@@ -148,4 +170,8 @@ export function AddVideoDialog({ open, onClose, initialUrl }: AddVideoDialogProp
       </form>
     </Dialog>
   );
+}
+
+function sameChoices(a: AddVideoChoices, b: AddVideoChoices): boolean {
+  return a.container === b.container && a.max_height === b.max_height && a.comments === b.comments;
 }

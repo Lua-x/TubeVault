@@ -6,6 +6,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, field_validator
 
 from app.schemas.common import ApiModel
+from app.services.app_settings import Container, MaxHeight
 
 USERNAME_PATTERN = r"^[A-Za-z0-9._-]{2,64}$"
 
@@ -62,6 +63,14 @@ PLAYBACK_RATES = (0.5, 0.75, 1, 1.25, 1.5, 1.75, 2)
 MAX_CHANNEL_RATES = 2000
 
 
+class AddVideoChoices(BaseModel):
+    """What was last picked in "Video hinzufügen"; None means "Standard (Einstellungen)"."""
+
+    container: Container | None = None
+    max_height: MaxHeight | None = None
+    comments: bool | None = None
+
+
 class Preferences(BaseModel):
     """Partial update: only the fields that are sent are changed."""
 
@@ -74,6 +83,8 @@ class Preferences(BaseModel):
     channel_rates: dict[str, float] | None = None
     # Even out loud and quiet videos (measured by the media analysis).
     normalize_volume: bool | None = None
+    # Options of the "add video" dialog, remembered for next time; always sent as a whole.
+    add_video: AddVideoChoices | None = None
 
     @field_validator("channel_rates")
     @classmethod

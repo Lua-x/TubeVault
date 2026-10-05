@@ -68,11 +68,13 @@ export function formatCount(value: number | null | undefined): string {
   return value == null ? "" : numberFormat.format(value);
 }
 
-export function formatResolution(height: number | null | undefined): string {
+/** Named after the shorter side, like YouTube does: a 1080×1920 Short is 1080p. */
+export function formatResolution(height: number | null | undefined, width?: number | null): string {
   if (!height) return "";
-  if (height >= 2160) return "4K";
-  if (height >= 1440) return "1440p";
-  return `${height}p`;
+  const side = width ? Math.min(width, height) : height;
+  if (side >= 2160) return "4K";
+  if (side >= 1440) return "1440p";
+  return `${side}p`;
 }
 
 export function codecLabel(codec: string | null | undefined): string {
