@@ -18,6 +18,8 @@ import { chosenView, isTvBrowser } from "@/tv/navigation";
 import { ChannelPage } from "@/pages/ChannelPage";
 import { ChannelsPage } from "@/pages/ChannelsPage";
 import { DevicePage } from "@/pages/DevicePage";
+import { FolderPage } from "@/pages/FolderPage";
+import { FoldersPage } from "@/pages/FoldersPage";
 import { HomePage } from "@/pages/HomePage";
 import { LibraryPage } from "@/pages/LibraryPage";
 import { LoginPage } from "@/pages/LoginPage";
@@ -77,6 +79,8 @@ function AnimatedRoutes() {
           <Route path="/channels/:id" element={<ChannelPage />} />
           <Route path="/playlists" element={<PlaylistsPage />} />
           <Route path="/playlists/:id" element={<PlaylistPage />} />
+          <Route path="/folders" element={<FoldersPage />} />
+          <Route path="/folders/:id" element={<FolderPage />} />
           <Route path="/later" element={<WatchLaterPage />} />
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/videos/:id" element={<VideoPage />} />

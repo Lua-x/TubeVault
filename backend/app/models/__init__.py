@@ -11,7 +11,14 @@ from app.models.job import (
     JobStage,
     JobStatus,
 )
-from app.models.library import Playlist, PlaylistItem, SponsorSegment, WatchProgress
+from app.models.library import (
+    Folder,
+    FolderItem,
+    Playlist,
+    PlaylistItem,
+    SponsorSegment,
+    WatchProgress,
+)
 from app.models.setting import Setting
 from app.models.subscription import ItemState, Subscription, SubscriptionItem, SubscriptionKind
 from app.models.user import ApiToken, User, UserSession, user_channels
@@ -26,6 +33,8 @@ __all__ = [
     "DownloadJob",
     "ErrorKind",
     "FamilyDevice",
+    "Folder",
+    "FolderItem",
     "ItemState",
     "JobStage",
     "JobStatus",

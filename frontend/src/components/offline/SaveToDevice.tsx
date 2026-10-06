@@ -66,9 +66,27 @@ function useChoices(video: VideoDetail, enabled: boolean): Choice[] | null {
 }
 
 /** "Aufs Gerät": save a video for watching without the server. */
-export function SaveToDevice({ video, className }: { video: VideoDetail; className?: string }) {
+export function SaveToDevice({
+  video,
+  className,
+  open: openProp,
+  onOpenChange,
+  buttonless = false,
+}: {
+  video: VideoDetail;
+  className?: string;
+  /** Opened from elsewhere, e.g. a menu: then only progress and "saved" show a button. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  buttonless?: boolean;
+}) {
   const offline = useOffline();
-  const [open, setOpen] = useState(false);
+  const [ownOpen, setOwnOpen] = useState(false);
+  const open = openProp ?? ownOpen;
+  const setOpen = (value: boolean) => {
+    setOwnOpen(value);
+    onOpenChange?.(value);
+  };
   const choices = useChoices(video, open);
   const [picked, setPicked] = useState<OfflineQuality | null>(null);
   const task = offline.tasks.find((t) => t.id === video.id);
@@ -148,17 +166,19 @@ export function SaveToDevice({ video, className }: { video: VideoDetail; classNa
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className={cn(
-          "inline-flex h-9 items-center gap-2 rounded-full bg-surface px-4 text-[14px] font-medium transition-colors hover:bg-surface-hover",
-          className,
-        )}
-      >
-        <HardDriveDownload className="size-4" strokeWidth={2} />
-        Aufs Gerät
-      </button>
+      {!buttonless && (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className={cn(
+            "inline-flex h-9 items-center gap-2 rounded-full bg-surface px-4 text-[14px] font-medium transition-colors hover:bg-surface-hover",
+            className,
+          )}
+        >
+          <HardDriveDownload className="size-4" strokeWidth={2} />
+          Aufs Gerät
+        </button>
+      )}
       <Dialog open={open} onClose={() => setOpen(false)} title="Aufs Gerät laden">
         <p className="text-[15px] text-secondary">
           Zum Schauen ohne Verbindung zum Server, etwa unterwegs. Die App muss geöffnet bleiben, bis

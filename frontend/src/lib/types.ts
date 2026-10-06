@@ -208,6 +208,27 @@ export interface PlaylistDetail extends Playlist {
   videos: VideoSummary[];
 }
 
+/** An account's own folder for sorting videos; folders can hold folders. */
+export interface Folder {
+  id: number;
+  name: string;
+  /** null: directly under "Ordner". */
+  parent_id: number | null;
+  created_at: string;
+  updated_at: string;
+  video_count: number;
+  folder_count: number;
+  cover: VideoSummary[];
+  contains: boolean | null;
+}
+
+export interface FolderDetail extends Folder {
+  /** The folders above, from the top down. */
+  path: { id: number; name: string }[];
+  folders: Folder[];
+  videos: VideoSummary[];
+}
+
 export interface Chapter {
   start: number;
   end: number;

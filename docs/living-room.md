@@ -83,7 +83,8 @@ guessing down.
 
 ## Watch together
 
-On the video page, **Gemeinsam schauen** (watch together) opens a room with a link to share.
+On the video page, **Gemeinsam schauen** (watch together) in the **⋯** menu opens a room with a
+link to share.
 Whoever opens it sees the same video at the same point; play, pause and seeking apply to
 everyone, and whoever falls a few seconds behind is gently pulled back. Any account that may see
 this video can join – a kids profile doesn't get into a room with a video outside its channels.

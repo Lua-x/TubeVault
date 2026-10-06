@@ -1,4 +1,4 @@
-import { Clock, ListVideo } from "lucide-react";
+import { Clock, ListVideo, type LucideIcon } from "lucide-react";
 
 import { Thumbnail } from "@/components/video/Thumbnail";
 import { cn } from "@/lib/cn";
@@ -9,13 +9,16 @@ export function PlaylistCover({
   videos,
   className,
   watchLater = false,
+  icon,
 }: {
   videos: VideoSummary[];
   className?: string;
   /** "Später ansehen" gets a clock when it's empty. */
   watchLater?: boolean;
+  /** Shown when there are no videos (e.g. a folder). */
+  icon?: LucideIcon;
 }) {
-  const Icon = watchLater ? Clock : ListVideo;
+  const Icon = icon ?? (watchLater ? Clock : ListVideo);
   const base = cn("aspect-video overflow-hidden rounded-2xl bg-surface", className);
   if (videos.length === 0) {
     return (

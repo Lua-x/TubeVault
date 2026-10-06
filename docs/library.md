@@ -7,6 +7,7 @@
 - [MP4 or MKV?](#mp4-or-mkv)
 - [Quality](#quality)
 - [Comments](#comments)
+- [Folders](#folders)
 - [Watch later and history](#watch-later-and-history)
 - [SponsorBlock](#sponsorblock)
 
@@ -56,8 +57,8 @@ Under **Abos → Abonnieren** (subscriptions → subscribe) you add a channel
   If a video is below the target quality (the limit you set; with "Beste verfügbare" up to 4K),
   TubeVault asks again up to twice a day during the first 7 days and replaces the file as soon
   as a better one exists. Watch progress and playlists stay, and the old version plays until
-  the swap. Admins can fetch any video again with **Neu laden** (reload) on its page, e.g.
-  after switching to 4K.
+  the swap. Admins can fetch any video again with **Neu laden** (reload) in the **⋯** menu on
+  its page, e.g. after switching to 4K.
 
 ## Import and your own videos
 
@@ -139,6 +140,19 @@ off per subscription and in the "add video" dialog; for an existing video, **Kom
 with pinned comments, replies from the channel and hearts. Instead of profile pictures from
 YouTube there are coloured initials, so the page loads nothing from outside, offline too.
 Admins can delete a video's saved comments.
+
+## Folders
+
+**Ordner** (folders) sort your videos the way you like – "Kochen" (cooking) with "Backen"
+(baking) inside, "Für die Kinder", "Lieblinge". On a video's page, **In Ordner** (into folder)
+ticks the folders it belongs in; a video can be in several, and taking it out of a folder (the
+× on its card) or deleting a folder leaves the video in the library.
+
+- Folders can hold folders, up to ten levels deep. The path at the top leads back up;
+  **Verschieben** (move) puts a folder somewhere else, **Umbenennen** renames it.
+- Every account has its own folders – nobody else sees them, and a kids profile only finds the
+  videos of its channels in them.
+- Unlike a playlist, a folder has no order to play in – it is for sorting and finding again.
 
 ## Watch later and history
 

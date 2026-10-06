@@ -26,6 +26,8 @@ videojs.addLanguage("de", german);
 
 export interface PlayerHandle {
   seek: (seconds: number, options?: { play?: boolean }) => void;
+  /** Turns the sound down over a few seconds, then pauses (sleep timer). */
+  fadeOutAndPause: () => void;
   /** Stops skipping this segment again, e.g. after the user jumped back into it. */
   allowSegment: (segment: SponsorSegment) => void;
 }
@@ -200,6 +202,26 @@ export const VideoPlayer = forwardRef<PlayerHandle, VideoPlayerProps>(
         (player.el() as HTMLElement).focus();
       },
       allowSegment: (segment) => allowed.current.add(segmentKey(segment)),
+      fadeOutAndPause: () => {
+        const player = playerRef.current;
+        if (!player || player.paused()) return;
+        const volume = player.volume() ?? 1;
+        const steps = 80; // 8 seconds
+        let step = 0;
+        const timer = window.setInterval(() => {
+          const current = playerRef.current;
+          step += 1;
+          if (!current || current.isDisposed()) {
+            window.clearInterval(timer);
+          } else if (step >= steps || current.paused()) {
+            window.clearInterval(timer);
+            current.pause();
+            current.volume(volume);
+          } else {
+            current.volume(volume * (1 - step / steps));
+          }
+        }, 100);
+      },
     }));
 
     // Recreate the player only when the file changes, not on every metadata refresh.

@@ -20,6 +20,7 @@ test("every main page opens", async ({ page }) => {
     ["/library", "Bibliothek"],
     ["/channels", "Kanäle"],
     ["/playlists", "Playlists"],
+    ["/folders", "Ordner"],
     ["/later", /Später/],
     ["/history", /Verlauf/],
     ["/search", /Suche/],
@@ -70,6 +71,71 @@ test("marking as watched and adding to a playlist stick", async ({ page }) => {
   await expect(naming).toBeHidden();
   await page.goto("/playlists");
   await expect(page.getByText("Browser-Test").first()).toBeVisible();
+});
+
+test("sorting a video into a folder inside a folder", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/folders");
+  await page.getByRole("button", { name: "Neuer Ordner" }).first().click();
+  const naming = page.getByRole("dialog", { name: "Neuer Ordner" });
+  await naming.getByLabel("Name").fill("Kochen");
+  await naming.getByRole("button", { name: "Erstellen" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Kochen" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Neuer Ordner" }).click();
+  const inside = page.getByRole("dialog", { name: /Neuer Ordner in/ });
+  await inside.getByLabel("Name").fill("Italienisch");
+  await inside.getByRole("button", { name: "Erstellen" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Italienisch" })).toBeVisible();
+  const path = page.getByRole("navigation", { name: "Pfad" });
+  await expect(path.getByRole("link", { name: "Kochen" })).toBeVisible();
+
+  await page.goto("/search?q=Pasta");
+  await page
+    .getByRole("link", { name: /Pasta wie in Rom/ })
+    .first()
+    .click();
+  await page.getByRole("button", { name: "In Ordner" }).click();
+  const dialog = page.getByRole("dialog", { name: "In Ordner ablegen" });
+  const box = dialog.getByRole("checkbox", { name: /Italienisch/ });
+  await box.click();
+  await expect(box).toHaveAttribute("aria-checked", "true");
+  await page.keyboard.press("Escape");
+
+  await page.goto("/folders");
+  await page.getByRole("link", { name: /Kochen/ }).click();
+  await page.getByRole("link", { name: /Italienisch/ }).click();
+  await expect(page.getByRole("link", { name: /Pasta wie in Rom/ })).toBeVisible();
+});
+
+test("rare actions sit in the menu, and the sleep timer is in the player", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/search?q=Pasta");
+  await page
+    .getByRole("link", { name: /Pasta wie in Rom/ })
+    .first()
+    .click();
+  await expect(page.getByRole("link", { name: "Datei laden" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Weitere Aktionen" }).click();
+  const menu = page.getByRole("menu", { name: "Weitere Aktionen" });
+  await expect(menu.getByRole("menuitem", { name: "Datei laden" })).toBeVisible();
+  await expect(menu.getByRole("menuitem", { name: "Video löschen" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(menu).toBeHidden();
+
+  await page.getByRole("button", { name: "Schlaf-Timer", exact: true }).click();
+  await page.getByRole("menuitemradio", { name: "15 Minuten" }).click();
+  await expect(page.getByRole("button", { name: "Schlaf-Timer: 15 min" })).toBeVisible();
+  await page.getByRole("button", { name: "Schlaf-Timer: 15 min" }).click();
+  await page.getByRole("menuitemradio", { name: "Aus" }).click();
+  await expect(page.getByRole("button", { name: "Schlaf-Timer", exact: true })).toBeVisible();
+});
+
+test("the downloads page always offers to add a video", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/downloads");
+  await page.getByRole("main").getByRole("button", { name: "Video hinzufügen" }).first().click();
+  await expect(page.getByRole("dialog", { name: "Video hinzufügen" })).toBeVisible();
 });
 
 test("a playback preference survives a reload", async ({ page }) => {

@@ -7,6 +7,8 @@ import {
   Clock,
   Download,
   ExternalLink,
+  FolderPlus,
+  HardDriveDownload,
   Headphones,
   ListPlus,
   RefreshCw,
@@ -33,6 +35,7 @@ import {
   useWatchLater,
 } from "@/api/queries";
 import { trackFromVideo, useAudioPlayer } from "@/audio/context";
+import { AddToFolderDialog } from "@/components/folders/AddToFolderDialog";
 import { AddToPlaylistDialog } from "@/components/playlists/AddToPlaylistDialog";
 import { Comments } from "@/components/comments/Comments";
 import { PlaylistPanel } from "@/components/playlists/PlaylistPanel";
@@ -43,9 +46,11 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { PageSpinner } from "@/components/ui/Spinner";
 import { PlayerOverlay, type PlayerNotice, type UpNext } from "@/components/video/PlayerOverlay";
 import { PlaybackStatus, QualityMenu } from "@/components/video/QualityMenu";
+import { SleepMenu } from "@/components/video/SleepMenu";
 import { RichText } from "@/components/video/RichText";
 import { SimilarVideos } from "@/components/video/SimilarVideos";
 import { SaveToDevice } from "@/components/offline/SaveToDevice";
+import { MoreMenu } from "@/components/ui/MoreMenu";
 import { VideoPlayer, type PlayerHandle, type SaveReason } from "@/components/video/VideoPlayer";
 import { useAuth } from "@/hooks/auth";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
@@ -53,6 +58,8 @@ import { useRemoteControl } from "@/hooks/remoteControl";
 import { useChannelRate } from "@/hooks/useChannelRate";
 import { usePlaybackSource } from "@/hooks/usePlaybackSource";
 import { useToast } from "@/hooks/toast";
+import { setVideoSleep, useVideoSleep, videoSleep } from "@/lib/sleepTimer";
+import { useOffline } from "@/offline/context";
 import { apiUrl } from "@/lib/base";
 import { cn } from "@/lib/cn";
 import {
@@ -215,10 +222,32 @@ function VideoView({ video, playlistId, autoplay }: VideoViewProps) {
     setUpNext(null);
   }, []);
   const onEnded = useCallback(() => {
+    if (videoSleep()?.kind === "end") {
+      setVideoSleep(null);
+      setNotice({ id: Date.now(), message: "Schlaf-Timer: Gute Nacht" });
+      return; // no next video
+    }
     if (nextVideo && preferences.autoplay_next !== false) {
       setUpNext({ video: nextVideo, remaining: UP_NEXT_SECONDS });
     }
   }, [nextVideo, preferences.autoplay_next]);
+
+  // Sleep timer: when the time is up, the sound fades out and the video pauses. A timer that
+  // ran out long ago (nobody was watching) is just dropped.
+  const sleep = useVideoSleep();
+  useEffect(() => {
+    if (sleep?.kind !== "minutes") return;
+    const timer = setTimeout(
+      () => {
+        setVideoSleep(null);
+        if (Date.now() - sleep.until > 60_000) return;
+        player.current?.fadeOutAndPause();
+        setNotice({ id: Date.now(), message: "Schlaf-Timer: Gute Nacht" });
+      },
+      Math.max(0, sleep.until - Date.now()),
+    );
+    return () => clearTimeout(timer);
+  }, [sleep]);
 
   // Timestamps in the description and comments: jump there and bring the player into view.
   const seek = useCallback((seconds: number) => {
@@ -269,13 +298,16 @@ function VideoView({ video, playlistId, autoplay }: VideoViewProps) {
           normalizeVolume={user?.preferences.normalize_volume !== false}
           overlay={
             <>
-              {playback.showMenu && (
-                <QualityMenu
-                  options={playback.options}
-                  value={playback.choice}
-                  onChange={playback.setChoice}
-                />
-              )}
+              <div className="absolute top-3 right-3 flex items-start gap-2 sm:top-4 sm:right-4">
+                <SleepMenu />
+                {playback.showMenu && (
+                  <QualityMenu
+                    options={playback.options}
+                    value={playback.choice}
+                    onChange={playback.setChoice}
+                  />
+                )}
+              </div>
               <PlaybackStatus
                 preparing={playback.preparing}
                 error={playback.error}
@@ -396,30 +428,6 @@ const actionBase =
 const actionNeutral = "bg-surface hover:bg-surface-hover";
 const actionClass = cn(actionBase, actionNeutral, "px-4");
 
-/** Only the sound – keeps playing while browsing and with the screen locked. */
-function ListenButton({ video }: { video: VideoDetail }) {
-  const player = useAudioPlayer();
-  const active = player.track?.id === video.id;
-  return (
-    <button
-      type="button"
-      aria-pressed={active}
-      onClick={() => {
-        if (active) player.setExpanded(true);
-        else player.play([trackFromVideo(video)]);
-      }}
-      className={cn(
-        actionBase,
-        "px-4",
-        active ? "bg-accent/15 text-accent hover:bg-accent/25" : actionNeutral,
-      )}
-    >
-      <Headphones className="size-4" strokeWidth={2} />
-      Anhören
-    </button>
-  );
-}
-
 function WatchLaterButton({ videoId }: { videoId: number }) {
   const { data: later } = useWatchLater();
   const toggle = useToggleWatchLater();
@@ -467,7 +475,11 @@ function VideoActions({ video, onWatchedChange }: VideoActionsProps) {
   const party = useCreateParty();
   const [confirming, setConfirming] = useState(false);
   const [addingToPlaylist, setAddingToPlaylist] = useState(false);
+  const [addingToFolder, setAddingToFolder] = useState(false);
+  const [savingToDevice, setSavingToDevice] = useState(false);
   const [redownloading, setRedownloading] = useState(false);
+  const audio = useAudioPlayer();
+  const offline = useOffline();
   const remove = useDeleteVideo();
   const redownload = useRedownloadVideo();
   const setWatched = useSetWatched();
@@ -523,24 +535,13 @@ function VideoActions({ video, onWatchedChange }: VideoActionsProps) {
         {watched ? "Gesehen" : "Als gesehen markieren"}
       </button>
       <WatchLaterButton videoId={video.id} />
-      <ListenButton video={video} />
       <button type="button" onClick={() => setAddingToPlaylist(true)} className={actionClass}>
         <ListPlus className="size-4" strokeWidth={2} />
         Zur Playlist
       </button>
-      <button
-        type="button"
-        disabled={party.isPending}
-        onClick={() =>
-          party.mutate(video.id, {
-            onSuccess: (room) => navigate(`/party/${room.id}`),
-            onError: (err) => toast(err.message, "error"),
-          })
-        }
-        className={actionClass}
-      >
-        <UsersRound className="size-4" strokeWidth={2} />
-        Gemeinsam schauen
+      <button type="button" onClick={() => setAddingToFolder(true)} className={actionClass}>
+        <FolderPlus className="size-4" strokeWidth={2} />
+        In Ordner
       </button>
       {remote.status === "paired" && (
         <button
@@ -555,63 +556,118 @@ function VideoActions({ video, onWatchedChange }: VideoActionsProps) {
           Auf Fernseher
         </button>
       )}
-      <SaveToDevice video={video} />
-      <a href={apiUrl(`videos/${video.id}/download`)} className={actionClass}>
-        <Download className="size-4" strokeWidth={2} />
-        Datei laden
-      </a>
-      {video.source_url && (
-        <a
-          href={video.source_url}
-          target="_blank"
-          rel="noreferrer noopener"
-          className={actionClass}
-        >
-          <ExternalLink className="size-4" strokeWidth={2} />
-          Auf YouTube
-        </a>
-      )}
-      {user?.is_admin && speech?.ready && (
-        <button
-          type="button"
-          disabled={makeSubtitles.isPending}
-          onClick={() =>
-            makeSubtitles.mutate(video.id, {
-              onSuccess: ({ queued }) =>
-                toast(
-                  queued > 1
-                    ? `Untertitel kommen dran – ${queued - 1} vorher in der Reihe`
-                    : "Untertitel werden erzeugt – sie erscheinen von selbst im Player",
-                ),
-              onError: (err) => toast(err.message, "error"),
-            })
-          }
-          className={actionClass}
-        >
-          <Captions className="size-4" strokeWidth={2} />
-          Untertitel erzeugen
-        </button>
-      )}
-      {user?.is_admin && user.can_add && !video.is_local && (
-        <button type="button" onClick={() => setRedownloading(true)} className={actionClass}>
-          <RefreshCw className="size-4" strokeWidth={2} />
-          Neu laden
-        </button>
-      )}
-      {user?.is_admin && (
-        <button
-          type="button"
-          aria-label="Video löschen"
-          title="Video löschen"
-          onClick={() => setConfirming(true)}
-          className={cn(actionBase, actionNeutral, "w-9 justify-center text-danger")}
-        >
-          <Trash2 className="size-4" strokeWidth={2} />
-        </button>
-      )}
+      {/* Shows itself only while saving or once saved; started from the menu. */}
+      <SaveToDevice
+        video={video}
+        buttonless
+        open={savingToDevice}
+        onOpenChange={setSavingToDevice}
+      />
+      <MoreMenu
+        items={[
+          {
+            key: "listen",
+            label: audio.track?.id === video.id ? "Im Audio-Player öffnen" : "Anhören",
+            icon: Headphones,
+            onSelect: () => {
+              if (audio.track?.id === video.id) audio.setExpanded(true);
+              else audio.play([trackFromVideo(video)]);
+            },
+          },
+          {
+            key: "party",
+            label: "Gemeinsam schauen",
+            icon: UsersRound,
+            disabled: party.isPending,
+            onSelect: () =>
+              party.mutate(video.id, {
+                onSuccess: (room) => navigate(`/party/${room.id}`),
+                onError: (err) => toast(err.message, "error"),
+              }),
+          },
+          ...(offline.supported &&
+          !offline.entries[video.id] &&
+          !offline.tasks.some((task) => task.id === video.id)
+            ? [
+                {
+                  key: "device",
+                  label: "Aufs Gerät laden",
+                  icon: HardDriveDownload,
+                  onSelect: () => setSavingToDevice(true),
+                },
+              ]
+            : []),
+          {
+            key: "file",
+            label: "Datei laden",
+            icon: Download,
+            href: apiUrl(`videos/${video.id}/download`),
+          },
+          ...(video.source_url
+            ? [
+                {
+                  key: "youtube",
+                  label: "Auf YouTube öffnen",
+                  icon: ExternalLink,
+                  href: video.source_url,
+                  external: true,
+                },
+              ]
+            : []),
+          ...(user?.is_admin && speech?.ready
+            ? [
+                {
+                  key: "subtitles",
+                  label: "Untertitel erzeugen",
+                  icon: Captions,
+                  separated: true,
+                  disabled: makeSubtitles.isPending,
+                  onSelect: () =>
+                    makeSubtitles.mutate(video.id, {
+                      onSuccess: ({ queued }) =>
+                        toast(
+                          queued > 1
+                            ? `Untertitel kommen dran – ${queued - 1} vorher in der Reihe`
+                            : "Untertitel werden erzeugt – sie erscheinen von selbst im Player",
+                        ),
+                      onError: (err) => toast(err.message, "error"),
+                    }),
+                },
+              ]
+            : []),
+          ...(user?.is_admin && user.can_add && !video.is_local
+            ? [
+                {
+                  key: "reload",
+                  label: "Neu laden",
+                  icon: RefreshCw,
+                  separated: !speech?.ready,
+                  onSelect: () => setRedownloading(true),
+                },
+              ]
+            : []),
+          ...(user?.is_admin
+            ? [
+                {
+                  key: "delete",
+                  label: "Video löschen",
+                  icon: Trash2,
+                  danger: true,
+                  separated: true,
+                  onSelect: () => setConfirming(true),
+                },
+              ]
+            : []),
+        ]}
+      />
       <AddToPlaylistDialog
         open={addingToPlaylist}
         onClose={() => setAddingToPlaylist(false)}
+        videoId={video.id}
+      />
+      <AddToFolderDialog
+        open={addingToFolder}
+        onClose={() => setAddingToFolder(false)}
         videoId={video.id}
       />
       <Dialog open={redownloading} onClose={() => setRedownloading(false)} title="Video neu laden?">

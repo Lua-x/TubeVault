@@ -17,7 +17,7 @@ interface QualityMenuProps {
   onChange: (value: QualityChoice) => void;
 }
 
-/** Quality picker in the top right corner of the player; fades out with the controls. */
+/** Quality picker for the top right corner of the player; fades out with the controls. */
 export function QualityMenu({ options, value, onChange }: QualityMenuProps) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -32,10 +32,7 @@ export function QualityMenu({ options, value, onChange }: QualityMenuProps) {
   }, [open]);
 
   return (
-    <div
-      ref={root}
-      className={cn("absolute top-3 right-3 sm:top-4 sm:right-4", !open && "tv-autohide")}
-    >
+    <div ref={root} className={cn("relative", !open && "tv-autohide")}>
       <button
         type="button"
         aria-haspopup="menu"

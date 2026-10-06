@@ -1,3 +1,4 @@
+import { X } from "lucide-react";
 import { motion } from "motion/react";
 
 import type { VideoSummary } from "@/lib/types";
@@ -11,11 +12,16 @@ export function VideoGrid({
   videos,
   hideChannel,
   heading = "h2",
+  onRemove,
+  removeLabel = "Entfernen",
 }: {
   videos: VideoSummary[];
   hideChannel?: boolean;
   /** Level of the card titles: h2 right below the page title, h3 below a section. */
   heading?: "h2" | "h3";
+  /** A small × on each card, e.g. to take a video out of a folder. */
+  onRemove?: (video: VideoSummary) => void;
+  removeLabel?: string;
 }) {
   return (
     <ul className={GRID}>
@@ -31,7 +37,20 @@ export function VideoGrid({
             delay: index < 12 ? index * 0.03 : 0,
           }}
         >
-          <VideoCard video={video} hideChannel={hideChannel} heading={heading} />
+          <div className="group/item relative">
+            <VideoCard video={video} hideChannel={hideChannel} heading={heading} />
+            {onRemove && (
+              <button
+                type="button"
+                aria-label={`${removeLabel}: ${video.title}`}
+                title={removeLabel}
+                onClick={() => onRemove(video)}
+                className="absolute top-2 right-2 flex size-8 items-center justify-center rounded-full bg-black/65 text-white opacity-0 backdrop-blur-md transition-opacity group-hover/item:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
+              >
+                <X className="size-4" strokeWidth={2.25} />
+              </button>
+            )}
+          </div>
         </motion.li>
       ))}
     </ul>

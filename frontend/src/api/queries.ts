@@ -40,6 +40,8 @@ import type {
   OidcInfo,
   Page,
   PlaybackInfo,
+  Folder,
+  FolderDetail,
   Playlist,
   PlaylistDetail,
   QueueState,
@@ -67,6 +69,7 @@ export const keys = {
   channels: ["channels"] as const,
   channel: (id: number) => ["channels", "detail", id] as const,
   playlists: ["playlists"] as const,
+  folders: ["folders"] as const,
   playlist: (id: number) => ["playlists", "detail", id] as const,
   segments: (id: number) => ["videos", "segments", id] as const,
   playback: (id: number) => ["videos", "playback", id] as const,
@@ -583,6 +586,49 @@ export const useRemoveFromPlaylist = () =>
 export const useReorderPlaylist = () =>
   usePlaylistMutation(({ id, videoIds }: { id: number; videoIds: number[] }) =>
     api.put<Playlist>(`playlists/${id}/order`, { video_ids: videoIds }),
+  );
+
+// --- folders -----------------------------------------------------------------------
+
+export function useFolders(videoId?: number) {
+  return useQuery({
+    queryKey: videoId ? [...keys.folders, { videoId }] : keys.folders,
+    queryFn: () => api.get<Folder[]>(videoId ? `folders?video_id=${videoId}` : "folders"),
+  });
+}
+
+export function useFolder(id: number) {
+  return useQuery({
+    queryKey: [...keys.folders, "detail", id],
+    queryFn: () => api.get<FolderDetail>(`folders/${id}`),
+    enabled: Number.isFinite(id),
+  });
+}
+
+function useFolderMutation<TInput, TResult>(fn: (input: TInput) => Promise<TResult>) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: fn,
+    onSettled: () => client.invalidateQueries({ queryKey: keys.folders }),
+  });
+}
+
+export const useCreateFolder = () =>
+  useFolderMutation((body: { name: string; parent_id?: number | null }) =>
+    api.post<Folder>("folders", body),
+  );
+export const useUpdateFolder = () =>
+  useFolderMutation(({ id, ...body }: { id: number; name?: string; parent_id?: number | null }) =>
+    api.patch<Folder>(`folders/${id}`, body),
+  );
+export const useDeleteFolder = () => useFolderMutation((id: number) => api.delete(`folders/${id}`));
+export const useAddToFolder = () =>
+  useFolderMutation(({ id, videoId }: { id: number; videoId: number }) =>
+    api.put<Folder>(`folders/${id}/videos/${videoId}`, {}),
+  );
+export const useRemoveFromFolder = () =>
+  useFolderMutation(({ id, videoId }: { id: number; videoId: number }) =>
+    api.delete(`folders/${id}/videos/${videoId}`),
   );
 
 // --- playback and transcoding ------------------------------------------------------

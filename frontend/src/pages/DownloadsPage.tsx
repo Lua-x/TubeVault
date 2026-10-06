@@ -1,4 +1,4 @@
-import { ArrowDownToLine, Pause, Play, RotateCcw, WifiOff } from "lucide-react";
+import { ArrowDownToLine, Pause, Play, Plus, RotateCcw, WifiOff } from "lucide-react";
 import { AnimatePresence } from "motion/react";
 
 import {
@@ -59,24 +59,35 @@ export function DownloadsPage() {
                   : "Verbindung wird hergestellt …"
         }
         actions={
-          paused ? (
+          <>
+            {paused ? (
+              <Button
+                loading={resumeAll.isPending}
+                icon={<Play className="size-4 fill-current" strokeWidth={0} />}
+                onClick={() => resumeAll.mutate()}
+              >
+                Fortsetzen
+              </Button>
+            ) : active.length > 0 ? (
+              <Button
+                variant="secondary"
+                loading={pauseAll.isPending}
+                icon={<Pause className="size-4" strokeWidth={2} />}
+                onClick={() => pauseAll.mutate()}
+              >
+                Alle pausieren
+              </Button>
+            ) : null}
+            {/* Phones have the round + in the title row. */}
             <Button
-              loading={resumeAll.isPending}
-              icon={<Play className="size-4 fill-current" strokeWidth={0} />}
-              onClick={() => resumeAll.mutate()}
+              variant={paused ? "secondary" : "primary"}
+              className="max-md:hidden"
+              icon={<Plus className="size-4" strokeWidth={2.25} />}
+              onClick={() => openAdd()}
             >
-              Fortsetzen
+              Video hinzufügen
             </Button>
-          ) : active.length > 0 ? (
-            <Button
-              variant="secondary"
-              loading={pauseAll.isPending}
-              icon={<Pause className="size-4" strokeWidth={2} />}
-              onClick={() => pauseAll.mutate()}
-            >
-              Alle pausieren
-            </Button>
-          ) : undefined
+          </>
         }
       />
 

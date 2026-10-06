@@ -1,4 +1,5 @@
-"""Per-user library state: watch progress and personal playlists. Plus SponsorBlock segments."""
+"""Per-user library state: watch progress, personal playlists and folders. Plus SponsorBlock
+segments."""
 
 from __future__ import annotations
 
@@ -72,6 +73,33 @@ class PlaylistItem(Base):
 
     playlist: Mapped[Playlist] = relationship(back_populates="items")
     video: Mapped[Video] = relationship()
+
+
+class Folder(Base):
+    """A user's own folder for sorting videos. Folders can hold folders; a video can be in
+    several. Unlike a playlist there is no order to play them in."""
+
+    __tablename__ = "folders"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    # None: directly in "Ordner". Deleting a folder deletes the folders inside it.
+    parent_id: Mapped[int | None] = mapped_column(
+        ForeignKey("folders.id", ondelete="CASCADE"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(200))
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
+
+
+class FolderItem(Base):
+    __tablename__ = "folder_items"
+    __table_args__ = (UniqueConstraint("folder_id", "video_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    folder_id: Mapped[int] = mapped_column(ForeignKey("folders.id", ondelete="CASCADE"), index=True)
+    video_id: Mapped[int] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), index=True)
+    added_at: Mapped[datetime] = mapped_column(default=utcnow)
 
 
 class SponsorSegment(Base):

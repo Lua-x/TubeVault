@@ -1,6 +1,7 @@
 import {
   ArrowDownToLine,
   Clock,
+  Folder,
   HardDriveDownload,
   History,
   House,
@@ -45,6 +46,7 @@ export const PRIMARY_NAV: NavItem[] = [
   { to: "/library", label: "Bibliothek", icon: Library },
   { to: "/channels", label: "Kanäle", icon: UsersRound },
   { to: "/playlists", label: "Playlists", icon: ListVideo },
+  { to: "/folders", label: "Ordner", icon: Folder },
   { to: "/later", label: "Später ansehen", icon: Clock },
   { to: "/history", label: "Verlauf", icon: History },
 ];
@@ -65,7 +67,7 @@ export const TAB_NAV: NavItem[] = [
     to: "/library",
     label: "Bibliothek",
     icon: Library,
-    also: ["/channels", "/playlists", "/later", "/history", "/device"],
+    also: ["/channels", "/playlists", "/folders", "/later", "/history", "/device"],
   },
   { to: "/search", label: "Suche", icon: Search },
   { to: "/subscriptions", label: "Abos", icon: Tv, requiresAdd: true },

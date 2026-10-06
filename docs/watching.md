@@ -30,6 +30,15 @@ playlists – "up next" with autoplay after 5 seconds (a per-user setting under
 **Einstellungen → Wiedergabe**). Videos resume where you stopped and count as watched shortly
 before the end.
 
+The **moon** at the top right of the player is a **sleep timer**: after 5 to 60 minutes, or at
+the end of the video, the sound fades out and the video pauses – also in full screen and in the
+middle of a playlist (a running timer carries on into the next video). While it runs, the moon
+shows the time left.
+
+Below the player, the actions you use most are at hand – watched, watch later, playlist,
+folder. Everything else is in **⋯**: listen, watch together, save to device, download the file,
+open on YouTube and, for admins, create subtitles, reload and delete.
+
 ## Hardware acceleration
 
 Transcoding works in software, but a GPU makes it much faster and more economical. Pass the GPU
@@ -94,9 +103,9 @@ nothing is downloaded without being asked for:
    | `base` | 145 MB | usually the best choice |
    | `small` | 485 MB | more accurate, about three times slower, needs about 1 GB of RAM |
 
-2. Click **Untertitel erzeugen** (create subtitles) on a video page – or **Eigene Videos ohne
-   Untertitel** (own videos without subtitles) for all at once, or switch on **Neue eigene
-   Videos automatisch** (new own videos automatically).
+2. Choose **Untertitel erzeugen** (create subtitles) in the **⋯** menu of a video – or
+   **Eigene Videos ohne Untertitel** (own videos without subtitles) for all at once, or switch on
+   **Neue eigene Videos automatisch** (new own videos automatically).
 
 Recognition runs as a separate process at the lowest priority on half of the CPU cores and
 doesn't go online. The subtitles are saved as `Title [ID].de.speech.vtt` next to the video
@@ -114,8 +123,9 @@ itself needs access to PyPI.
 
 <img src="screenshots/device-phone-dark.png" width="240" align="right" alt="The app on a phone without a connection to the server: a notice at the top, below it 'on this device' with three saved videos, one of them half watched." />
 
-For when your server can't be reached (train, plane, holiday): **Aufs Gerät** (save to device)
-on the video page or for a playlist stores videos in the installed app.
+For when your server can't be reached (train, plane, holiday): **Aufs Gerät laden** (save to
+device) in a video's **⋯** menu, or **Aufs Gerät** for a playlist, stores videos in the installed
+app.
 
 - **Original:** the file as it is on the server – MKV is remuxed to MP4 for it once. If the
   codec doesn't suit the device, TubeVault only offers the compact versions.
@@ -151,7 +161,7 @@ Good to know:
 <img src="screenshots/player-phone-dark.png" width="240" align="right" alt="The audio player on a phone: a large thumbnail, title, timeline, buttons for 15 seconds back and forward, speed and a sleep timer showing 30 minutes left." />
 
 Much of YouTube is really for listening: talks, lectures, audiobooks, music. **Anhören**
-(listen) on the video page (or for a playlist) plays only the sound:
+(listen) in a video's **⋯** menu (or for a playlist) plays only the sound:
 
 - A mini player stays at the bottom while you browse the library. Tapping it opens the full
   player with timeline, ±15 seconds, previous/next video, speed (0.75× to 2×) and a **sleep

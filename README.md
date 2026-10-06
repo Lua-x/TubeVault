@@ -78,8 +78,9 @@
 
 - Plays on every device: the original file, a quick remux, or live transcoding (HLS) – with
   hardware acceleration on Intel/AMD (VAAPI) and NVIDIA (NVENC)
-- Resume per user, playlists, chapters, seek previews, even volume across videos and the
-  speed remembered per channel
+- Resume per user, playlists, your own folders (with folders inside), chapters, seek
+  previews, even volume across videos and the speed remembered per channel
+- A sleep timer in the player that fades out and pauses, also in the middle of a playlist
 - Subtitles from YouTube – or from speech recognition on your own server, for videos without
   any (optional, downloaded only on request)
 - Listen mode with a mini player, lock-screen controls and a sleep timer; channels and
