@@ -146,7 +146,8 @@ programs are never overwritten.
 ## Updates
 
 - **TubeVault:** `docker compose pull && docker compose up -d`. The database is migrated on
-  start. Going back to an older version isn't possible afterwards – TubeVault refuses to start
+  start, and an app that is still open loads the new version by itself the next time you come
+  back to it (not while a video plays). Going back to an older version isn't possible afterwards – TubeVault refuses to start
   on a newer database and says why. Back up under **Verwaltung → Sicherung** (admin area →
   backup) before big updates.
 - **Image tags:** `latest` is always the newest release; `1`, `1.0` or `1.0.0` keep you on a

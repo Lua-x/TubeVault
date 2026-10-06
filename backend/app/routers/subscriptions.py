@@ -29,6 +29,7 @@ from app.schemas.subscriptions import (
     SubscriptionUpdate,
 )
 from app.services.downloader import cleanup_temp
+from app.services.schedule import as_utc, next_check
 from app.services.subscriptions import delete_subscription, subscription_stats
 from app.services.youtube_urls import InvalidVideoUrlError, parse_source_url
 from app.workers.download_manager import job_payload, load_job
@@ -74,6 +75,8 @@ def _check_cleanup_rights(
 def _apply_settings(sub: Subscription, body: SubscriptionSettings) -> None:
     sub.enabled = body.enabled
     sub.check_interval_minutes = body.check_interval_minutes
+    sub.check_days = body.check_days
+    sub.check_time = body.check_time
     sub.include_shorts = body.include_shorts
     sub.include_live = body.include_live
     sub.min_duration_s = body.min_duration_s or None
@@ -168,9 +171,19 @@ def update_subscription(
     sub = _get(db, subscription_id)
     _check_cleanup_rights(user, body, sub)
     was_enabled = sub.enabled
+    timing = (sub.check_interval_minutes, sub.check_days, sub.check_time)
     _apply_settings(sub, body)
+    retimed = timing != (sub.check_interval_minutes, sub.check_days, sub.check_time)
     if sub.enabled and not was_enabled:
         sub.next_check_at = datetime.now(UTC)
+    elif sub.last_checked_at and retimed:
+        # A new interval counts from the last check, a new schedule from now on.
+        sub.next_check_at = next_check(
+            interval_minutes=sub.check_interval_minutes,
+            days=sub.check_days,
+            at=sub.check_time,
+            after=datetime.now(UTC) if sub.check_days else as_utc(sub.last_checked_at),
+        )
     db.commit()
     ctx.scheduler.wake()
     if sub.has_cleanup:

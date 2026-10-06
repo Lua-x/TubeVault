@@ -37,6 +37,7 @@ import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { apiUrl } from "@/lib/base";
 import { cn } from "@/lib/cn";
 import { formatBytes } from "@/lib/format";
+import { BEST_RESOLUTION, RESOLUTION_HINT, RESOLUTIONS } from "@/lib/resolutions";
 import { SPONSOR_CATEGORIES, SPONSORBLOCK_MODES } from "@/lib/sponsorblock";
 import type {
   AppSettings,
@@ -192,13 +193,8 @@ const SPONSORBLOCK_FOOTER = {
 } as const;
 
 const HEIGHTS: { value: string; label: string }[] = [
-  { value: "", label: "Beste verfügbare" },
-  { value: "2160", label: "4K (2160p)" },
-  { value: "1440", label: "1440p" },
-  { value: "1080", label: "1080p" },
-  { value: "720", label: "720p" },
-  { value: "480", label: "480p" },
-  { value: "360", label: "360p" },
+  { value: "", label: BEST_RESOLUTION },
+  ...RESOLUTIONS.map((r) => ({ value: String(r.value), label: r.label })),
 ];
 
 /** Focus is in a text field: save once it's left, not on every key. */
@@ -331,11 +327,11 @@ function DownloadForm({ initial }: { initial: AppSettings }) {
         <>
           <Group
             title="Downloads"
-            footer={
+            footer={`${RESOLUTION_HINT} ${
               downloads.container === "mkv"
                 ? "MKV spielen Safari und iOS nicht direkt ab. Chrome, Edge und Firefox kommen meist damit klar."
                 : "MP4 mit H.264 läuft in jedem Browser und in Jellyfin/Plex."
-            }
+            }`}
           >
             <Row className="flex items-center justify-between gap-4">
               <span className="text-[15px]">Format</span>
@@ -352,7 +348,7 @@ function DownloadForm({ initial }: { initial: AppSettings }) {
             <Row>
               <Select
                 inline
-                label="Maximale Qualität"
+                label="Auflösung"
                 value={downloads.max_height == null ? "" : String(downloads.max_height)}
                 onChange={(e) =>
                   update({

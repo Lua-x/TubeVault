@@ -3,9 +3,23 @@ import { TextField } from "@/components/ui/Input";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Select } from "@/components/ui/Select";
 import { Switch } from "@/components/ui/Switch";
+import { useAppSettings } from "@/api/queries";
 import { useCurrentUser } from "@/hooks/auth";
+import { cn } from "@/lib/cn";
+import { RESOLUTION_HINT, resolutionChoices } from "@/lib/resolutions";
 
-import { BACKFILL, HEIGHTS, INTERVALS, KEEP_DAYS, SPONSORBLOCK, type FormValues } from "./options";
+import {
+  BACKFILL,
+  INTERVALS,
+  KEEP_DAYS,
+  scheduleLabel,
+  scheduleProblem,
+  SPONSORBLOCK,
+  WEEKDAYS,
+  type FormValues,
+} from "./options";
+
+const SCHEDULE = "schedule";
 
 interface SubscriptionFormProps {
   values: FormValues;
@@ -19,6 +33,7 @@ export function SubscriptionForm({ values, onChange, mode }: SubscriptionFormPro
     onChange({ ...values, [key]: value });
   // Cleanup rules delete files, which only admins may do.
   const canCleanUp = useCurrentUser().is_admin;
+  const { data: settings } = useAppSettings();
   const intervals = INTERVALS.some((i) => String(i.value) === values.interval)
     ? INTERVALS
     : [...INTERVALS, { value: Number(values.interval), label: `Alle ${values.interval} Minuten` }];
@@ -40,16 +55,67 @@ export function SubscriptionForm({ values, onChange, mode }: SubscriptionFormPro
           <Select
             inline
             label="Auf neue Videos prüfen"
-            value={values.interval}
-            onChange={(e) => set("interval", e.target.value)}
+            value={values.scheduled ? SCHEDULE : values.interval}
+            onChange={(e) =>
+              onChange(
+                e.target.value === SCHEDULE
+                  ? { ...values, scheduled: true }
+                  : { ...values, scheduled: false, interval: e.target.value },
+              )
+            }
           >
             {intervals.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
             ))}
+            <option value={SCHEDULE}>Nach Zeitplan …</option>
           </Select>
         </Row>
+        {values.scheduled && (
+          <Row className="flex flex-col gap-4">
+            <div role="group" aria-label="Wochentage" className="flex flex-wrap gap-2">
+              {WEEKDAYS.map((day) => {
+                const active = values.days.includes(day.value);
+                return (
+                  <button
+                    key={day.value}
+                    type="button"
+                    aria-pressed={active}
+                    aria-label={day.label}
+                    title={day.label}
+                    onClick={() =>
+                      set(
+                        "days",
+                        active
+                          ? values.days.filter((d) => d !== day.value)
+                          : [...values.days, day.value],
+                      )
+                    }
+                    className={cn(
+                      "size-10 rounded-full text-[14px] font-medium transition-colors duration-200",
+                      active
+                        ? "bg-accent-fill text-white hover:bg-accent-fill-hover"
+                        : "bg-surface text-secondary hover:bg-surface-hover hover:text-primary",
+                    )}
+                  >
+                    {day.short}
+                  </button>
+                );
+              })}
+            </div>
+            <TextField
+              label="Uhrzeit"
+              type="time"
+              value={values.time}
+              onChange={(e) => set("time", e.target.value)}
+            />
+            <p className="text-[13px] text-secondary">
+              {scheduleProblem(values) ??
+                `${scheduleLabel(values.days, values.time)}. Mit Zeitplan prüft TubeVault nur dann – der schnelle Blick in den RSS-Feed zieht die Prüfung nicht vor.`}
+            </p>
+          </Row>
+        )}
         {mode === "create" && (
           <Row>
             <Select
@@ -119,15 +185,15 @@ export function SubscriptionForm({ values, onChange, mode }: SubscriptionFormPro
         </Row>
       </Group>
 
-      <Group title="Qualität">
+      <Group title="Qualität" footer={RESOLUTION_HINT}>
         <Row>
           <Select
             inline
-            label="Maximale Qualität"
+            label="Auflösung"
             value={values.maxHeight}
             onChange={(e) => set("maxHeight", e.target.value)}
           >
-            {HEIGHTS.map((option) => (
+            {resolutionChoices(settings?.downloads.max_height).map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>

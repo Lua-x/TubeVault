@@ -34,6 +34,7 @@ from app.services.connectivity import Connectivity
 from app.services.downloader import VideoMetadata
 from app.services.library import relative_to_media, resolve_media_path
 from app.services.notifications import Notifier
+from app.services.schedule import next_check
 from app.services.videos import delete_video_files, get_or_create_channel, video_file_exists
 
 log = logging.getLogger(__name__)
@@ -300,7 +301,12 @@ class SubscriptionChecker:
             self._update_source(db, sub, listing.source)
             now = utcnow()
             sub.last_checked_at = now
-            sub.next_check_at = now + timedelta(minutes=sub.check_interval_minutes)
+            sub.next_check_at = next_check(
+                interval_minutes=sub.check_interval_minutes,
+                days=sub.check_days,
+                at=sub.check_time,
+                after=now,
+            )
             sub.last_check_error = None
             db.commit()
             log.info(

@@ -4,7 +4,7 @@ import enum
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import JSON, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base, utcnow
@@ -44,6 +44,9 @@ class Subscription(Base):
     enabled: Mapped[bool] = mapped_column(default=True)
 
     check_interval_minutes: Mapped[int] = mapped_column(default=360)
+    # Instead of the interval: check on these weekdays (0 = Monday) at this local time.
+    check_days: Mapped[list[int] | None] = mapped_column(JSON)
+    check_time: Mapped[str | None] = mapped_column(String(5))
     last_checked_at: Mapped[datetime | None]
     next_check_at: Mapped[datetime | None] = mapped_column(index=True)
     last_check_error: Mapped[str | None] = mapped_column(Text)

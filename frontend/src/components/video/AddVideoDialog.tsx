@@ -2,7 +2,7 @@ import { ChevronRight, Link2 } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router";
 
-import { useAddVideo } from "@/api/queries";
+import { useAddVideo, useAppSettings } from "@/api/queries";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { TextField } from "@/components/ui/Input";
@@ -11,18 +11,23 @@ import { Select } from "@/components/ui/Select";
 import { useAuth } from "@/hooks/auth";
 import { useToast } from "@/hooks/toast";
 import { cn } from "@/lib/cn";
+import { RESOLUTION_HINT, resolutionChoices } from "@/lib/resolutions";
 import type { AddVideoChoices, Container, MaxHeight } from "@/lib/types";
 
 type ContainerChoice = "default" | Container;
+type CommentsChoice = "default" | "yes" | "no";
 
-const QUALITIES: { value: string; label: string }[] = [
-  { value: "", label: "Standard (Einstellungen)" },
-  { value: "2160", label: "Bis 4K" },
-  { value: "1440", label: "Bis 1440p" },
-  { value: "1080", label: "Bis 1080p" },
-  { value: "720", label: "Bis 720p" },
-  { value: "480", label: "Bis 480p" },
-];
+function toChoices(
+  container: ContainerChoice,
+  quality: string,
+  comments: CommentsChoice,
+): AddVideoChoices {
+  return {
+    container: container === "default" ? undefined : container,
+    max_height: quality ? (Number(quality) as MaxHeight) : undefined,
+    comments: comments === "default" ? undefined : comments === "yes",
+  };
+}
 
 interface AddVideoDialogProps {
   open: boolean;
@@ -40,21 +45,41 @@ export function AddVideoDialog({ open, onClose, initialUrl }: AddVideoDialogProp
   const [quality, setQuality] = useState(
     remembered.max_height ? String(remembered.max_height) : "",
   );
-  const [comments, setComments] = useState<"default" | "yes" | "no">(
+  const [comments, setComments] = useState<CommentsChoice>(
     remembered.comments == null ? "default" : remembered.comments ? "yes" : "no",
   );
+  const { data: settings } = useAppSettings();
+  const qualities = resolutionChoices(settings?.downloads.max_height);
   const add = useAddVideo();
   const toast = useToast();
   const navigate = useNavigate();
 
   // Shown next to the collapsed "Optionen", so remembered choices don't go unnoticed.
   const summary = [
-    QUALITIES.find((q) => q.value === quality && q.value)?.label,
+    quality ? qualities.find((q) => q.value === quality)?.label : undefined,
     container === "default" ? undefined : container.toUpperCase(),
     comments === "default" ? undefined : comments === "yes" ? "Kommentare an" : "Kommentare aus",
   ]
     .filter(Boolean)
     .join(" · ");
+
+  // Every pick is kept for next time right away – also when the dialog is closed without a
+  // download. Not worth an error message if that fails.
+  const remember = (next: AddVideoChoices) => {
+    updatePreferences({ add_video: next }).catch(() => undefined);
+  };
+  const pickContainer = (value: ContainerChoice) => {
+    setContainer(value);
+    remember(toChoices(value, quality, comments));
+  };
+  const pickQuality = (value: string) => {
+    setQuality(value);
+    remember(toChoices(container, value, comments));
+  };
+  const pickComments = (value: CommentsChoice) => {
+    setComments(value);
+    remember(toChoices(container, quality, value));
+  };
 
   const close = () => {
     onClose();
@@ -63,17 +88,8 @@ export function AddVideoDialog({ open, onClose, initialUrl }: AddVideoDialogProp
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    const choices: AddVideoChoices = {
-      container: container === "default" ? undefined : container,
-      max_height: quality ? (Number(quality) as MaxHeight) : undefined,
-      comments: comments === "default" ? undefined : comments === "yes",
-    };
     try {
-      await add.mutateAsync({ url: url.trim(), ...choices });
-      if (!sameChoices(choices, remembered)) {
-        // Not worth an error message: the download itself is on its way.
-        updatePreferences({ add_video: choices }).catch(() => undefined);
-      }
+      await add.mutateAsync({ url: url.trim(), ...toChoices(container, quality, comments) });
       toast("Download gestartet");
       setUrl("");
       close();
@@ -122,7 +138,7 @@ export function AddVideoDialog({ open, onClose, initialUrl }: AddVideoDialogProp
                 <SegmentedControl
                   label="Format"
                   value={container}
-                  onChange={setContainer}
+                  onChange={pickContainer}
                   options={[
                     { value: "default", label: "Standard" },
                     { value: "mp4", label: "MP4" },
@@ -130,24 +146,27 @@ export function AddVideoDialog({ open, onClose, initialUrl }: AddVideoDialogProp
                   ]}
                 />
               </div>
-              <Select
-                inline
-                label="Qualität"
-                value={quality}
-                onChange={(event) => setQuality(event.target.value)}
-              >
-                {QUALITIES.map((q) => (
-                  <option key={q.value} value={q.value}>
-                    {q.label}
-                  </option>
-                ))}
-              </Select>
+              <div className="flex flex-col gap-1.5">
+                <Select
+                  inline
+                  label="Auflösung"
+                  value={quality}
+                  onChange={(event) => pickQuality(event.target.value)}
+                >
+                  {qualities.map((q) => (
+                    <option key={q.value} value={q.value}>
+                      {q.label}
+                    </option>
+                  ))}
+                </Select>
+                <p className="text-[13px] text-secondary">{RESOLUTION_HINT}</p>
+              </div>
               <div className="flex items-center justify-between gap-4">
                 <span className="text-[15px]">Kommentare</span>
                 <SegmentedControl
                   label="Kommentare speichern"
                   value={comments}
-                  onChange={setComments}
+                  onChange={pickComments}
                   options={[
                     { value: "default", label: "Standard" },
                     { value: "yes", label: "An" },
@@ -170,8 +189,4 @@ export function AddVideoDialog({ open, onClose, initialUrl }: AddVideoDialogProp
       </form>
     </Dialog>
   );
-}
-
-function sameChoices(a: AddVideoChoices, b: AddVideoChoices): boolean {
-  return a.container === b.container && a.max_height === b.max_height && a.comments === b.comments;
 }

@@ -3,12 +3,13 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Self
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.models import ItemState, SubscriptionKind
 from app.schemas.common import ApiModel
 from app.schemas.videos import ChannelOut
 from app.services.app_settings import Container, MaxHeight, SponsorBlockMode
+from app.services.schedule import TIME_PATTERN
 
 
 class SubscriptionDownloadOptions(BaseModel):
@@ -24,6 +25,9 @@ class SubscriptionDownloadOptions(BaseModel):
 class SubscriptionSettings(BaseModel):
     enabled: bool = True
     check_interval_minutes: int = Field(default=360, ge=15, le=10080)
+    # A schedule instead of the interval: weekdays (0 = Monday) and a local time ("18:30").
+    check_days: list[int] | None = None
+    check_time: str | None = Field(default=None, pattern=TIME_PATTERN)
     include_shorts: bool = False
     include_live: bool = False
     min_duration_s: int | None = Field(default=None, ge=0, le=86400)
@@ -34,6 +38,23 @@ class SubscriptionSettings(BaseModel):
     download_options: SubscriptionDownloadOptions = Field(
         default_factory=SubscriptionDownloadOptions
     )
+
+    @field_validator("check_days")
+    @classmethod
+    def _check_days(cls, value: list[int] | None) -> list[int] | None:
+        if not value:
+            return None
+        if any(day < 0 or day > 6 for day in value):
+            raise ValueError("Wochentage gehen von 0 (Montag) bis 6 (Sonntag).")
+        return sorted(set(value))
+
+    @model_validator(mode="after")
+    def _check_schedule(self) -> Self:
+        if self.check_days and not self.check_time:
+            raise ValueError("Für den Zeitplan fehlt die Uhrzeit.")
+        if not self.check_days:
+            self.check_time = None
+        return self
 
     @model_validator(mode="after")
     def _check_durations(self) -> Self:
@@ -73,6 +94,8 @@ class SubscriptionOut(ApiModel):
     title: str
     enabled: bool
     check_interval_minutes: int
+    check_days: list[int] | None
+    check_time: str | None
     last_checked_at: datetime | None
     next_check_at: datetime | None
     last_check_error: str | None

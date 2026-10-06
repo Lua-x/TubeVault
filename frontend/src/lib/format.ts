@@ -72,6 +72,7 @@ export function formatCount(value: number | null | undefined): string {
 export function formatResolution(height: number | null | undefined, width?: number | null): string {
   if (!height) return "";
   const side = width ? Math.min(width, height) : height;
+  if (side >= 4320) return "8K";
   if (side >= 2160) return "4K";
   if (side >= 1440) return "1440p";
   return `${side}p`;

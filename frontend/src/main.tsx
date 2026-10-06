@@ -8,6 +8,7 @@ import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { ApiError } from "./lib/api";
 import { applyTheme, storedTheme } from "./lib/theme";
+import { reloadOnUpdate } from "./lib/updates";
 import { AuthProvider } from "./hooks/auth";
 import { ThemeProvider } from "./hooks/theme";
 import { ToastProvider } from "./hooks/toast";
@@ -24,6 +25,8 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+if (import.meta.env.PROD) reloadOnUpdate();
 
 // Installable app (PWA). Browsers only allow service workers on HTTPS or localhost.
 if (import.meta.env.PROD && "serviceWorker" in navigator) {

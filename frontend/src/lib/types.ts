@@ -330,6 +330,9 @@ export interface SubscriptionDownloadOptions {
 export interface SubscriptionSettings {
   enabled: boolean;
   check_interval_minutes: number;
+  /** Instead of the interval: weekdays (0 = Monday) at a local time like "18:30". */
+  check_days: number[] | null;
+  check_time: string | null;
   include_shorts: boolean;
   include_live: boolean;
   min_duration_s: number | null;

@@ -9,7 +9,12 @@ import {
   useUpdateSubscription,
 } from "@/api/queries";
 import { ChannelAvatar } from "@/components/subscriptions/ChannelAvatar";
-import { fromSubscription, toSettings, type FormValues } from "@/components/subscriptions/options";
+import {
+  fromSubscription,
+  scheduleProblem,
+  toSettings,
+  type FormValues,
+} from "@/components/subscriptions/options";
 import { checkStatus, ITEM_STATE_LABEL } from "@/components/subscriptions/status";
 import { SubscriptionForm } from "@/components/subscriptions/SubscriptionForm";
 import { Button } from "@/components/ui/Button";
@@ -154,7 +159,11 @@ function SettingsSection({ sub }: { sub: SubscriptionDetail }) {
         <SubscriptionForm mode="edit" values={values} onChange={setValues} />
         <div className="flex items-center justify-between gap-3">
           <DeleteButton sub={sub} />
-          <Button type="submit" loading={update.isPending}>
+          <Button
+            type="submit"
+            loading={update.isPending}
+            disabled={scheduleProblem(values) != null}
+          >
             Speichern
           </Button>
         </div>

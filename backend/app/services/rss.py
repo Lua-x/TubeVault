@@ -91,7 +91,9 @@ class RssWatcher:
                 sub
                 for sub in db.scalars(select(Subscription).where(Subscription.enabled.is_(True)))
                 # Only after the first full check, and not when a full check is due anyway.
+                # A schedule means "only then" – the feed doesn't move it up.
                 if sub.last_checked_at is not None
+                and not sub.check_days
                 and (sub.next_check_at is None or _aware(sub.next_check_at) > now)  # type: ignore[operator]
                 and now - self._checked.get(sub.id, datetime.min.replace(tzinfo=UTC))
                 >= self._interval

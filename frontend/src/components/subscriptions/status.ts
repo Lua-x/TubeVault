@@ -18,9 +18,15 @@ export function checkStatus(sub: Subscription): {
   if (sub.last_check_error) return { text: sub.last_check_error, tone: "danger" };
   if (!sub.enabled) return { text: "Pausiert", tone: "muted" };
   if (!sub.last_checked_at) return { text: "Erste Prüfung steht an", tone: "muted" };
-  const next =
-    sub.next_check_at && new Date(sub.next_check_at).getTime() > Date.now()
-      ? ` · nächste ${formatRelative(sub.next_check_at)}`
-      : "";
+  const upcoming = sub.next_check_at && new Date(sub.next_check_at).getTime() > Date.now();
+  const next = !upcoming
+    ? ""
+    : sub.check_days?.length
+      ? ` · nächste ${new Date(sub.next_check_at!).toLocaleString("de-DE", {
+          weekday: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        })}`
+      : ` · nächste ${formatRelative(sub.next_check_at!)}`;
   return { text: `Geprüft ${formatRelative(sub.last_checked_at)}${next}`, tone: "muted" };
 }

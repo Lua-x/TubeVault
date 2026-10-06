@@ -15,9 +15,10 @@
 **Video hinzufügen** (add video, the plus button) takes a YouTube link and downloads the video
 with [yt-dlp](https://github.com/yt-dlp/yt-dlp) and ffmpeg – with title, description, channel,
 upload date, thumbnail, chapters and subtitles (manual ones and the automatic ones in the
-original language). Format and quality can be chosen per video under **Optionen** – the dialog
-remembers what you picked last, for your account on every device. The defaults live under
-**Einstellungen → Downloads** (settings → downloads); changes there are saved right away.
+original language). Format and resolution can be chosen per video under **Optionen** – the
+dialog keeps every pick right away, for your account on every device, and shows it next to
+**Optionen** the next time. The defaults live under **Einstellungen → Downloads** (settings →
+downloads); changes there are saved right away.
 
 The download queue shows live progress, can pause and resume single downloads (partial files
 are kept) or the whole queue, and retries automatically with a backoff after network errors
@@ -32,13 +33,14 @@ Under **Abos → Abonnieren** (subscriptions → subscribe) you add a channel
 - **Existing videos:** on the first check TubeVault downloads only the newest 5 videos by
   default (5, 25, 100 or all can be chosen). Older ones are remembered as "skipped" and not
   fetched later.
-- **Check interval** per subscription, from 15 minutes to weekly, plus **Jetzt prüfen** (check
-  now) at any time.
+- **When to check**, per subscription: every 15 minutes to weekly – or **Nach Zeitplan** (on a
+  schedule): pick the weekdays and a time, e.g. Monday and Friday at 18:30. The time is the
+  container's local time (`TZ`). **Jetzt prüfen** (check now) works at any time.
 - **Filters** – Shorts, livestreams, minimum/maximum length, only videos after a date – are
   applied twice: roughly on the channel listing (saves downloads) and exactly once a video's
   metadata is loaded. Filtered videos show up in the subscription's history with the reason.
   After changing filters, **Neu bewerten** (re-evaluate) applies them again.
-- **Quality and format** per subscription (maximum resolution, prefer H.264, MP4/MKV).
+- **Quality and format** per subscription (resolution, prefer H.264, MP4/MKV).
 - **Clean-up** ("older than X days" by upload date, "only the newest N") runs hourly and after
   every download. A video is only deleted when no other subscription wants to keep it and it
   wasn't added by hand. Deleted videos aren't downloaded again by the subscription. Only
@@ -48,7 +50,8 @@ Under **Abos → Abonnieren** (subscriptions → subscribe) you add a channel
 - **Finding new uploads sooner:** every 15 minutes TubeVault reads each subscription's small
   RSS feed (the last 15 uploads). If an unknown video shows up, the thorough check runs early
   – new videos usually arrive within minutes without listing the whole channel all the time.
-  Can be turned off under **Einstellungen → Automatik** (settings → automation).
+  Subscriptions on a schedule are left out: they are checked only at their times. Can be
+  turned off under **Einstellungen → Automatik** (settings → automation).
 - **Better quality later:** right after an upload YouTube often only offers low resolutions.
   If a video is below the target quality (the limit you set; with "Beste verfügbare" up to 4K),
   TubeVault asks again up to twice a day during the first 7 days and replaces the file as soon
@@ -111,7 +114,9 @@ Both work – globally in the settings or per video in the "add video" dialog.
 ## Quality
 
 By default TubeVault downloads the **best available quality** – 4K (or even 8K) when YouTube has
-it. **Maximale Qualität** (maximum quality) sets a limit instead, e.g. to save space.
+it. **Auflösung** (resolution) picks one instead, e.g. "2160p (4K)" like Pinchflat's 2160p
+profile, or "1080p (Full HD)" to save space. A video without that resolution comes in the next
+smaller one it has.
 
 The choice works exactly like in Pinchflat, with the same yt-dlp options: TubeVault takes the best
 resolution up to the limit (measured on the shorter side, so Shorts in portrait come in full
@@ -122,8 +127,8 @@ matches Pinchflat's 4320p profile, "4K (2160p)" its 2160p profile, and so on. No
 re-encoded – the file holds YouTube's original streams. Devices that can't play VP9/AV1 directly
 (older iPhones, some TVs) get a converted stream while watching.
 
-What a video was downloaded in is listed under **Details** on its page: resolution, video and
-audio codec, size.
+What a video was downloaded in is listed under **Details** on its page: resolution with the
+exact pixels (e.g. "4K · 3840 × 2160"), video and audio codec, size.
 
 ## Comments
 

@@ -8,7 +8,13 @@ import { Dialog } from "@/components/ui/Dialog";
 import { TextField } from "@/components/ui/Input";
 import { useToast } from "@/hooks/toast";
 
-import { backfillValue, DEFAULT_VALUES, toSettings, type FormValues } from "./options";
+import {
+  backfillValue,
+  DEFAULT_VALUES,
+  scheduleProblem,
+  toSettings,
+  type FormValues,
+} from "./options";
 import { SubscriptionForm } from "./SubscriptionForm";
 
 interface SubscribeDialogProps {
@@ -70,7 +76,11 @@ export function SubscribeDialog({ open, onClose, initialUrl = "" }: SubscribeDia
           <Button type="button" variant="secondary" onClick={close}>
             Abbrechen
           </Button>
-          <Button type="submit" loading={create.isPending} disabled={!url.trim()}>
+          <Button
+            type="submit"
+            loading={create.isPending}
+            disabled={!url.trim() || scheduleProblem(values) != null}
+          >
             Abonnieren
           </Button>
         </div>

@@ -30,16 +30,6 @@ export const KEEP_DAYS: { value: string; label: string }[] = [
   { value: "365", label: "Älter als 1 Jahr" },
 ];
 
-export const HEIGHTS: { value: string; label: string }[] = [
-  { value: "", label: "Standard (Einstellungen)" },
-  { value: "2160", label: "Bis 4K" },
-  { value: "1440", label: "Bis 1440p" },
-  { value: "1080", label: "Bis 1080p" },
-  { value: "720", label: "Bis 720p" },
-  { value: "480", label: "Bis 480p" },
-  { value: "360", label: "Bis 360p" },
-];
-
 export const SPONSORBLOCK: { value: "" | SponsorBlockMode; label: string }[] = [
   { value: "", label: "Standard (Einstellungen)" },
   { value: "off", label: "Aus" },
@@ -47,9 +37,23 @@ export const SPONSORBLOCK: { value: "" | SponsorBlockMode; label: string }[] = [
   { value: "cut", label: "Beim Download herausschneiden" },
 ];
 
+export const WEEKDAYS: { value: number; short: string; label: string }[] = [
+  { value: 0, short: "Mo", label: "Montag" },
+  { value: 1, short: "Di", label: "Dienstag" },
+  { value: 2, short: "Mi", label: "Mittwoch" },
+  { value: 3, short: "Do", label: "Donnerstag" },
+  { value: 4, short: "Fr", label: "Freitag" },
+  { value: 5, short: "Sa", label: "Samstag" },
+  { value: 6, short: "So", label: "Sonntag" },
+];
+
 export interface FormValues {
   enabled: boolean;
   interval: string;
+  /** Checked on chosen weekdays at a set time instead of the interval. */
+  scheduled: boolean;
+  days: number[];
+  time: string;
   backfill: string;
   includeShorts: boolean;
   includeLive: boolean;
@@ -68,6 +72,9 @@ export interface FormValues {
 export const DEFAULT_VALUES: FormValues = {
   enabled: true,
   interval: "360",
+  scheduled: false,
+  days: [],
+  time: "18:00",
   backfill: "5",
   includeShorts: false,
   includeLive: false,
@@ -104,6 +111,8 @@ export function toSettings(values: FormValues): SubscriptionSettings {
   return {
     enabled: values.enabled,
     check_interval_minutes: Number(values.interval),
+    check_days: values.scheduled ? [...values.days].sort((a, b) => a - b) : null,
+    check_time: values.scheduled ? values.time : null,
     include_shorts: values.includeShorts,
     include_live: values.includeLive,
     min_duration_s: minutesToSeconds(values.minMinutes),
@@ -120,6 +129,9 @@ export function fromSubscription(sub: Subscription): FormValues {
   return {
     enabled: sub.enabled,
     interval: String(sub.check_interval_minutes),
+    scheduled: Boolean(sub.check_days?.length),
+    days: sub.check_days ?? [],
+    time: sub.check_time ?? DEFAULT_VALUES.time,
     backfill: sub.backfill == null ? "all" : String(sub.backfill),
     includeShorts: sub.include_shorts,
     includeLive: sub.include_live,
@@ -138,4 +150,23 @@ export function fromSubscription(sub: Subscription): FormValues {
 
 export function backfillValue(values: FormValues): number | null {
   return values.backfill === "all" ? null : Number(values.backfill);
+}
+
+/** Why the schedule can't be saved yet, if it can't. */
+export function scheduleProblem(values: FormValues): string | null {
+  if (!values.scheduled) return null;
+  if (values.days.length === 0) return "Wähle mindestens einen Tag.";
+  if (!/^\d{2}:\d{2}$/.test(values.time)) return "Wähle eine Uhrzeit.";
+  return null;
+}
+
+/** "Mo, Mi und Fr um 18:00", "Täglich um 6:30". */
+export function scheduleLabel(days: number[], time: string): string {
+  const sorted = [...days].sort((a, b) => a - b);
+  const clock = time.replace(/^0(\d)/, "$1");
+  if (sorted.length === 7) return `Täglich um ${clock}`;
+  const names = sorted.map((d) => WEEKDAYS[d]?.short ?? "");
+  const list =
+    names.length > 1 ? `${names.slice(0, -1).join(", ")} und ${names[names.length - 1]}` : names[0];
+  return `${list} um ${clock}`;
 }

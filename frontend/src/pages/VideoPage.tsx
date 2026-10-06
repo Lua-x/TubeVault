@@ -705,7 +705,12 @@ function FileInfo({ video, skipped }: { video: VideoDetail; skipped: number }) {
       : "";
   const rows: [string, string][] = [
     ["Dauer", formatDuration(video.duration_s)],
-    ["Auflösung", formatResolution(video.height, video.width)],
+    [
+      "Auflösung",
+      video.width && video.height
+        ? `${formatResolution(video.height, video.width)} · ${video.width} × ${video.height}`
+        : formatResolution(video.height, video.width),
+    ],
     ["Video", codecLabel(video.vcodec)],
     ["Audio", codecLabel(video.acodec)],
     ["Format", video.container?.toUpperCase() ?? ""],

@@ -89,7 +89,7 @@ test("a playback preference survives a reload", async ({ page }) => {
 test("download settings are saved without a save button", async ({ page }) => {
   await signIn(page);
   await page.goto("/settings");
-  const quality = page.getByLabel("Maximale Qualität");
+  const quality = page.getByLabel("Auflösung", { exact: true });
   await expect(quality).toHaveValue(""); // best available by default
   await quality.selectOption("1080");
   await expect(page.getByText("Gespeichert", { exact: true })).toBeVisible();
