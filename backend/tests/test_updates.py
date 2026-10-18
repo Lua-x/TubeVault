@@ -28,7 +28,7 @@ from app.migrate import MIGRATIONS_DIR
 from app.routers import admin as admin_router
 from app.services.backups import DB_NAME
 from app.services.connectivity import Connectivity
-from tests.conftest import HEADERS, FakeCatalog, FakeDownloader, add_and_wait
+from tests.conftest import HEADERS, FakeCatalog, FakeDownloader, add_and_wait, shut_down
 
 FIXTURES = Path(__file__).parent / "fixtures" / "upgrades"
 
@@ -165,5 +165,6 @@ def test_restore_a_backup_from_every_release(
     _media_files_of(FIXTURES / f"{release}.zip", settings)
 
     # The restart swaps the old database in and migrates it.
+    shut_down(admin)
     with _start(settings, downloader, catalog) as restarted:
         _check(restarted, expected)

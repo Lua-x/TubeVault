@@ -249,7 +249,8 @@ def test_own_videos(admin: TestClient, fake: FakeSpeech, tmp_path: Path) -> None
 
 def _fake_install(site: Path, model: Path) -> None:
     (site / "faster_whisper").mkdir(parents=True)
-    (site / "faster_whisper" / "__init__.py").write_text(textwrap.dedent(FAKE_WHISPER))
+    fake = textwrap.dedent(FAKE_WHISPER)
+    (site / "faster_whisper" / "__init__.py").write_text(fake, encoding="utf-8")
     dist = site / "faster_whisper-1.2.1.dist-info"
     dist.mkdir()
     (dist / "METADATA").write_text("Metadata-Version: 2.1\nName: faster-whisper\nVersion: 1.2.1\n")

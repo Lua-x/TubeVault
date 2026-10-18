@@ -89,7 +89,7 @@ def _job(mode: Any, height: int = 720, source_height: int | None = 1080) -> HlsJ
 def test_hls_commands_per_mode() -> None:
     software = hls_command(_job("software"), ffmpeg="ffmpeg")
     joined = " ".join(software)
-    assert "-ss 30 -i /media/a.mkv" in joined
+    assert f"-ss 30 -i {Path('/media/a.mkv')}" in joined  # "\media\a.mkv" on Windows
     assert "-output_ts_offset 30" in joined and "-start_number 5" in joined
     assert "scale=-2:720,format=yuv420p" in joined and "libx264" in joined
     assert "expr:gte(t,n_forced*6)" in joined

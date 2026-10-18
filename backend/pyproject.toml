@@ -52,6 +52,8 @@ ignore = [
 
 [tool.mypy]
 python_version = "3.12"
+# The app only runs in the Linux container – check against Linux on Windows and macOS too
+platform = "linux"
 strict = true
 plugins = ["pydantic.mypy"]
 exclude = ["app/migrations/"]

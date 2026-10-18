@@ -10,6 +10,7 @@ mkdir -p "$data/config" "$data/media"
 export CONFIG_DIR="$data/config" MEDIA_DIR="$data/media" IMPORT_DIR="$data/import"
 export STATIC_DIR="$root/frontend/dist" PORT="${E2E_PORT:-18823}" LOG_LEVEL=WARNING
 export ADMIN_USER=admin ADMIN_PASSWORD=e2e-password-1 YTDLP_AUTO_UPDATE=false
+export PYTHONUTF8=1  # Windows: print "✓" and umlauts like Linux does
 
 cd "$root/backend"
 # Migrations and the admin account, without starting the server yet.

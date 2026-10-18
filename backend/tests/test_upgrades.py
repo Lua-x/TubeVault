@@ -78,7 +78,7 @@ def test_redownload_replaces_the_file_in_place(
 
     new = _video(admin, "upgrade0001")
     assert new.id == old.id and new.height == 1080
-    assert new.file_path == str(Path(old.file_path or "").with_suffix(".mkv"))
+    assert new.file_path == Path(old.file_path or "").with_suffix(".mkv").as_posix()
     files = _files(admin, new)
     assert Path(new.file_path).name in files and Path(old.file_path or "").name not in files
     assert not [name for name in files if ".new" in name]

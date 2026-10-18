@@ -16,7 +16,14 @@ from app.main import create_app
 from app.routers import admin as admin_router
 from app.services import backups
 from app.services.connectivity import Connectivity
-from tests.conftest import HEADERS, FakeCatalog, FakeDownloader, add_and_wait, wait_for
+from tests.conftest import (
+    HEADERS,
+    FakeCatalog,
+    FakeDownloader,
+    add_and_wait,
+    shut_down,
+    wait_for,
+)
 
 
 @pytest.fixture
@@ -90,6 +97,7 @@ def test_restore_after_restart(
     assert admin.get("/api/admin/backups").json()["staged"]["videos"] == 1
 
     # The restart: a new app on the same /config swaps in the backup before opening it.
+    shut_down(admin)
     app = create_app(
         settings,
         downloader,

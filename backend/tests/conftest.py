@@ -292,6 +292,11 @@ def admin(client: TestClient) -> TestClient:
     return client
 
 
+def shut_down(client: TestClient) -> None:
+    """Stops the app like a restart does – Windows can't swap a database that is still open."""
+    client.__exit__(None, None, None)  # the fixture's own shutdown later does nothing
+
+
 def job_status(client: TestClient, job_id: int) -> str:
     jobs = client.get("/api/downloads").json()["items"]
     return str(next(j for j in jobs if j["id"] == job_id)["status"])

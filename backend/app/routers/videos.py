@@ -358,9 +358,10 @@ def delete_video(
         )
     for job in active:
         db.delete(job)
+    # Stop ffmpeg first: it may still be reading the file (Windows can't delete open files).
+    ctx.transcoder.purge(video.id)
     if delete_files:
         delete_video_files(ctx.settings.media_dir, video)
-    ctx.transcoder.purge(video.id)
     ctx.analyzer.remove(video.id)
     # Subscriptions must not download it again.
     mark_video_removed(db, video.id, "Gelöscht")
