@@ -144,7 +144,7 @@ class QualityUpgrades:
             queued: list[int] = []
             for video, options in candidates[:PER_ROUND]:
                 self._checked[video.id] = now
-                if has_active_job(db, video) or not video_file_exists(self._media_dir, video):
+                if has_active_job(db, video):
                     continue
                 try:
                     meta = self._downloader.fetch_metadata(watch_url(video))
@@ -153,7 +153,10 @@ class QualityUpgrades:
                     continue
                 best = best_resolution(meta.raw, options.max_height or BEST_TARGET)
                 current = resolution(video.width, video.height)
-                if best is not None and current is not None and best > current:
+                # Only now look at the disk: asking YouTube needs none, and the disks with the
+                # videos may sleep (see services/image_cache.py).
+                better = best is not None and current is not None and best > current
+                if better and video_file_exists(self._media_dir, video):
                     log.info("Bessere Qualität für „%s“: %sp statt %sp", video.title, best, current)
                     queued.append(queue_upgrade(db, video).id)
         if queued and self.on_queued:

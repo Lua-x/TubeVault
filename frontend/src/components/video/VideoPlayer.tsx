@@ -240,7 +240,11 @@ export const VideoPlayer = forwardRef<PlayerHandle, VideoPlayerProps>(
         fill: true,
         playsinline: true,
         inactivityTimeout: 2500,
-        poster: local ? local.poster : video.has_thumbnail ? thumbnailUrl(video) : undefined,
+        poster: local
+          ? local.poster
+          : video.has_thumbnail
+            ? thumbnailUrl(video, "large")
+            : undefined,
         playbackRates: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
         language: "de",
         // Errors are handled by the page (fallbacks, our own message), not by a modal.

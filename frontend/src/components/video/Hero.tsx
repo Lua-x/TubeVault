@@ -72,7 +72,7 @@ export function Hero({ video }: { video: VideoSummary }) {
           aria-hidden
           className="order-1 block overflow-hidden rounded-2xl shadow-card lg:order-2"
         >
-          <Thumbnail video={video} eager className="aspect-video w-full" />
+          <Thumbnail video={video} eager size="large" className="aspect-video w-full" />
         </Link>
       </div>
     </motion.section>

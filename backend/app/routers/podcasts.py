@@ -11,14 +11,16 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from app.core.context import AppContext
 from app.core.deps import AppConfig, Context, CurrentUser, DbSession, SessionUser
 from app.core.urls import public_base
 from app.models import Channel, Playlist, PlaylistItem, User, Video, VideoStatus
 from app.routers.media import _media_file
 from app.routers.playback import _source, audio_response
 from app.services.access import can_see_channel, visible_videos
+from app.services.image_cache import CachedImage, video_image
+from app.services.image_cache import channel_image as channel_art
 from app.services.podcasts import FEED_ITEMS, Feed, FeedItem, new_feed_token, render_feed
-from app.services.subscriptions import channel_media_path
 from app.services.transcode import audio_size_estimate
 
 router = APIRouter(tags=["podcasts"])
@@ -214,24 +216,27 @@ def episode_audio(
     return audio_response(ctx.transcoder, _source(db, settings, video_id, user)[1])
 
 
+def _cached_image(ctx: AppContext, image: CachedImage | None) -> FileResponse:
+    """From the image cache in /config, like the app's pictures (podcast apps ask often)."""
+    try:
+        if image is None:
+            raise FileNotFoundError
+        path, _ = ctx.images.get(image, "large")
+    except FileNotFoundError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Bild nicht vorhanden") from exc
+    return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": IMAGE_CACHE})
+
+
 @router.get("/podcast/{token}/images/videos/{video_id}.jpg")
-def episode_image(
-    video_id: int, user: FeedUser, db: DbSession, settings: AppConfig
-) -> FileResponse:
+def episode_image(video_id: int, user: FeedUser, db: DbSession, ctx: Context) -> FileResponse:
     video = db.get(Video, video_id)
     if video is None or not can_see_channel(user, video.channel_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Bild nicht vorhanden")
-    path = _media_file(settings.media_dir, video.thumbnail_path)
-    return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": IMAGE_CACHE})
+    return _cached_image(ctx, video_image(video))
 
 
 @router.get("/podcast/{token}/images/channels/{channel_id}.jpg")
-def channel_image(
-    channel_id: int, user: FeedUser, db: DbSession, settings: AppConfig
-) -> FileResponse:
+def channel_image(channel_id: int, user: FeedUser, db: DbSession, ctx: Context) -> FileResponse:
     if not can_see_channel(user, channel_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Bild nicht vorhanden")
-    path = channel_media_path(settings.media_dir, db.get(Channel, channel_id), "avatar")
-    if path is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Bild nicht vorhanden")
-    return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": IMAGE_CACHE})
+    return _cached_image(ctx, channel_art(db.get(Channel, channel_id), "avatar"))

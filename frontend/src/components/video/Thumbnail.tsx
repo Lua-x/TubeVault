@@ -9,9 +9,11 @@ interface ThumbnailProps {
   video: Pick<VideoSummary, "id" | "updated_at" | "has_thumbnail" | "title">;
   className?: string;
   eager?: boolean;
+  /** "large" where the picture is shown big. */
+  size?: "small" | "large";
 }
 
-export function Thumbnail({ video, className, eager }: ThumbnailProps) {
+export function Thumbnail({ video, className, eager, size = "small" }: ThumbnailProps) {
   const [failed, setFailed] = useState(false);
   if (!video.has_thumbnail || failed) {
     return (
@@ -22,7 +24,7 @@ export function Thumbnail({ video, className, eager }: ThumbnailProps) {
   }
   return (
     <img
-      src={thumbnailUrl(video)}
+      src={thumbnailUrl(video, size)}
       alt=""
       loading={eager ? "eager" : "lazy"}
       decoding="async"

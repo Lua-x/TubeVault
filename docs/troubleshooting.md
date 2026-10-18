@@ -5,6 +5,7 @@
 | `can't use /config` or `PermissionError … /config` in the log | The `config` folder lacks rights for the user TubeVault runs as – often after `chmod -R 644` or copying it with a tool that drops the "enter" (x) right of folders. Started as root (the default), TubeVault repairs this itself; with `user:` run `sudo chown -R 1000:1000 ./config && sudo chmod -R u+rwX ./config` on the host (with your IDs) |
 | Not reachable after updating to 1.0 | Installs from before 1.0 keep port 8096 unless `PORT` is set. If you changed `ports:` to `8823:8823`, also set `PORT=8823` – see [port](installation.md#port) |
 | Port 8823 is taken | Set another one: `PORT=9000` and `ports: ["9000:9000"]` |
+| Pictures appear only once the disks have spun up | Update to 1.2.1 or later: pictures then come from a cache in `/config`. Right after the update it is filled once in the background; `/config` should be on an SSD – see [letting the disks sleep](installation.md#letting-the-disks-sleep) |
 | Forgotten password | `docker exec -it tubevault python -m app reset-password <user>` |
 | Phone with the authenticator app lost | Sign in with a recovery code. Otherwise an admin resets two-factor login under **Einstellungen → Benutzer**, or `docker exec -it tubevault python -m app reset-2fa <user>` |
 | Authenticator code refused | The clock of the server or the phone is wrong – TubeVault allows 30 seconds of difference |

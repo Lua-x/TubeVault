@@ -106,7 +106,7 @@ languages, SponsorBlock, transcoding, folder layout, users …) is set in the ap
 
 | Path | Contents |
 | ---- | -------- |
-| `/config` | Database (`tubevault.db`), backups (`backups/`), logs (`logs/`), updated yt-dlp and – if set up – speech recognition (`.runtime/`), speech models (`models/`) |
+| `/config` | Database (`tubevault.db`), backups (`backups/`), logs (`logs/`), the image cache (`cache/images/`), updated yt-dlp and – if set up – speech recognition (`.runtime/`), speech models (`models/`) |
 | `/media` | Videos, thumbnails, subtitles, NFOs. The sub-folder `.tubevault/` only holds partial downloads, the transcoding cache and the seek previews |
 | `/import` | Optional: existing videos to import (may be read-only, then choose "copy") |
 
@@ -142,6 +142,22 @@ Switching moves all existing files – rescan the library in Jellyfin/Plex after
 type "Shows" for the series layout, "Movies"/"Home videos" for the TubeVault layout). Title,
 chapters and description are also embedded in the video file; NFO files written by other
 programs are never overwritten.
+
+### Letting the disks sleep
+
+Put `/config` on an SSD (or the system volume) and `/media` on the big disks – then the disks
+only spin up when someone watches, like with Jellyfin:
+
+- Thumbnails and channel pictures are served from small copies in `/config/cache/images`
+  (640 px for cards, 1280 px for the start page and the player, a few dozen KB each). The
+  originals next to the videos aren't touched while browsing; browsers keep the pictures, too.
+- After an update the copies are made once for the whole library in the background, later
+  right after each download, while the disks are awake anyway. Copies of deleted or replaced
+  pictures are removed by themselves; the folder can be deleted at any time.
+- The database, settings and searches live in `/config` as well. Checking subscriptions and
+  quality upgrades only asks YouTube; the disks wake for downloads.
+- One exception: a podcast app fetching a [feed](watching.md#listening-and-podcasts) looks at
+  the files, so it wakes the disks whenever it checks for new episodes.
 
 ## Updates
 

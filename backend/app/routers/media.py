@@ -4,14 +4,16 @@ from __future__ import annotations
 
 import mimetypes
 from pathlib import Path
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import FileResponse, Response
 from sqlalchemy import select
 
-from app.core.deps import AppConfig, CurrentUser, DbSession
+from app.core.deps import AppConfig, Context, CurrentUser, DbSession
 from app.models import Subtitle, User, Video
 from app.services.access import ensure_visible
+from app.services.image_cache import video_image
 from app.services.library import UnsafePathError, resolve_media_path
 
 router = APIRouter(prefix="/videos", tags=["media"])
@@ -25,6 +27,9 @@ VIDEO_MIME = {
 }
 # Files are named after their content (video ID), so they can be cached for a while.
 MEDIA_CACHE = "private, max-age=86400"
+# The app asks for pictures with a version in the address (?v=…): the browser can keep them
+# for good and needn't ask again – not even the server, let alone the disks behind it.
+IMAGE_CACHE = "private, max-age=31536000, immutable"
 
 
 def _media_file(media_dir: Path, relative: str | None) -> Path:
@@ -64,11 +69,24 @@ def download_video(
 
 
 @router.get("/{video_id}/thumbnail")
-def thumbnail(video_id: int, user: CurrentUser, db: DbSession, settings: AppConfig) -> FileResponse:
-    video = _video(db, video_id, user)
-    path = _media_file(settings.media_dir, video.thumbnail_path)
-    media_type = mimetypes.guess_type(path.name)[0] or "image/jpeg"
-    return FileResponse(path, media_type=media_type, headers={"Cache-Control": MEDIA_CACHE})
+def thumbnail(
+    video_id: int,
+    user: CurrentUser,
+    db: DbSession,
+    ctx: Context,
+    size: Literal["small", "large"] = "large",
+) -> FileResponse:
+    """From the image cache in /config (see app/services/image_cache.py): "small" for cards,
+    "large" for the start page and the player."""
+    image = video_image(_video(db, video_id, user))
+    if image is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Datei nicht vorhanden")
+    try:
+        path, copy = ctx.images.get(image, size)
+    except FileNotFoundError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Datei nicht vorhanden") from exc
+    media_type = "image/jpeg" if copy else (mimetypes.guess_type(path.name)[0] or "image/jpeg")
+    return FileResponse(path, media_type=media_type, headers={"Cache-Control": IMAGE_CACHE})
 
 
 @router.get("/{video_id}/trickplay/{sheet}.jpg")

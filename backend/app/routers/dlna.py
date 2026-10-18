@@ -19,12 +19,13 @@ from fastapi.responses import FileResponse, Response
 from sqlalchemy import Select, false, func, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.core.deps import AppConfig, DbSession
+from app.core.deps import AppConfig, Context, DbSession
 from app.models import Channel, Playlist, PlaylistItem, User, Video, VideoStatus
 from app.routers.media import VIDEO_MIME, _media_file
 from app.services import dlna
 from app.services.access import channel_filter, visible_videos
 from app.services.app_settings import DlnaOptions, load_app_settings
+from app.services.image_cache import video_image
 
 router = APIRouter(prefix="/dlna", tags=["dlna"], include_in_schema=False)
 
@@ -388,9 +389,15 @@ def media(
 
 
 @router.get("/thumbs/{video_id}.jpg")
-def thumb(video_id: int, access: Access, db: DbSession, settings: AppConfig) -> FileResponse:
-    video = _visible_video(db, access, video_id)
-    path = _media_file(settings.media_dir, video.thumbnail_path)
-    mime = mimetypes.guess_type(path.name)[0] or "image/jpeg"
+def thumb(video_id: int, access: Access, db: DbSession, ctx: Context) -> FileResponse:
+    """From the image cache in /config – a TV browsing the list leaves the disks asleep."""
+    image = video_image(_visible_video(db, access, video_id))
+    try:
+        if image is None:
+            raise FileNotFoundError
+        path, copy = ctx.images.get(image, "small")
+    except FileNotFoundError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Not Found") from exc
+    mime = "image/jpeg" if copy else (mimetypes.guess_type(path.name)[0] or "image/jpeg")
     headers = {"Cache-Control": "public, max-age=86400", "transferMode.dlna.org": "Interactive"}
     return FileResponse(path, media_type=mime, headers=headers)

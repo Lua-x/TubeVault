@@ -15,6 +15,7 @@ from app.services.comments import CommentFetcher
 from app.services.connectivity import Connectivity
 from app.services.dlna import DlnaService
 from app.services.family import PinThrottle
+from app.services.image_cache import ImageCache, ImageWarmer
 from app.services.importer import Importer
 from app.services.notifications import Notifier
 from app.services.oidc import OidcClient
@@ -51,6 +52,8 @@ class AppContext:
     dlna: DlnaService
     analyzer: MediaAnalyzer
     speech: SpeechWorker
+    images: ImageCache
+    image_warmer: ImageWarmer
     # How the port was chosen: "env" (PORT), "legacy" (8096 from before 1.0) or "default".
     port_source: str = "default"
     login_throttle: LoginThrottle = field(default_factory=LoginThrottle)

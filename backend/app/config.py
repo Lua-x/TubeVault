@@ -92,6 +92,12 @@ class Settings(BaseSettings):
         return self.media_dir / ".tubevault" / "cache"
 
     @property
+    def image_cache_dir(self) -> Path:
+        """Small copies of thumbnails and channel art – on /config, which is usually an SSD, so
+        browsing the library leaves the disks with the videos asleep."""
+        return self.config_dir / "cache" / "images"
+
+    @property
     def trickplay_dir(self) -> Path:
         """Seek previews (sprite sheets) per video; recreated when missing."""
         return self.media_dir / ".tubevault" / "trickplay"

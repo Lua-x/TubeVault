@@ -63,6 +63,7 @@ from app.services.comments import CommentFetcher
 from app.services.connectivity import Connectivity
 from app.services.dlna import DlnaService
 from app.services.downloader import Downloader, YtDlpDownloader
+from app.services.image_cache import ImageCache, ImageWarmer
 from app.services.importer import Importer
 from app.services.notifications import Notifier, Sender
 from app.services.notifications import send as send_notification
@@ -283,6 +284,7 @@ def create_app(
     notification_sender: Sender | None = None,
     media_analysis: bool = True,
     speech_recognition: bool = True,
+    warm_images: bool = True,
 ) -> FastAPI:
     settings = settings or Settings()
     init_storage(settings)
@@ -367,9 +369,13 @@ def create_app(
         transcoder.purge(video_id)
         analyzer.forget(video_id)
 
+    images = ImageCache(settings.image_cache_dir, settings.media_dir)
+    image_warmer = ImageWarmer(sessions, images)
+
     def download_finished() -> None:
         scheduler.request_cleanup()
         analyzer.wake()
+        image_warmer.wake()  # the new thumbnail is still in memory: no extra disk work
 
     manager.on_file_replaced = file_replaced
     manager.on_download_finished = download_finished
@@ -399,6 +405,8 @@ def create_app(
         dlna=dlna_service,
         analyzer=analyzer,
         speech=speech,
+        images=images,
+        image_warmer=image_warmer,
         port_source=listen.source,
     )
 
@@ -414,6 +422,8 @@ def create_app(
             analyzer.start()
         if speech_recognition:
             speech.start()
+        if warm_images:
+            image_warmer.start()
         if restored:
             library_tasks.verify_files()  # the backup may know files that are gone now
         else:
@@ -424,6 +434,7 @@ def create_app(
         finally:
             await asyncio.to_thread(dlna_service.stop)
             await asyncio.to_thread(analyzer.stop)
+            await asyncio.to_thread(image_warmer.stop)
             await asyncio.to_thread(speech.stop)
             await asyncio.to_thread(library_tasks.wait, 10.0)
             await asyncio.to_thread(transcoder.stop)
