@@ -24,7 +24,8 @@ npm run dev        # http://localhost:5173
 
 ## Checks
 
-Everything CI runs must pass before a change is merged:
+Everything CI runs must pass before a change is merged. `./scripts/check.sh` runs all of it in
+one go (on Windows in Git Bash; `SKIP_E2E=1` leaves out the browser tests) – or step by step:
 
 ```sh
 cd backend
