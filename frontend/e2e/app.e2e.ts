@@ -138,6 +138,24 @@ test("the downloads page always offers to add a video", async ({ page }) => {
   await expect(page.getByRole("dialog", { name: "Video hinzufügen" })).toBeVisible();
 });
 
+test("the player remembers the volume", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/search?q=Pasta");
+  await page
+    .getByRole("link", { name: /Pasta wie in Rom/ })
+    .first()
+    .click();
+  const video = page.locator(".video-js video");
+  await expect(video).toBeAttached();
+  await video.evaluate((element: HTMLVideoElement) => {
+    element.volume = 0.3;
+  });
+  await page.reload();
+  await expect
+    .poll(() => video.evaluate((element: HTMLVideoElement) => element.volume))
+    .toBeCloseTo(0.3, 2);
+});
+
 test("a playback preference survives a reload", async ({ page }) => {
   await signIn(page);
   await page.goto("/settings");

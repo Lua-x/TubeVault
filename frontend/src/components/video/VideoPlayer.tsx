@@ -18,6 +18,7 @@ import { addCastButton } from "./castButton";
 import { evenOut, updateLevel } from "./loudness";
 import { addTrickplay } from "./trickplay";
 import { thumbnailUrl } from "@/lib/media";
+import { storeVolume, storedVolume } from "@/lib/volume";
 import type { SponsorSegment, VideoDetail } from "@/lib/types";
 
 type Player = ReturnType<typeof videojs>;
@@ -183,6 +184,7 @@ export const VideoPlayer = forwardRef<PlayerHandle, VideoPlayerProps>(
     const containerRef = useRef<HTMLDivElement>(null);
     const playerRef = useRef<Player | null>(null);
     const [overlayHost, setOverlayHost] = useState<HTMLElement | null>(null);
+    const fading = useRef(false);
     // The player lives outside React; it reads the latest props through this ref.
     const latest = useRef(props);
     const allowed = useRef(new Set<string>());
@@ -205,6 +207,7 @@ export const VideoPlayer = forwardRef<PlayerHandle, VideoPlayerProps>(
       fadeOutAndPause: () => {
         const player = playerRef.current;
         if (!player || player.paused()) return;
+        fading.current = true;
         const volume = player.volume() ?? 1;
         const steps = 80; // 8 seconds
         let step = 0;
@@ -213,10 +216,12 @@ export const VideoPlayer = forwardRef<PlayerHandle, VideoPlayerProps>(
           step += 1;
           if (!current || current.isDisposed()) {
             window.clearInterval(timer);
+            fading.current = false;
           } else if (step >= steps || current.paused()) {
             window.clearInterval(timer);
             current.pause();
             current.volume(volume);
+            fading.current = false;
           } else {
             current.volume(volume * (1 - step / steps));
           }
@@ -260,6 +265,17 @@ export const VideoPlayer = forwardRef<PlayerHandle, VideoPlayerProps>(
       allowed.current = new Set();
       appliedSource.current = "";
       playRequested.current = false;
+
+      // The volume set last time, on this device.
+      const remembered = storedVolume();
+      if (remembered) {
+        player.volume(remembered.volume);
+        player.muted(remembered.muted);
+      }
+      player.on("volumechange", () => {
+        if (fading.current) return; // the sleep timer turning it down isn't a choice
+        storeVolume(player.volume() ?? 1, player.muted() ?? false);
+      });
 
       let started = false;
       let lastSaved = startAt ?? 0;

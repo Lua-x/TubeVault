@@ -28,7 +28,8 @@ The originals are never changed.
 The player also has chapters, subtitles, keyboard shortcuts, picture-in-picture and – for
 playlists – "up next" with autoplay after 5 seconds (a per-user setting under
 **Einstellungen → Wiedergabe**). Videos resume where you stopped and count as watched shortly
-before the end.
+before the end. The volume (and mute) you set stays for the next videos – remembered per device,
+so the phone and the TV keep their own.
 
 The **moon** at the top right of the player is a **sleep timer**: after 5 to 60 minutes, or at
 the end of the video, the sound fades out and the video pauses – also in full screen and in the
