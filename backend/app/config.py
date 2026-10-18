@@ -82,6 +82,11 @@ class Settings(BaseSettings):
         return self.config_dir / "logs"
 
     @property
+    def cookies_dir(self) -> Path:
+        """YouTube cookies for videos that need a sign-in – kept out of backups and logs."""
+        return self.config_dir / "cookies"
+
+    @property
     def runtime_dir(self) -> Path:
         """Writable directory for components updated at runtime (yt-dlp)."""
         return self.config_dir / ".runtime"

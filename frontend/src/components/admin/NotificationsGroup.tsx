@@ -41,6 +41,11 @@ const EVENTS: { key: keyof NotificationEvents; label: string; description?: stri
   { key: "subscription_error", label: "Abo-Prüfung fehlgeschlagen" },
   { key: "disk_low", label: "Speicherplatz wird knapp", description: "Unter 5 % oder 5 GB frei" },
   {
+    key: "cookies_expired",
+    label: "YouTube-Cookies abgelaufen",
+    description: "Neue hochladen unter YouTube-Anmeldung",
+  },
+  {
     key: "ytdlp_update",
     label: "yt-dlp-Update verfügbar",
     description: "Fragt dafür einmal täglich bei PyPI nach",

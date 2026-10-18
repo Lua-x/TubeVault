@@ -71,8 +71,31 @@ _NETWORK = (
 )
 
 
+# YouTube wants a signed-in account: only then are the stored cookies used. Not for its
+# bot check ("not a bot") – that is a rate limit, and an account wouldn't fix it for long.
+_LOGIN_REQUIRED = (
+    "sign in to confirm your age",
+    "age-restricted",
+    "inappropriate for some users",
+    "members-only",
+    "join this channel",
+    "private video",
+    "this video is private",
+    "playlist is private",
+)
+
+
 class LiveContentError(Exception):
     """Raised for livestreams that are still running or have not started yet."""
+
+
+class LoginRequiredError(Exception):
+    """YouTube asks for a sign-in and the cookies didn't help; says what to do (German)."""
+
+
+def needs_login(exc: BaseException) -> bool:
+    message = str(exc).lower()
+    return any(s in message for s in _LOGIN_REQUIRED)
 
 
 def classify_error(exc: BaseException) -> ErrorKind:

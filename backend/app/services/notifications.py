@@ -32,7 +32,12 @@ log = logging.getLogger(__name__)
 
 Service = Literal["off", "ntfy", "gotify", "webhook"]
 Event = Literal[
-    "video_downloaded", "download_failed", "subscription_error", "ytdlp_update", "disk_low"
+    "video_downloaded",
+    "download_failed",
+    "subscription_error",
+    "ytdlp_update",
+    "disk_low",
+    "cookies_expired",
 ]
 
 SETTINGS_KEY = "notifications"
@@ -48,6 +53,7 @@ class NotificationEvents(BaseModel):
     subscription_error: bool = True
     ytdlp_update: bool = False
     disk_low: bool = True
+    cookies_expired: bool = True
 
 
 class NotificationConfig(BaseModel):
@@ -112,6 +118,7 @@ TAGS = {
     "subscription_error": ["warning"],
     "ytdlp_update": ["arrow_up"],
     "disk_low": ["floppy_disk"],
+    "cookies_expired": ["key"],
     "test": ["white_check_mark"],
 }
 

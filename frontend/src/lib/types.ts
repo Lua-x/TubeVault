@@ -642,6 +642,18 @@ export interface YtDlpInfo {
   restart_required: boolean;
 }
 
+/** The stored YouTube cookies – what they are worth, never their values. */
+export interface YoutubeCookies {
+  stored: boolean;
+  count: number;
+  uploaded_at: string | null;
+  /** The first login cookie to run out; null: as long as the browser session. */
+  expires_at: string | null;
+  used_at: string | null;
+  /** expired: by date; rejected: YouTube signed them out. */
+  problem: "expired" | "rejected" | null;
+}
+
 export type MaintenanceAction = "search-index" | "artwork" | "verify" | "nfo" | "cache";
 
 export type TokenScope = "read" | "full";
@@ -668,6 +680,7 @@ export interface NotificationEvents {
   subscription_error: boolean;
   ytdlp_update: boolean;
   disk_low: boolean;
+  cookies_expired: boolean;
 }
 
 export interface NotificationSettings {

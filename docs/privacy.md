@@ -7,7 +7,9 @@ you set up speech recognition. Otherwise TubeVault only connects to:
 
 - **YouTube:** downloads, subscription checks including RSS feeds, fetching better quality and
   – only when switched on – comments. After a network error, a small request checks whether
-  YouTube is reachable.
+  YouTube is reachable. Signed in only if you upload
+  [YouTube cookies](administration.md#youtube-sign-in-cookies), and then only for videos that
+  YouTube shows to signed-in accounts alone.
 - **PyPI:** the yt-dlp update on start and at the push of a button (can be switched off with
   `YTDLP_AUTO_UPDATE=false`), plus once a day if you switch on the "yt-dlp update available"
   notification.
@@ -32,3 +34,5 @@ Passwords are stored as Argon2 hashes; sign-in sessions, API tokens and family-d
 as SHA-256 hashes. The podcast key is stored as it is, because the app shows you the feed
 address again – renewing it under **Einstellungen → Podcasts** makes old addresses useless. The
 OIDC client secret lives in an environment variable, never in the database or in backups.
+YouTube cookies live only in `/config/cookies` (just those of youtube.com and google.com), not
+in backups or logs, and never leave the server except to YouTube.

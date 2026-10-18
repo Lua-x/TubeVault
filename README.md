@@ -65,6 +65,8 @@
   (Shorts, livestreams, length, date), check interval, quality and clean-up rules
 - New uploads usually arrive within minutes (RSS pre-check), and a better quality is fetched
   automatically if YouTube only had a low resolution right after the upload
+- Age-restricted, members-only and private videos with the cookies of your YouTube account –
+  used only when YouTube asks for a sign-in, and you hear when they expire
 - Import an existing yt-dlp archive, or your own videos from phone and camera – the folder
   becomes the channel
 - **Media server only:** switch the YouTube downloader off, and TubeVault talks to nobody but

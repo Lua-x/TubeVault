@@ -33,6 +33,8 @@ export async function request<T>(
   body?: unknown,
   { quiet401 = false }: { quiet401?: boolean } = {},
 ): Promise<T> {
+  // A file goes as it is (the raw request body), everything else as JSON.
+  const file = body instanceof Blob;
   let response: Response;
   try {
     response = await fetch(apiUrl(path), {
@@ -41,9 +43,11 @@ export async function request<T>(
       headers: {
         Accept: "application/json",
         "X-Requested-With": "TubeVault",
-        ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+        ...(body !== undefined
+          ? { "Content-Type": file ? body.type || "application/octet-stream" : "application/json" }
+          : {}),
       },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      body: file ? body : body !== undefined ? JSON.stringify(body) : undefined,
     });
   } catch {
     throw new ApiError(0, errorMessage(null, 0));

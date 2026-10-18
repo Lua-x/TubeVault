@@ -23,6 +23,7 @@ from app.services.podcasts import AudioPrefetch
 from app.services.rooms import Rooms
 from app.services.subscriptions import SubscriptionChecker
 from app.services.two_factor import LoginTickets
+from app.services.youtube_cookies import YouTubeCookies
 from app.workers.analyzer import MediaAnalyzer
 from app.workers.download_manager import DownloadManager
 from app.workers.library_tasks import LibraryTasks
@@ -46,6 +47,7 @@ class AppContext:
     importer: Importer
     connectivity: Connectivity
     notifier: Notifier
+    cookies: YouTubeCookies
     oidc: OidcClient
     comments: CommentFetcher
     podcasts: AudioPrefetch

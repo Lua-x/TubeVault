@@ -8,7 +8,8 @@ from datetime import UTC, date, datetime
 from typing import Any, Protocol
 
 from app.models import SubscriptionKind
-from app.services.downloader import ytdlp_logger
+from app.services.downloader import with_login, ytdlp_logger
+from app.services.youtube_cookies import YouTubeCookies
 
 log = logging.getLogger(__name__)
 
@@ -152,8 +153,9 @@ def _missing_tab(exc: Exception) -> bool:
 
 
 class YtDlpCatalog:
-    def __init__(self, socket_timeout: int = 30) -> None:
+    def __init__(self, socket_timeout: int = 30, cookies: YouTubeCookies | None = None) -> None:
         self._socket_timeout = socket_timeout
+        self._cookies = cookies  # for private playlists
 
     def _options(self, limit: int | None = None) -> dict[str, Any]:
         options: dict[str, Any] = {
@@ -173,9 +175,12 @@ class YtDlpCatalog:
     def _extract(self, url: str, limit: int | None) -> dict[str, Any]:
         from yt_dlp import YoutubeDL
 
-        with YoutubeDL(self._options(limit)) as ydl:
-            info: dict[str, Any] = ydl.extract_info(url, download=False)
-        return info
+        def run(login: dict[str, Any]) -> dict[str, Any]:
+            with YoutubeDL(self._options(limit) | login) as ydl:
+                info: dict[str, Any] = ydl.extract_info(url, download=False)
+            return info
+
+        return with_login(self._cookies, run)[0]
 
     def resolve(self, kind: SubscriptionKind, url: str) -> SourceInfo:
         target = f"{url.rstrip('/')}/videos" if kind is SubscriptionKind.CHANNEL else url

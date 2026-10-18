@@ -185,6 +185,35 @@ test("download settings are saved without a save button", async ({ page }) => {
   await expect(quality).toHaveValue("");
 });
 
+test("YouTube cookies are uploaded in the admin area and can be removed", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/admin");
+  const group = page.locator("section", {
+    has: page.getByRole("heading", { name: "YouTube-Anmeldung" }),
+  });
+  await expect(group.getByText("Keine Cookies hinterlegt")).toBeVisible();
+
+  const until = Math.floor(Date.now() / 1000) + 365 * 86400;
+  const cookie = (name: string, value: string) =>
+    `.youtube.com\tTRUE\t/\tTRUE\t${until}\t${name}\t${value}`;
+  const file = [
+    "# Netscape HTTP Cookie File",
+    cookie("SAPISID", "e2e-sapisid"),
+    `#HttpOnly_${cookie("LOGIN_INFO", "e2e-login")}`,
+  ].join("\n");
+  await group.locator('input[type="file"]').setInputFiles({
+    name: "cookies.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from(file),
+  });
+  await expect(group.getByText("Angemeldet", { exact: true })).toBeVisible();
+  await expect(group.getByText("noch nie")).toBeVisible();
+
+  await group.getByRole("button", { name: "Entfernen" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Entfernen" }).click();
+  await expect(group.getByText("Keine Cookies hinterlegt")).toBeVisible();
+});
+
 test("the TV view works with the arrow keys", async ({ page }) => {
   await signIn(page);
   await page.goto("/tv");

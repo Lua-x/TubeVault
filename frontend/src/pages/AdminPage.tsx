@@ -23,6 +23,7 @@ import {
 } from "@/api/queries";
 import { BackupGroup } from "@/components/admin/BackupGroup";
 import { DownloadColumns, StorageBars } from "@/components/admin/Charts";
+import { CookiesGroup } from "@/components/admin/CookiesGroup";
 import { NotificationsGroup } from "@/components/admin/NotificationsGroup";
 import { OidcInfoGroup } from "@/components/admin/OidcInfoGroup";
 import { RestartingDialog } from "@/components/admin/Restarting";
@@ -79,6 +80,7 @@ export function AdminPage() {
         <div className="grid items-start gap-9 lg:grid-cols-2">
           <div className="flex flex-col gap-9">
             {youtube && <YtDlpGroup />}
+            {youtube && <CookiesGroup />}
             <SystemGroup data={data} />
             <OidcInfoGroup />
           </div>

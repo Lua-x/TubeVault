@@ -9,14 +9,16 @@ from __future__ import annotations
 import copy
 import logging
 import shutil
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
-from app.core.errors import LiveContentError
+from app.core.errors import LiveContentError, LoginRequiredError, clean_message, needs_login
 from app.services.app_settings import DownloadOptions
+from app.services.youtube_cookies import YouTubeCookies
 
 log = logging.getLogger(__name__)
 ytdlp_log = logging.getLogger("yt_dlp")
@@ -47,6 +49,8 @@ class VideoMetadata:
     chapters: list[dict[str, Any]] = field(default_factory=list)
     # The raw yt-dlp info dict, reused for the download so YouTube is only asked once.
     raw: dict[str, Any] = field(default_factory=dict, repr=False)
+    # Only available signed in: the download uses the YouTube cookies again.
+    signed_in: bool = False
 
 
 @dataclass(slots=True)
@@ -285,6 +289,38 @@ def ytdlp_logger() -> _YtDlpLogger:
     return _YtDlpLogger()
 
 
+def with_login[T](
+    cookies: YouTubeCookies | None, run: Callable[[dict[str, Any]], T]
+) -> tuple[T, bool]:
+    """Runs yt-dlp without cookies; only when YouTube asks for a sign-in, again with them.
+
+    `run` gets the extra yt-dlp options. Returns the result and whether it needed them."""
+    try:
+        return run({}), False
+    except Exception as exc:
+        if cookies is None or not needs_login(exc):
+            raise
+        first = exc
+    if not cookies.usable():
+        raise LoginRequiredError(f"{clean_message(first)} {cookies.hint()}") from first
+    with ExitStack() as stack:
+        try:
+            path = stack.enter_context(cookies.lend())
+        except FileNotFoundError:  # removed just now
+            raise LoginRequiredError(f"{clean_message(first)} {cookies.hint()}") from first
+        try:
+            result = run({"cookiefile": str(path)})
+        except Exception as exc:
+            if not needs_login(exc):
+                raise
+            raise LoginRequiredError(
+                f"{clean_message(exc)} Auch mit den hinterlegten YouTube-Cookies nicht "
+                "verfügbar – etwa weil das Konto kein Mitglied ist oder keinen Zugriff hat."
+            ) from exc
+    cookies.used()
+    return result, True
+
+
 class _ProgressTracker:
     """Combines the separate video and audio downloads into one overall progress."""
 
@@ -337,10 +373,12 @@ class _ProgressTracker:
 
 
 class YtDlpDownloader:
-    def __init__(self, socket_timeout: int = 30) -> None:
+    def __init__(self, socket_timeout: int = 30, cookies: YouTubeCookies | None = None) -> None:
         self._socket_timeout = socket_timeout
+        self._cookies = cookies
 
-    def _base_options(self) -> dict[str, Any]:
+    def _base_options(self, login: dict[str, Any]) -> dict[str, Any]:
+        """`login`: the cookie file, when YouTube asks for a sign-in (see `with_login`)."""
         return {
             "logger": ytdlp_logger(),
             "quiet": True,
@@ -351,23 +389,37 @@ class YtDlpDownloader:
             "fragment_retries": 10,
             "extractor_retries": 3,
             "ignoreerrors": False,
-        }
+        } | login
+
+    @contextmanager
+    def _login_again(self, meta: VideoMetadata) -> Iterator[dict[str, Any]]:
+        """The cookies again for a video that needed them for its details."""
+        if not meta.signed_in or self._cookies is None or not self._cookies.path.is_file():
+            yield {}
+            return
+        with self._cookies.lend() as path:
+            yield {"cookiefile": str(path)}
 
     def fetch_metadata(self, url: str) -> VideoMetadata:
         from yt_dlp import YoutubeDL
 
-        with YoutubeDL(self._base_options()) as ydl:
-            info: dict[str, Any] = ydl.extract_info(url, download=False, process=False)
-            for _ in range(3):
-                if info.get("_type") not in ("url", "url_transparent"):
-                    break
-                info = ydl.extract_info(info["url"], download=False, process=False)
-            if info.get("_type") == "playlist":
-                raise ValueError(
-                    "Das ist eine Playlist oder ein Kanal. "
-                    "Bitte die URL eines einzelnen Videos verwenden."
-                )
-            return metadata_from_info(info)
+        def run(login: dict[str, Any]) -> VideoMetadata:
+            with YoutubeDL(self._base_options(login)) as ydl:
+                info: dict[str, Any] = ydl.extract_info(url, download=False, process=False)
+                for _ in range(3):
+                    if info.get("_type") not in ("url", "url_transparent"):
+                        break
+                    info = ydl.extract_info(info["url"], download=False, process=False)
+                if info.get("_type") == "playlist":
+                    raise ValueError(
+                        "Das ist eine Playlist oder ein Kanal. "
+                        "Bitte die URL eines einzelnen Videos verwenden."
+                    )
+                return metadata_from_info(info)
+
+        meta, signed_in = with_login(self._cookies, run)
+        meta.signed_in = signed_in
+        return meta
 
     def download(
         self,
@@ -380,6 +432,22 @@ class YtDlpDownloader:
         on_progress: ProgressCallback,
         is_cancelled: CancelCheck,
     ) -> DownloadResult:
+        with self._login_again(meta) as login:
+            return self._download(
+                meta, media_dir, relative_base, temp_dir, options, login, on_progress, is_cancelled
+            )
+
+    def _download(
+        self,
+        meta: VideoMetadata,
+        media_dir: Path,
+        relative_base: Path,
+        temp_dir: Path,
+        options: DownloadOptions,
+        login: dict[str, Any],
+        on_progress: ProgressCallback,
+        is_cancelled: CancelCheck,
+    ) -> DownloadResult:
         from yt_dlp import YoutubeDL
 
         base = _escape_template(relative_base.as_posix())
@@ -387,7 +455,7 @@ class YtDlpDownloader:
         tracker = _ProgressTracker(meta.raw, on_progress, is_cancelled)
         temp_dir.mkdir(parents=True, exist_ok=True)
 
-        opts = self._base_options() | {
+        opts = self._base_options(login) | {
             "format": selector,
             "format_sort": sort,
             "merge_output_format": options.container,
@@ -420,27 +488,32 @@ class YtDlpDownloader:
             duration_s=int(info["duration"]) if cut and info.get("duration") else None,
         )
         if not is_cancelled():
-            result.subtitles = self._download_subtitles(meta, media_dir, relative_base, options)
+            result.subtitles = self._download_subtitles(
+                meta, media_dir, relative_base, options, login
+            )
         return result
 
     def fetch_comments(self, url: str, limit: int) -> CommentsResult:
         """Top comments with up to 10 replies each – a separate request, after the video."""
         from yt_dlp import YoutubeDL
 
-        opts = self._base_options() | {
-            "skip_download": True,
-            "getcomments": True,
-            "extractor_args": {
-                "youtube": {
-                    # total, top-level, replies, replies per thread
-                    "max_comments": [str(limit), "all", "all", "10"],
-                    "comment_sort": ["top"],
-                }
-            },
-        }
-        with YoutubeDL(opts) as ydl:
-            info: dict[str, Any] = ydl.extract_info(url, download=False)
-        return comments_from_info(info)
+        def run(login: dict[str, Any]) -> CommentsResult:
+            opts = self._base_options(login) | {
+                "skip_download": True,
+                "getcomments": True,
+                "extractor_args": {
+                    "youtube": {
+                        # total, top-level, replies, replies per thread
+                        "max_comments": [str(limit), "all", "all", "10"],
+                        "comment_sort": ["top"],
+                    }
+                },
+            }
+            with YoutubeDL(opts) as ydl:
+                info: dict[str, Any] = ydl.extract_info(url, download=False)
+            return comments_from_info(info)
+
+        return with_login(self._cookies, run)[0]
 
     @staticmethod
     def _postprocessors(options: DownloadOptions) -> list[dict[str, Any]]:
@@ -468,7 +541,12 @@ class YtDlpDownloader:
         return postprocessors
 
     def _download_subtitles(
-        self, meta: VideoMetadata, media_dir: Path, relative_base: Path, options: DownloadOptions
+        self,
+        meta: VideoMetadata,
+        media_dir: Path,
+        relative_base: Path,
+        options: DownloadOptions,
+        login: dict[str, Any],
     ) -> list[SubtitleFile]:
         """Separate pass, so a failing subtitle (often a 429) never fails the video."""
         from yt_dlp import YoutubeDL
@@ -479,7 +557,7 @@ class YtDlpDownloader:
         manual = [key for key, auto in chosen.items() if not auto]
         auto = [key for key, auto in chosen.items() if auto]
         base = _escape_template(relative_base.as_posix())
-        opts = self._base_options() | {
+        opts = self._base_options(login) | {
             "skip_download": True,
             "ignoreerrors": True,
             "writesubtitles": bool(manual),

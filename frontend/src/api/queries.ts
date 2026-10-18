@@ -60,6 +60,7 @@ import type {
   VideoDetail,
   VideoSummary,
   WatchState,
+  YoutubeCookies,
   YtDlpInfo,
 } from "@/lib/types";
 
@@ -755,6 +756,25 @@ export function useUpdateYtDlp() {
 
 export function useRestart() {
   return useMutation({ mutationFn: () => api.post("admin/restart") });
+}
+
+export function useYoutubeCookies() {
+  return useQuery({
+    queryKey: ["admin", "cookies"],
+    queryFn: () => api.get<YoutubeCookies>("admin/cookies"),
+  });
+}
+
+/** Upload a cookies.txt (replaces the stored one) – or remove it with null. */
+export function useSaveYoutubeCookies() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File | null) =>
+      file
+        ? api.put<YoutubeCookies>("admin/cookies", file)
+        : api.delete<YoutubeCookies>("admin/cookies"),
+    onSuccess: (data) => client.setQueryData(["admin", "cookies"], data),
+  });
 }
 
 export function useMaintenance() {

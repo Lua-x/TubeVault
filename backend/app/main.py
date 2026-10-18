@@ -74,6 +74,7 @@ from app.services.search import ensure_search_index
 from app.services.speech import Speech
 from app.services.subscriptions import SubscriptionChecker
 from app.services.upgrades import QualityUpgrades
+from app.services.youtube_cookies import YouTubeCookies
 from app.workers.analyzer import MediaAnalyzer
 from app.workers.download_manager import DownloadManager
 from app.workers.library_tasks import LibraryTasks
@@ -304,10 +305,11 @@ def create_app(
         purge_expired_sessions(db)
 
     events = EventBus()
-    catalog = catalog or YtDlpCatalog()
-    downloader = downloader or YtDlpDownloader()
-    connectivity = connectivity or Connectivity()
     notifier = Notifier(sessions, notification_sender or send_notification)
+    cookies = YouTubeCookies(settings.cookies_dir, notifier)
+    catalog = catalog or YtDlpCatalog(cookies=cookies)
+    downloader = downloader or YtDlpDownloader(cookies=cookies)
+    connectivity = connectivity or Connectivity()
     manager = DownloadManager(
         settings, sessions, events, downloader, connectivity=connectivity, notifier=notifier
     )
@@ -330,6 +332,7 @@ def create_app(
         connectivity=connectivity,
         rss=RssWatcher(sessions, connectivity, feeds or fetch_feed_ids),
         notifier=notifier,
+        cookies=cookies,
         upgrades=QualityUpgrades(
             sessions,
             settings.media_dir,
@@ -399,6 +402,7 @@ def create_app(
         importer=importer,
         connectivity=connectivity,
         notifier=notifier,
+        cookies=cookies,
         oidc=OidcClient(settings),
         comments=comment_fetcher,
         podcasts=podcast_prefetch,

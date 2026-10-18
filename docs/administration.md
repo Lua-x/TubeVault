@@ -8,6 +8,7 @@ has the tools below.
 - [Notifications](#notifications)
 - [Maintenance](#maintenance)
 - [yt-dlp and restart](#yt-dlp-and-restart)
+- [YouTube sign-in (cookies)](#youtube-sign-in-cookies)
 - [Logs](#logs)
 - [Command line](#command-line)
 
@@ -41,8 +42,8 @@ you run – off by default:
   `{"event": "video_downloaded", "title": "…", "message": "…", "data": {…}}`
 
 You can choose: new videos, failed downloads, failed subscription checks (once per problem),
-low disk space (below 5 % or 5 GB free) and yt-dlp updates (asks PyPI once a day for this, off
-by default). Whatever happens within 30 seconds arrives as one message – a new subscription with
+low disk space (below 5 % or 5 GB free), expired [YouTube cookies](#youtube-sign-in-cookies)
+and yt-dlp updates (asks PyPI once a day for this, off by default). Whatever happens within 30 seconds arrives as one message – a new subscription with
 50 videos reports "50 new videos". The token is only stored, never shown again; **Test senden**
 (send test) checks the settings right away.
 
@@ -65,6 +66,34 @@ by default). Whatever happens within 30 seconds arrives as one message – a new
 of a button; **Neu starten** (restart) then loads it. The update lands in `/config/.runtime`,
 so it survives container restarts; when a newer image brings a newer yt-dlp, the copy in
 `/config` is dropped by itself.
+
+## YouTube sign-in (cookies)
+
+Some videos YouTube only shows to a signed-in account: age-restricted ones, members-only
+videos and private videos (or private playlists) shared with you. For those, upload the cookies
+of a YouTube account under **Verwaltung → YouTube-Anmeldung** (YouTube sign-in).
+
+1. Install a browser add-on that exports cookies as a `cookies.txt` (Netscape format).
+2. Open a private window, sign in on youtube.com, export the cookies – and close the private
+   window right away. Otherwise the browser keeps renewing them, and YouTube ends the session
+   TubeVault has after a few days.
+3. Upload the file with **cookies.txt hochladen** (upload cookies.txt).
+
+A second account is safer than your main one: YouTube may block accounts that download a lot.
+
+TubeVault always asks YouTube without the cookies first and only tries again with them when
+YouTube answers that a sign-in is needed ("Sign in to confirm your age", "members-only",
+"private"). Everything else – and YouTube's "not a bot" check – runs without an account. The
+admin area shows until when the cookies are valid and when they were last needed.
+
+Only the cookies of youtube.com and google.com are kept; everything else in the file is
+dropped. They are stored in `/config/cookies`, readable only by TubeVault – not in the
+database, so not in backups, never in the logs and never sent back to the browser. What
+YouTube renews on the way is saved, so the cookies stay valid longer.
+
+When they run out – by their date, or because YouTube ended the session – the admin area says
+so and TubeVault sends the "YouTube-Cookies abgelaufen" notification once. Upload new ones; videos
+that failed in the meantime can be retried under **Downloads**.
 
 ## Logs
 

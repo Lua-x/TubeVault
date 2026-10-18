@@ -9,6 +9,7 @@ import re
 import shutil
 import sqlite3
 from collections import Counter
+from dataclasses import asdict
 from datetime import UTC, date, datetime, timedelta
 from typing import Any, Literal
 
@@ -40,6 +41,8 @@ from app.services.catalog import channel_url
 from app.services.search import is_sqlite, rebuild
 from app.services.speech import MODELS, SpeechError
 from app.services.subscriptions import store_channel_art
+from app.services.youtube_cookies import MAX_BYTES as MAX_COOKIE_BYTES
+from app.services.youtube_cookies import CookieError, CookieStatus
 from app.services.ytdlp_updater import (
     _version_in,
     _version_key,
@@ -301,6 +304,52 @@ def ytdlp_update(_: AdminUser, db: DbSession, ctx: Context) -> YtDlpUpdate:
             restart_required=_differs(installed, loaded),
         ),
     )
+
+
+# --- YouTube cookies -------------------------------------------------------------------
+
+
+class CookiesOut(BaseModel):
+    """What the page shows – the cookies themselves never leave the server."""
+
+    stored: bool
+    count: int
+    uploaded_at: datetime | None
+    expires_at: datetime | None
+    used_at: datetime | None
+    problem: Literal["expired", "rejected"] | None
+
+
+def _cookies_out(state: CookieStatus) -> CookiesOut:
+    return CookiesOut(**asdict(state))
+
+
+@router.get("/cookies")
+def get_cookies(_: AdminUser, ctx: Context) -> CookiesOut:
+    return _cookies_out(ctx.cookies.status())
+
+
+@router.put("/cookies")
+async def put_cookies(request: Request, _: AdminUser, ctx: Context) -> CookiesOut:
+    """Upload a cookies.txt (sent as the raw request body); replaces the stored one."""
+    data = bytearray()
+    async for chunk in request.stream():
+        data += chunk
+        if len(data) > MAX_COOKIE_BYTES:
+            raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Die Datei ist zu groß.")
+    if not data:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Keine Datei erhalten.")
+    try:
+        state = await asyncio.to_thread(ctx.cookies.save, bytes(data))
+    except CookieError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    return _cookies_out(state)
+
+
+@router.delete("/cookies")
+def delete_cookies(_: AdminUser, ctx: Context) -> CookiesOut:
+    ctx.cookies.remove()
+    return _cookies_out(ctx.cookies.status())
 
 
 @router.post("/restart", status_code=status.HTTP_202_ACCEPTED)

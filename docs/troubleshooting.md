@@ -19,6 +19,7 @@
 | "Aufs Gerät" (save to device) missing | It needs HTTPS; over `http://` with an IP address the browser grants no storage |
 | Saved videos are gone | Site data was cleared, the app removed, or the system cleaned up because space was low (mostly iOS) |
 | Downloads fail with "not a bot" / HTTP 429 | YouTube is throttling. TubeVault retries later automatically (backoff up to 6 h) |
+| "Sign in to confirm your age", members-only or private video | YouTube wants a signed-in account: upload cookies under **Verwaltung → YouTube-Anmeldung**, see [YouTube sign-in](administration.md#youtube-sign-in-cookies), then retry the download |
 | Video doesn't play (MKV) | Safari/iOS can't play MKV directly; TubeVault remuxes it – if that fails too, switch the format to MP4 in the settings |
 | "Install app" missing | Android/desktop require HTTPS – put TubeVault behind a reverse proxy with a certificate |
 | Hardware test reports an error | Pass `/dev/dri` (Intel/AMD) or the NVIDIA GPU through in the compose file; the test message says why. Without a GPU, TubeVault transcodes in software |
