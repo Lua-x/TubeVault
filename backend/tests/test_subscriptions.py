@@ -175,6 +175,18 @@ def test_subscribe_takes_newest_videos_and_filters(
     assert admin.get("/api/videos").json()["total"] == 2
 
 
+def test_all_videos_means_all(admin: TestClient, catalog: FakeCatalog) -> None:
+    """ "Vorhandene Videos: Alle" takes every video, not the default five."""
+    catalog.entries = [entry(n) for n in range(8)]
+    created = subscribe(admin, backfill=None)
+    assert created["backfill"] is None
+    sub = wait_checked(admin, created["id"])
+    assert catalog.calls[-1][2] is None  # the whole channel was listed
+    assert "skipped" not in states(sub).values()
+    wait_idle(admin)
+    assert detail(admin, sub["id"])["stats"]["downloaded"] == 8
+
+
 def test_next_check_only_takes_new_videos(admin: TestClient, catalog: FakeCatalog) -> None:
     catalog.entries = [entry(2), entry(3)]
     sub = wait_checked(admin, subscribe(admin, backfill=1)["id"])

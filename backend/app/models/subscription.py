@@ -50,8 +50,9 @@ class Subscription(Base):
     last_checked_at: Mapped[datetime | None]
     next_check_at: Mapped[datetime | None] = mapped_column(index=True)
     last_check_error: Mapped[str | None] = mapped_column(Text)
-    # How many existing videos the first check takes (None = all).
-    backfill: Mapped[int | None] = mapped_column(default=5)
+    # How many existing videos the first check takes (None = all). No column default: it
+    # would turn an explicit None ("all") into 5 – the API's default lives in the schema.
+    backfill: Mapped[int | None]
 
     # Filters
     include_shorts: Mapped[bool] = mapped_column(default=False)
