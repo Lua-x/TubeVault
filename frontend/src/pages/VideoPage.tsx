@@ -127,7 +127,10 @@ function VideoView({ video, playlistId, autoplay }: VideoViewProps) {
   const { user } = useAuth();
   const preferences = user?.preferences ?? {};
 
-  const playback = usePlaybackSource(video);
+  // The file is only touched once the viewer presses play (or the playlist plays on).
+  const [started, setStarted] = useState(autoplay);
+  const startPlayback = useCallback(() => setStarted(true), []);
+  const playback = usePlaybackSource(video, started);
   const [channelRate, saveChannelRate] = useChannelRate(video.channel?.id);
   const [time, setTime] = useState(0);
   const onTimeUpdate = useCallback((seconds: number) => setTime(Math.floor(seconds)), []);
@@ -283,6 +286,8 @@ function VideoView({ video, playlistId, autoplay }: VideoViewProps) {
           video={video}
           source={playback.source}
           onSourceError={playback.onSourceError}
+          deferred={!started}
+          onStart={startPlayback}
           startAt={startAt}
           autoplay={autoplay}
           segments={segments}

@@ -138,6 +138,32 @@ test("the downloads page always offers to add a video", async ({ page }) => {
   await expect(page.getByRole("dialog", { name: "Video hinzufügen" })).toBeVisible();
 });
 
+test("the video file is only read once play is pressed", async ({ page }) => {
+  await signIn(page);
+  // Everything that reads the video's files – and would wake the disks they are on.
+  const fileRequests: string[] = [];
+  page.on("request", (request) => {
+    const url = request.url();
+    if (/\/api\/(videos\/\d+\/(playback|stream|subtitles|trickplay|remux)|cast\/)/.test(url)) {
+      fileRequests.push(url);
+    }
+  });
+  await page.goto("/search?q=Pasta");
+  await page
+    .getByRole("link", { name: /Pasta wie in Rom/ })
+    .first()
+    .click();
+  const play = page.getByRole("button", { name: "Abspielen", exact: true });
+  await expect(play).toBeVisible();
+  await page.waitForLoadState("networkidle");
+  expect(fileRequests).toEqual([]);
+
+  // (Whether it then plays depends on the codecs: Playwright's Chromium has no H.264.)
+  await play.click();
+  await expect(play).toBeHidden();
+  await expect.poll(() => fileRequests.some((url) => url.endsWith("/playback"))).toBe(true);
+});
+
 test("the player remembers the volume", async ({ page }) => {
   await signIn(page);
   await page.goto("/search?q=Pasta");

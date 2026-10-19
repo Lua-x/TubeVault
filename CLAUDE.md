@@ -40,8 +40,9 @@ Guidance for Claude Code sessions in this repository. Commands and layout are in
   per user in `Preferences` (`schemas/auth.py`). Settings pages save each change by themselves.
 - **Let the disks sleep**: browsing must not touch `/media`. Pictures come from the image cache
   in `/config/cache/images` (`services/image_cache.py`); don't add file checks to list, home or
-  search endpoints. Only playback, downloads and maintenance read `/media`. Known exception:
-  podcast feeds look at the files.
+  search endpoints. Only playback, downloads and maintenance read `/media`; the video page asks
+  for playback info, subtitles and seek previews only after play (`VideoPlayer` `deferred`).
+  Known exception: podcast feeds look at the files.
 - **Downloads like Pinchflat**: `services/downloader.build_format` must keep choosing the same
   streams as Pinchflat's options – `test_same_choice_as_pinchflat` checks it.
 - **Security**: every new API route needs a signed-in user unless it is meant to be public;

@@ -154,6 +154,8 @@ only spin up when someone watches, like with Jellyfin:
 - After an update the copies are made once for the whole library in the background, later
   right after each download, while the disks are awake anyway. Copies of deleted or replaced
   pictures are removed by themselves; the folder can be deleted at any time.
+- Opening a video shows its picture only; the file, subtitles and seek previews are read once
+  you press play. Autoplay in a playlist counts as pressing play.
 - The database, settings and searches live in `/config` as well. Checking subscriptions and
   quality upgrades only asks YouTube; the disks wake for downloads.
 - One exception: a podcast app fetching a [feed](watching.md#listening-and-podcasts) looks at

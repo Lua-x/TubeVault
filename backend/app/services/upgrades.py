@@ -13,17 +13,28 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.models import ACTIVE_JOB_STATUSES, DownloadJob, SubscriptionItem, Video, VideoStatus
+from app.core.errors import classify_error
+from app.models import (
+    ACTIVE_JOB_STATUSES,
+    DownloadJob,
+    ErrorKind,
+    SubscriptionItem,
+    Video,
+    VideoStatus,
+)
 from app.models.video import LOCAL_PREFIX
-from app.services.app_settings import DownloadOptions, load_app_settings
+from app.services.app_settings import AppSettings, DownloadOptions, load_app_settings
 from app.services.connectivity import Connectivity
 from app.services.downloader import Downloader
 from app.services.videos import video_file_exists
+
+if TYPE_CHECKING:
+    from app.workers.library_tasks import Progress
 
 log = logging.getLogger(__name__)
 
@@ -130,19 +141,15 @@ class QualityUpgrades:
                     Video.downloaded_at <= (now - MIN_AGE).replace(tzinfo=None),
                 )
             ).all()
-            candidates: list[tuple[Video, DownloadOptions]] = []
+            candidates: list[tuple[Video, int]] = []
             for video in recent:
                 if now - self._checked.get(video.id, datetime.min.replace(tzinfo=UTC)) < RECHECK:
                     continue
-                options = DownloadOptions.model_validate(
-                    settings.downloads.model_dump() | subscription_options(db, video)
-                )
-                target = options.max_height or BEST_TARGET
-                current = resolution(video.width, video.height)
-                if current is not None and current < target:
-                    candidates.append((video, options))
+                target = _below_target(db, settings, video)
+                if target is not None:
+                    candidates.append((video, target))
             queued: list[int] = []
-            for video, options in candidates[:PER_ROUND]:
+            for video, target in candidates[:PER_ROUND]:
                 self._checked[video.id] = now
                 if has_active_job(db, video):
                     continue
@@ -151,14 +158,82 @@ class QualityUpgrades:
                 except Exception as exc:
                     log.info("Qualität von %s nicht prüfbar: %s", video.youtube_id, exc)
                     continue
-                best = best_resolution(meta.raw, options.max_height or BEST_TARGET)
-                current = resolution(video.width, video.height)
-                # Only now look at the disk: asking YouTube needs none, and the disks with the
-                # videos may sleep (see services/image_cache.py).
-                better = best is not None and current is not None and best > current
-                if better and video_file_exists(self._media_dir, video):
-                    log.info("Bessere Qualität für „%s“: %sp statt %sp", video.title, best, current)
+                if self._upgrade_if_better(db, video, best_resolution(meta.raw, target)):
                     queued.append(queue_upgrade(db, video).id)
         if queued and self.on_queued:
             self.on_queued(queued)
         return queued
+
+    def check_all(self, progress: Progress) -> str:
+        """Every video below its target, whenever it came: "Bessere Qualität suchen"."""
+        with self._sessions() as db:
+            settings = load_app_settings(db)
+            videos = db.scalars(
+                select(Video)
+                .where(
+                    Video.status == VideoStatus.READY,
+                    Video.youtube_id.not_like(f"{LOCAL_PREFIX}%"),
+                    Video.height.is_not(None),
+                )
+                .order_by(Video.downloaded_at.desc())
+            ).all()
+            candidates = [
+                (video.id, target)
+                for video in videos
+                if (target := _below_target(db, settings, video)) is not None
+            ]
+        progress.total(len(candidates))
+        queued: list[int] = []
+        try:
+            for video_id, target in candidates:
+                with self._sessions() as db:
+                    video = db.get(Video, video_id)
+                    if video is None or has_active_job(db, video):
+                        progress.step()
+                        continue
+                    url, title = watch_url(video), video.title
+                try:
+                    meta = self._downloader.fetch_metadata(url)
+                except Exception as exc:
+                    if classify_error(exc) is ErrorKind.RATE_LIMITED:
+                        raise RuntimeError(
+                            f"YouTube bremst gerade – bis hierhin {len(queued)} Videos gefunden. "
+                            "Später einfach noch einmal starten."
+                        ) from exc
+                    log.info("Qualität von %s nicht prüfbar: %s", url, exc)
+                    progress.step(title)
+                    continue
+                with self._sessions() as db:
+                    video = db.get(Video, video_id)
+                    best = best_resolution(meta.raw, target)
+                    if video is not None and self._upgrade_if_better(db, video, best):
+                        queued.append(queue_upgrade(db, video).id)
+                progress.step(title)
+        finally:
+            if queued and self.on_queued:
+                self.on_queued(queued)
+        if not queued:
+            return "Alle Videos haben schon die beste Qualität"
+        if len(queued) == 1:
+            return "1 Video wird in besserer Qualität geladen"
+        return f"{len(queued)} Videos werden in besserer Qualität geladen"
+
+    def _upgrade_if_better(self, db: Session, video: Video, best: int | None) -> bool:
+        current = resolution(video.width, video.height)
+        # Only now look at the disk: asking YouTube needs none, and the disks with the
+        # videos may sleep (see services/image_cache.py).
+        better = best is not None and current is not None and best > current
+        if better and video_file_exists(self._media_dir, video):
+            log.info("Bessere Qualität für „%s“: %sp statt %sp", video.title, best, current)
+            return True
+        return False
+
+
+def _below_target(db: Session, settings: AppSettings, video: Video) -> int | None:
+    """The resolution a video should have (its subscription's limit, else 4K), if it hasn't."""
+    options = DownloadOptions.model_validate(
+        settings.downloads.model_dump() | subscription_options(db, video)
+    )
+    target = options.max_height or BEST_TARGET
+    current = resolution(video.width, video.height)
+    return target if current is not None and current < target else None

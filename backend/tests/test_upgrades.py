@@ -146,3 +146,41 @@ def test_low_quality_is_upgraded_automatically(
     body["automation"]["upgrade_quality"] = False
     admin.put("/api/settings", json=body)
     assert upgrades.run_round() == []
+
+
+def test_search_better_quality_for_all(
+    admin: TestClient, downloader: FakeDownloader, monkeypatch: Any
+) -> None:
+    """Verwaltung → Wartung → "Bessere Qualität suchen": every video, whatever its age."""
+    downloader.height = 720
+    add_and_wait(admin, "allbetter01")
+    add_and_wait(admin, "allbetter02")
+    ctx = _ctx(admin)
+    with ctx.sessions() as db:
+        for video in db.query(Video).all():
+            video.downloaded_at = datetime.now(UTC) - timedelta(days=400)
+        db.commit()
+    sd = {"height": 720, "vcodec": "avc1"}
+    downloader.meta_overrides["allbetter01"] = {
+        "raw": {"formats": [sd, {"height": 1080, "vcodec": "avc1"}]}
+    }
+    downloader.meta_overrides["allbetter02"] = {"raw": {"formats": [sd]}}
+    downloader.height = 1080
+
+    assert admin.post("/api/admin/maintenance/upgrade").status_code == 200
+    ctx.library_tasks.wait()
+    task = admin.get("/api/library/task").json()
+    assert task["state"] == "done"
+    assert task["message"] == "1 Video wird in besserer Qualität geladen"
+    wait_for(lambda: _video(admin, "allbetter01").height == 1080)
+    assert _video(admin, "allbetter02").height == 720  # YouTube has nothing better
+
+    # YouTube throttles: stop and say so, instead of asking on and on.
+    def throttled(url: str) -> Any:
+        raise Exception("ERROR: [youtube] allbetter02: HTTP Error 429: Too Many Requests")
+
+    monkeypatch.setattr(downloader, "fetch_metadata", throttled)
+    admin.post("/api/admin/maintenance/upgrade")
+    ctx.library_tasks.wait()
+    task = admin.get("/api/library/task").json()
+    assert task["state"] == "failed" and "YouTube bremst" in task["message"]

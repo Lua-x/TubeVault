@@ -654,7 +654,7 @@ export interface YoutubeCookies {
   problem: "expired" | "rejected" | null;
 }
 
-export type MaintenanceAction = "search-index" | "artwork" | "verify" | "nfo" | "cache";
+export type MaintenanceAction = "search-index" | "artwork" | "verify" | "nfo" | "cache" | "upgrade";
 
 export type TokenScope = "read" | "full";
 

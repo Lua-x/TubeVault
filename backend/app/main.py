@@ -322,6 +322,13 @@ def create_app(
         connectivity=connectivity,
         notifier=notifier,
     )
+    upgrades = QualityUpgrades(
+        sessions,
+        settings.media_dir,
+        downloader,
+        connectivity,
+        on_queued=lambda _ids: manager.wake(),
+    )
     scheduler = SubscriptionScheduler(
         settings,
         sessions,
@@ -333,13 +340,7 @@ def create_app(
         rss=RssWatcher(sessions, connectivity, feeds or fetch_feed_ids),
         notifier=notifier,
         cookies=cookies,
-        upgrades=QualityUpgrades(
-            sessions,
-            settings.media_dir,
-            downloader,
-            connectivity,
-            on_queued=lambda _ids: manager.wake(),
-        ),
+        upgrades=upgrades,
     )
 
     def connectivity_changed(online: bool) -> None:
@@ -411,6 +412,7 @@ def create_app(
         speech=speech,
         images=images,
         image_warmer=image_warmer,
+        upgrades=upgrades,
         port_source=listen.source,
     )
 

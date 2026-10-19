@@ -6,6 +6,7 @@ import {
   ScanSearch,
   FileText,
   SearchCheck,
+  Sparkles,
   Trash2,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
@@ -312,6 +313,12 @@ const ACTIONS: {
     icon: ImageDown,
   },
   {
+    action: "upgrade",
+    label: "Bessere Qualität suchen",
+    hint: "Fragt YouTube zu allen Videos unter ihrem Ziel und lädt neu, wo es mehr gibt",
+    icon: Sparkles,
+  },
+  {
     action: "nfo",
     label: "NFO-Dateien neu schreiben",
     hint: "Nach Änderungen an Titeln oder Kanälen",
@@ -331,8 +338,10 @@ function MaintenanceGroup() {
   const toast = useToast();
   const busy = task?.state === "running";
   const youtube = useYoutube();
-  // Channel artwork comes from YouTube.
-  const actions = youtube ? ACTIONS : ACTIONS.filter((a) => a.action !== "artwork");
+  // Channel artwork and better versions come from YouTube.
+  const actions = youtube
+    ? ACTIONS
+    : ACTIONS.filter((a) => a.action !== "artwork" && a.action !== "upgrade");
   return (
     <div className="flex flex-col gap-3">
       <Group title="Wartung">

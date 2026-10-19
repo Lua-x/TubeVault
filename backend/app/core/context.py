@@ -23,6 +23,7 @@ from app.services.podcasts import AudioPrefetch
 from app.services.rooms import Rooms
 from app.services.subscriptions import SubscriptionChecker
 from app.services.two_factor import LoginTickets
+from app.services.upgrades import QualityUpgrades
 from app.services.youtube_cookies import YouTubeCookies
 from app.workers.analyzer import MediaAnalyzer
 from app.workers.download_manager import DownloadManager
@@ -56,6 +57,7 @@ class AppContext:
     speech: SpeechWorker
     images: ImageCache
     image_warmer: ImageWarmer
+    upgrades: QualityUpgrades
     # How the port was chosen: "env" (PORT), "legacy" (8096 from before 1.0) or "default".
     port_source: str = "default"
     login_throttle: LoginThrottle = field(default_factory=LoginThrottle)

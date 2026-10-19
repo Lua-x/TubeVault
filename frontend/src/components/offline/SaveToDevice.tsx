@@ -34,7 +34,7 @@ interface Choice {
 }
 
 function useChoices(video: VideoDetail, enabled: boolean): Choice[] | null {
-  const { data: info } = usePlayback(video.id);
+  const { data: info } = usePlayback(video.id, enabled);
   const { data: options } = useQuery({
     queryKey: ["videos", "device", video.id],
     queryFn: () => api.get<DeviceOptions>(`videos/${video.id}/device`),

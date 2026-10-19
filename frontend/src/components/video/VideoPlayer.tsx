@@ -9,6 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { Play } from "lucide-react";
 import { createPortal } from "react-dom";
 import videojs from "video.js";
 import german from "video.js/dist/lang/de.json";
@@ -71,6 +72,12 @@ interface VideoPlayerProps {
   overlay?: ReactNode;
   /** Saved on this device: poster and tracks come from local (object) URLs. */
   local?: LocalFiles;
+  /**
+   * Only the poster until the viewer presses play, then `onStart` – so opening a video page
+   * doesn't wake the disks the videos are on.
+   */
+  deferred?: boolean;
+  onStart?: () => void;
 }
 
 export interface LocalFiles {
@@ -195,10 +202,23 @@ export const VideoPlayer = forwardRef<PlayerHandle, VideoPlayerProps>(
       latest.current = props;
     });
 
+    const start = () => {
+      playRequested.current = true;
+      latest.current.onStart?.();
+      // video.js waits for the source and plays then; the press counts as the gesture.
+      playerRef.current?.play()?.catch(() => undefined);
+    };
+
     useImperativeHandle(ref, () => ({
       seek: (seconds, options) => {
         const player = playerRef.current;
         if (!player) return;
+        if (latest.current.deferred) {
+          // E.g. a chapter or timestamp before play: start there.
+          player.one("loadedmetadata", () => player.currentTime(seconds));
+          start();
+          return;
+        }
         player.currentTime(seconds);
         if (options?.play ?? true) void player.play();
         (player.el() as HTMLElement).focus();
@@ -416,6 +436,9 @@ export const VideoPlayer = forwardRef<PlayerHandle, VideoPlayerProps>(
       const resume = !first && (failed ? playRequested.current : !player.paused());
       player.error(null);
       player.src(source);
+      if (first && playRequested.current) {
+        player.play()?.catch(() => undefined); // pressed before the source was known
+      }
       if (!first) {
         player.one("loadedmetadata", () => {
           if (time > 0) player.currentTime(time);
@@ -439,12 +462,13 @@ export const VideoPlayer = forwardRef<PlayerHandle, VideoPlayerProps>(
       if (media) updateLevel(media, loudness, normalize);
     }, [loudness, normalize, fileKey]);
 
-    // Seek previews, once the server made them (they may arrive while watching).
+    // Seek previews and subtitles are files next to the video: only once it plays.
+    const hasSource = props.source != null;
     const trickplayKey = !props.local && video.trickplay ? video.trickplay.version : 0;
     useEffect(() => {
       const player = playerRef.current;
       const info = latest.current.video.trickplay;
-      if (!player || player.isDisposed() || !trickplayKey || !info) return;
+      if (!player || player.isDisposed() || !trickplayKey || !info || !hasSource) return;
       let remove: () => void = () => undefined;
       let active = true;
       player.ready(() => {
@@ -454,13 +478,13 @@ export const VideoPlayer = forwardRef<PlayerHandle, VideoPlayerProps>(
         active = false;
         remove();
       };
-    }, [trickplayKey, fileKey]);
+    }, [trickplayKey, fileKey, hasSource]);
 
     // Subtitles, also those made while watching (speech recognition); replaced ones go.
     const subtitleKey = video.subtitles.map((sub) => sub.id).join(",");
     useEffect(() => {
       const player = playerRef.current;
-      if (!player || player.isDisposed()) return;
+      if (!player || player.isDisposed() || !hasSource) return;
       let active = true;
       player.ready(() => {
         if (active) syncSubtitles(player, latest.current.video, latest.current.local);
@@ -468,7 +492,7 @@ export const VideoPlayer = forwardRef<PlayerHandle, VideoPlayerProps>(
       return () => {
         active = false;
       };
-    }, [subtitleKey, fileKey]);
+    }, [subtitleKey, fileKey, hasSource]);
 
     // Segments usually arrive after the player was created.
     useEffect(() => {
@@ -484,7 +508,27 @@ export const VideoPlayer = forwardRef<PlayerHandle, VideoPlayerProps>(
         data-vjs-player
         className="relative aspect-video w-full overflow-hidden bg-black sm:rounded-2xl"
       >
-        {overlayHost && overlay ? createPortal(overlay, overlayHost) : null}
+        {overlayHost
+          ? createPortal(
+              <>
+                {/* First, so the page's buttons (sleep timer, quality) stay on top of it. */}
+                {props.deferred && (
+                  <button
+                    type="button"
+                    aria-label="Abspielen"
+                    onClick={start}
+                    className="absolute inset-0 flex items-center justify-center bg-black/10 transition-colors hover:bg-black/25"
+                  >
+                    <span className="flex size-16 items-center justify-center rounded-full bg-black/55 backdrop-blur-md">
+                      <Play className="ml-1 size-7 fill-white text-white" strokeWidth={1.5} />
+                    </span>
+                  </button>
+                )}
+                {overlay}
+              </>,
+              overlayHost,
+            )
+          : null}
       </div>
     );
   },

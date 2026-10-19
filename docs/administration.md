@@ -55,6 +55,10 @@ and yt-dlp updates (asks PyPI once a day for this, off by default). Whatever hap
   ones as available again
 - **Suchindex neu aufbauen** (rebuild search index)
 - **Kanalbilder neu laden** (reload channel art)
+- **Bessere Qualität suchen** (look for better quality): asks YouTube about every video below
+  its target quality (the subscription's limit, else 4K) and downloads again where a better
+  version exists – in place, with watch progress and playlists kept. One request per video; if
+  YouTube starts to throttle, it stops and can simply be started again later
 - **NFO-Dateien neu schreiben** (rewrite NFO files)
 - **Umwandlungs-Cache leeren** (empty the transcoding cache)
 

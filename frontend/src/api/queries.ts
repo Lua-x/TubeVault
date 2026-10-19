@@ -634,12 +634,14 @@ export const useRemoveFromFolder = () =>
 
 // --- playback and transcoding ------------------------------------------------------
 
-export function usePlayback(id: number) {
+/** How a video can be played. The server reads the file for it – that wakes the disks. */
+export function usePlayback(id: number, enabled = true) {
   return useQuery({
     queryKey: keys.playback(id),
     queryFn: () => api.get<PlaybackInfo>(`videos/${id}/playback`),
     staleTime: 10 * 60_000,
     retry: false,
+    enabled,
   });
 }
 

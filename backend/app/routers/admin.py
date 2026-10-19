@@ -52,7 +52,7 @@ from app.services.ytdlp_updater import (
     runtime_site_dir,
     update_ytdlp,
 )
-from app.workers.library_tasks import Progress, TaskBusyError
+from app.workers.library_tasks import Progress, TaskBusyError, Work
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 log = logging.getLogger(__name__)
@@ -484,19 +484,20 @@ def speech_remove(_: AdminUser, ctx: Context) -> SpeechState:
 
 # --- maintenance ---------------------------------------------------------------------
 
-Action = Literal["search-index", "artwork", "verify", "nfo", "cache"]
+Action = Literal["search-index", "artwork", "verify", "nfo", "cache", "upgrade"]
 LABELS: dict[str, str] = {
     "search-index": "Suchindex neu aufbauen",
     "artwork": "Kanalbilder neu laden",
     "verify": "Dateien prüfen",
     "nfo": "NFO-Dateien neu schreiben",
     "cache": "Umwandlungs-Cache leeren",
+    "upgrade": "Bessere Qualität suchen",
 }
 
 
 @router.post("/maintenance/{action}")
 def maintenance(action: Action, _: AdminUser, db: DbSession, ctx: Context) -> dict[str, Any]:
-    if action == "artwork":
+    if action in ("artwork", "upgrade"):
         require_youtube(db)
     if action == "verify":
         try:
@@ -542,7 +543,12 @@ def maintenance(action: Action, _: AdminUser, db: DbSession, ctx: Context) -> di
         freed = ctx.transcoder.cleanup_cache(limit=0)
         return f"{freed / 1024**2:.0f} MB freigegeben"
 
-    work = {"search-index": search_index, "artwork": artwork, "cache": cache}
+    work: dict[str, Work] = {
+        "search-index": search_index,
+        "artwork": artwork,
+        "cache": cache,
+        "upgrade": ctx.upgrades.check_all,
+    }
     try:
         return ctx.library_tasks.run(action, LABELS[action], work[action]).as_dict()
     except TaskBusyError as exc:

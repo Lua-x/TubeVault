@@ -24,10 +24,11 @@ const FORMAT_ERRORS = new Set([3, 4]);
 
 /**
  * Decides how a video is played: the original file, a remuxed MP4 or converted HLS.
- * Falls back step by step when the browser rejects a source.
+ * Falls back step by step when the browser rejects a source. Nothing is asked of the server
+ * before `enabled` – until then the disks with the videos may sleep.
  */
-export function usePlaybackSource(video: VideoDetail) {
-  const { data: info, isError: infoFailed } = usePlayback(video.id);
+export function usePlaybackSource(video: VideoDetail, enabled = true) {
+  const { data: info, isError: infoFailed } = usePlayback(video.id, enabled);
   const [stored, setStored] = useState<QualityChoice>(storedQuality);
   const [failed, setFailed] = useState<ReadonlySet<Fallback>>(() => new Set());
   const [error, setError] = useState<string | null>(null);
