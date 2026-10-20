@@ -82,6 +82,8 @@ def _apply_settings(sub: Subscription, body: SubscriptionSettings) -> None:
     sub.min_duration_s = body.min_duration_s or None
     sub.max_duration_s = body.max_duration_s or None
     sub.date_after = body.date_after
+    sub.title_include = body.title_include
+    sub.title_exclude = body.title_exclude
     sub.keep_days = body.keep_days
     sub.keep_last = body.keep_last
     sub.download_options = body.download_options.model_dump(exclude_none=True)

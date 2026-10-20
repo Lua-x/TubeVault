@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { choosePlan, planHeight, type Fallback } from "./playback";
+import { choosePlan, directSourceType, planHeight, type Fallback } from "./playback";
 import type { PlaybackInfo } from "./types";
 
 const base: PlaybackInfo = {
@@ -30,6 +30,15 @@ describe("choosePlan", () => {
   it("plays MP4 with H.264 directly", () => {
     supports("mp4", "avc1");
     expect(choosePlan(base, "auto", none, false)).toEqual({ kind: "direct" });
+  });
+
+  it("plays sound-only M4A directly", () => {
+    supports("audio/mp4", "mp4a");
+    const audio = { ...base, container: "m4a", video_codec: null, width: null, height: null };
+    expect(choosePlan({ ...audio, qualities: [] }, "auto", none, false)).toEqual({
+      kind: "direct",
+    });
+    expect(directSourceType("m4a")).toBe("audio/mp4");
   });
 
   it("remuxes MKV on WebKit and falls back to HLS when that fails", () => {

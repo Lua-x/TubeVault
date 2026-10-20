@@ -60,6 +60,9 @@ class Subscription(Base):
     min_duration_s: Mapped[int | None]
     max_duration_s: Mapped[int | None]
     date_after: Mapped[date | None]
+    # Words for the title, comma-separated, any case: one of them must / none may appear.
+    title_include: Mapped[str | None] = mapped_column(Text)
+    title_exclude: Mapped[str | None] = mapped_column(Text)
 
     # Download options that override the global settings (container, max_height, …).
     download_options: Mapped[dict[str, Any]] = mapped_column(default=dict)

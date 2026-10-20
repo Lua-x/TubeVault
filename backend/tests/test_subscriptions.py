@@ -408,3 +408,24 @@ def test_only_admins_set_cleanup_rules(admin: TestClient) -> None:
     stricter = {**body, "keep_days": 7}
     assert user.put(f"/api/subscriptions/{sub['id']}", json=stricter).status_code == 403
     assert admin.put(f"/api/subscriptions/{sub['id']}", json=stricter).status_code == 200
+
+
+def test_title_filter(admin: TestClient, catalog: FakeCatalog, downloader: FakeDownloader) -> None:
+    """One of the wanted words must be in the title, none of the unwanted ones – any case."""
+    titles = {
+        1: "Folge 12: Der Hafen",
+        2: "Trailer zur Folge 13",
+        3: "Werkstatt-Vlog",
+        4: "FOLGE 11",
+    }
+    catalog.entries = [entry(n, title=title) for n, title in titles.items()]
+    for n, title in titles.items():
+        downloader.meta_overrides[f"vid{n:08d}"] = {"title": title}
+    created = subscribe(admin, backfill=None, title_include=" folge ,, ", title_exclude="Trailer")
+    assert (created["title_include"], created["title_exclude"]) == ("folge", "Trailer")
+    sub = wait_checked(admin, created["id"])
+    reasons = {item["youtube_id"]: item["reason"] for item in sub["items"]}
+    assert reasons["vid00000002"] == "Titel enthält „trailer“"
+    assert reasons["vid00000003"] == "Titel ohne gesuchtes Wort"
+    wait_idle(admin)
+    assert detail(admin, sub["id"])["stats"]["downloaded"] == 2  # Folge 12 and FOLGE 11

@@ -24,6 +24,7 @@ VIDEO_MIME = {
     ".mkv": "video/x-matroska",
     ".webm": "video/webm",
     ".mov": "video/quicktime",
+    ".m4a": "audio/mp4",  # subscriptions with "Nur Ton"
 }
 # Files are named after their content (video ID), so they can be cached for a while.
 MEDIA_CACHE = "private, max-age=86400"

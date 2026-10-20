@@ -89,13 +89,15 @@ def playback_info(
     options = load_app_settings(db).transcoding
     return PlaybackInfo(
         container=video.container,
-        video_codec=_codec(video.vcodec, info.video_codec),
+        # The file decides whether there is a picture at all ("Nur Ton": none).
+        video_codec=_codec(video.vcodec, info.video_codec) if info.video_codec else None,
         audio_codec=_codec(video.acodec, info.audio_codec),
         width=info.width,
         height=info.height,
         duration=info.duration,
         can_remux=can_copy_into_mp4(info),
-        qualities=available_heights(info.height, options.max_height),
+        # Sound only ("Nur Ton"): nothing to convert to a lower resolution.
+        qualities=available_heights(info.height, options.max_height) if info.video_codec else [],
         transcode_height=target_height("source", info.height, options.max_height),
     )
 

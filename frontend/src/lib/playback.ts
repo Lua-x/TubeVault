@@ -48,6 +48,8 @@ export function canPlayDirectly(info: PlaybackInfo, isWebKit: boolean): boolean 
     case "m4v":
     case "mov":
       return canPlay(mp4);
+    case "m4a": // "Nur Ton" subscriptions
+      return canPlay(`audio/mp4; codecs="${list}"`);
     case "webm":
       return canPlay(webm);
     case "mkv":
@@ -87,5 +89,6 @@ export function directSourceType(container: string | null): string {
     return probe.canPlayType("video/x-matroska") ? "video/x-matroska" : "video/webm";
   }
   if (container === "webm") return "video/webm";
+  if (container === "m4a") return "audio/mp4";
   return "video/mp4";
 }

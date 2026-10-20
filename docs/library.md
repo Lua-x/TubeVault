@@ -37,11 +37,17 @@ Under **Abos → Abonnieren** (subscriptions → subscribe) you add a channel
 - **When to check**, per subscription: every 15 minutes to weekly – or **Nach Zeitplan** (on a
   schedule): pick the weekdays and a time, e.g. Monday and Friday at 18:30. The time is the
   container's local time (`TZ`). **Jetzt prüfen** (check now) works at any time.
-- **Filters** – Shorts, livestreams, minimum/maximum length, only videos after a date – are
-  applied twice: roughly on the channel listing (saves downloads) and exactly once a video's
-  metadata is loaded. Filtered videos show up in the subscription's history with the reason.
-  After changing filters, **Neu bewerten** (re-evaluate) applies them again.
+- **Filters** – Shorts, livestreams, minimum/maximum length, only videos after a date, words in
+  the title – are applied twice: roughly on the channel listing (saves downloads) and exactly
+  once a video's metadata is loaded. Filtered videos show up in the subscription's history with
+  the reason. After changing filters, **Neu bewerten** (re-evaluate) applies them again.
+- **Title words:** **Titel enthält** (title contains) – one of the words must appear, e.g.
+  `Folge, Teil`; **Titel enthält nicht** (title doesn't contain) – none may, e.g.
+  `Trailer, Live`. Words are separated by commas; upper and lower case don't matter.
 - **Quality and format** per subscription (resolution, prefer H.264, MP4/MKV).
+- **Nur Ton** (sound only): the subscription saves just the sound track as M4A – for podcasts,
+  music or audio books. Copied as it is when YouTube offers AAC, otherwise converted. Such
+  files play like videos (with the thumbnail as the picture) and in podcast feeds.
 - **Clean-up** ("older than X days" by upload date, "only the newest N") runs hourly and after
   every download. A video is only deleted when no other subscription wants to keep it and it
   wasn't added by hand. Deleted videos aren't downloaded again by the subscription. Only

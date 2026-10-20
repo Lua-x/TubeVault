@@ -68,6 +68,8 @@ class FilterRules:
     min_duration_s: int | None
     max_duration_s: int | None
     cutoff: date | None
+    title_include: tuple[str, ...] = ()
+    title_exclude: tuple[str, ...] = ()
 
     @classmethod
     def of(cls, sub: Subscription, today: date | None = None) -> FilterRules:
@@ -81,6 +83,8 @@ class FilterRules:
             min_duration_s=sub.min_duration_s,
             max_duration_s=sub.max_duration_s,
             cutoff=max(cutoffs) if cutoffs else None,
+            title_include=_words(sub.title_include),
+            title_exclude=_words(sub.title_exclude),
         )
 
     def reason(
@@ -90,12 +94,19 @@ class FilterRules:
         was_live: bool,
         duration_s: int | None,
         upload_date: date | None,
+        title: str | None = None,
         approximate: bool = False,
     ) -> str | None:
         if is_short and not self.include_shorts:
             return "Shorts ausgeschlossen"
         if was_live and not self.include_live:
             return "Livestream ausgeschlossen"
+        if title is not None:  # without one (rare in listings) the download checks again
+            folded = title.casefold()
+            if self.title_include and not any(word in folded for word in self.title_include):
+                return "Titel ohne gesuchtes Wort"
+            if found := next((word for word in self.title_exclude if word in folded), None):
+                return f"Titel enthält „{found}“"
         if duration_s is not None:
             if self.min_duration_s and duration_s < self.min_duration_s:
                 return f"Kürzer als {_minutes(self.min_duration_s)}"
@@ -115,6 +126,7 @@ class FilterRules:
             was_live=entry.live_status == "was_live",
             duration_s=entry.duration_s,
             upload_date=entry.upload_date,
+            title=entry.title,
             approximate=True,
         )
 
@@ -124,7 +136,12 @@ class FilterRules:
             was_live=meta.was_live,
             duration_s=meta.duration_s,
             upload_date=meta.upload_date,
+            title=meta.title,
         )
+
+
+def _words(value: str | None) -> tuple[str, ...]:
+    return tuple(word.strip().casefold() for word in (value or "").split(",") if word.strip())
 
 
 # --- channel artwork ------------------------------------------------------------

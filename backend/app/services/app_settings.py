@@ -43,6 +43,8 @@ class DownloadOptions(BaseModel):
     # Save the top comments (with replies) to read them offline. Off unless wanted.
     comments: bool = False
     max_comments: MaxComments = 500
+    # Only the sound track, as M4A – set per subscription (podcasts, music, audio books).
+    audio_only: bool = False
 
     @field_validator("subtitle_languages")
     @classmethod

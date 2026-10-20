@@ -20,6 +20,7 @@ class SubscriptionDownloadOptions(BaseModel):
     prefer_h264: bool | None = None
     sponsorblock_mode: SponsorBlockMode | None = None
     comments: bool | None = None
+    audio_only: bool | None = None
 
 
 class SubscriptionSettings(BaseModel):
@@ -33,6 +34,9 @@ class SubscriptionSettings(BaseModel):
     min_duration_s: int | None = Field(default=None, ge=0, le=86400)
     max_duration_s: int | None = Field(default=None, ge=0, le=86400)
     date_after: date | None = None
+    # Comma-separated words: one must appear in the title / none may.
+    title_include: str | None = Field(default=None, max_length=500)
+    title_exclude: str | None = Field(default=None, max_length=500)
     keep_days: int | None = Field(default=None, ge=1, le=3650)
     keep_last: int | None = Field(default=None, ge=1, le=10000)
     download_options: SubscriptionDownloadOptions = Field(
@@ -47,6 +51,13 @@ class SubscriptionSettings(BaseModel):
         if any(day < 0 or day > 6 for day in value):
             raise ValueError("Wochentage gehen von 0 (Montag) bis 6 (Sonntag).")
         return sorted(set(value))
+
+    @field_validator("title_include", "title_exclude")
+    @classmethod
+    def _words(cls, value: str | None) -> str | None:
+        """ " Folge ,  Teil 2,," → "Folge, Teil 2"; nothing left → no filter."""
+        words = [word.strip() for word in (value or "").split(",") if word.strip()]
+        return ", ".join(words) or None
 
     @model_validator(mode="after")
     def _check_schedule(self) -> Self:
@@ -105,6 +116,8 @@ class SubscriptionOut(ApiModel):
     min_duration_s: int | None
     max_duration_s: int | None
     date_after: date | None
+    title_include: str | None
+    title_exclude: str | None
     keep_days: int | None
     keep_last: int | None
     download_options: SubscriptionDownloadOptions

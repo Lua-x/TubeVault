@@ -19,6 +19,9 @@ import {
   type FormValues,
 } from "./options";
 
+const AUDIO_HINT =
+  "Gespeichert wird die Tonspur als M4A, ohne Bild. Abspielen wie ein Video – oder als Podcast-Feed.";
+
 const SCHEDULE = "schedule";
 
 interface SubscriptionFormProps {
@@ -183,49 +186,77 @@ export function SubscriptionForm({ values, onChange, mode }: SubscriptionFormPro
             onChange={(e) => set("dateAfter", e.target.value)}
           />
         </Row>
+        <Row className="grid gap-3 sm:grid-cols-2">
+          <TextField
+            label="Titel enthält"
+            placeholder="z. B. Folge, Teil"
+            hint="Eines der Wörter muss vorkommen"
+            value={values.titleInclude}
+            onChange={(e) => set("titleInclude", e.target.value)}
+          />
+          <TextField
+            label="Titel enthält nicht"
+            placeholder="z. B. Trailer, Live"
+            hint="Keines der Wörter darf vorkommen"
+            value={values.titleExclude}
+            onChange={(e) => set("titleExclude", e.target.value)}
+          />
+        </Row>
       </Group>
 
-      <Group title="Qualität" footer={RESOLUTION_HINT}>
+      <Group title="Qualität" footer={values.audioOnly ? AUDIO_HINT : RESOLUTION_HINT}>
         <Row>
-          <Select
-            inline
-            label="Auflösung"
-            value={values.maxHeight}
-            onChange={(e) => set("maxHeight", e.target.value)}
-          >
-            {resolutionChoices(settings?.downloads.max_height).map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </Select>
-        </Row>
-        <Row className="flex items-center justify-between gap-4">
-          <span className="text-[15px]">Format</span>
-          <SegmentedControl
-            label="Format"
-            value={values.container}
-            onChange={(container) => set("container", container)}
-            options={[
-              { value: "default", label: "Standard" },
-              { value: "mp4", label: "MP4" },
-              { value: "mkv", label: "MKV" },
-            ]}
+          <Switch
+            label="Nur Ton"
+            description="Lädt nur die Tonspur – für Podcasts, Musik oder Hörbücher"
+            checked={values.audioOnly}
+            onChange={(v) => set("audioOnly", v)}
           />
         </Row>
-        <Row className="flex items-center justify-between gap-4">
-          <span className="text-[15px]">H.264 bevorzugen</span>
-          <SegmentedControl
-            label="H.264 bevorzugen"
-            value={values.preferH264}
-            onChange={(preferH264) => set("preferH264", preferH264)}
-            options={[
-              { value: "default", label: "Standard" },
-              { value: "yes", label: "An" },
-              { value: "no", label: "Aus" },
-            ]}
-          />
-        </Row>
+        {!values.audioOnly && (
+          <>
+            <Row>
+              <Select
+                inline
+                label="Auflösung"
+                value={values.maxHeight}
+                onChange={(e) => set("maxHeight", e.target.value)}
+              >
+                {resolutionChoices(settings?.downloads.max_height).map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            </Row>
+            <Row className="flex items-center justify-between gap-4">
+              <span className="text-[15px]">Format</span>
+              <SegmentedControl
+                label="Format"
+                value={values.container}
+                onChange={(container) => set("container", container)}
+                options={[
+                  { value: "default", label: "Standard" },
+                  { value: "mp4", label: "MP4" },
+                  { value: "mkv", label: "MKV" },
+                ]}
+              />
+            </Row>
+            <Row className="flex items-center justify-between gap-4">
+              <span className="text-[15px]">H.264 bevorzugen</span>
+              <SegmentedControl
+                label="H.264 bevorzugen"
+                value={values.preferH264}
+                onChange={(preferH264) => set("preferH264", preferH264)}
+                options={[
+                  { value: "default", label: "Standard" },
+                  { value: "yes", label: "An" },
+                  { value: "no", label: "Aus" },
+                ]}
+              />
+            </Row>
+          </>
+        )}
         <Row>
           <Select
             inline

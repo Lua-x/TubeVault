@@ -293,3 +293,15 @@ def test_database_from_newer_version_is_refused(tmp_path: Path) -> None:
     with pytest.raises(DatabaseTooNewError, match="neueren TubeVault-Version"):
         run_migrations(engine)
     engine.dispose()
+
+
+def test_sound_only_takes_the_audio_stream() -> None:
+    """ "Nur Ton": the best audio, AAC first; saved as M4A instead of remuxing a video."""
+    from app.services.downloader import YtDlpDownloader
+
+    options = DownloadOptions(audio_only=True, sponsorblock_mode="off")
+    assert build_format(options) == ("ba[ext=m4a]/ba/b", [])
+    keys = [pp["key"] for pp in YtDlpDownloader._postprocessors(options)]
+    assert "FFmpegExtractAudio" in keys and "FFmpegVideoRemuxer" not in keys
+    video = [pp["key"] for pp in YtDlpDownloader._postprocessors(DownloadOptions())]
+    assert "FFmpegVideoRemuxer" in video and "FFmpegExtractAudio" not in video

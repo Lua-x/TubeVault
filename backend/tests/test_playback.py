@@ -326,3 +326,32 @@ def test_file_jobs_wait_for_a_free_slot(settings: Any, tmp_path: Path) -> None:
         time.sleep(0.02)
     assert 1 <= most <= FILE_JOBS
     assert all(job.process is not None for job in jobs)  # every job ran in the end
+
+
+@needs_ffmpeg
+def test_sound_only_plays_as_it_is(admin: TestClient) -> None:
+    """An M4A from a "Nur Ton" subscription: played directly, nothing to convert."""
+    add_and_wait(admin, "soundonly01")
+    ctx = admin.app.state.ctx  # type: ignore[attr-defined]
+    with ctx.sessions() as db:
+        video = db.query(Video).filter_by(youtube_id="soundonly01").one()
+        old = ctx.settings.media_dir / video.file_path
+        new = old.with_suffix(".m4a")
+        old.unlink()
+        subprocess.run(  # noqa: S603
+            [  # noqa: S607
+                "ffmpeg", "-loglevel", "error", "-y",
+                "-f", "lavfi", "-i", "sine=frequency=440:duration=5",
+                "-c:a", "aac", str(new),
+            ],
+            check=True,
+        )  # fmt: skip
+        video.file_path = str(new.relative_to(ctx.settings.media_dir).as_posix())
+        video.width = video.height = None
+        db.commit()
+        vid = video.id
+    info = admin.get(f"/api/videos/{vid}/playback").json()
+    assert info["container"] == "m4a" and info["video_codec"] is None
+    assert info["qualities"] == []
+    stream = admin.get(f"/api/videos/{vid}/stream")
+    assert stream.status_code == 200 and stream.headers["content-type"] == "audio/mp4"

@@ -60,6 +60,9 @@ export interface FormValues {
   minMinutes: string;
   maxMinutes: string;
   dateAfter: string;
+  titleInclude: string;
+  titleExclude: string;
+  audioOnly: boolean;
   maxHeight: string;
   container: "default" | "mp4" | "mkv";
   preferH264: "default" | "yes" | "no";
@@ -81,6 +84,9 @@ export const DEFAULT_VALUES: FormValues = {
   minMinutes: "",
   maxMinutes: "",
   dateAfter: "",
+  titleInclude: "",
+  titleExclude: "",
+  audioOnly: false,
   maxHeight: "",
   container: "default",
   preferH264: "default",
@@ -108,6 +114,7 @@ export function toSettings(values: FormValues): SubscriptionSettings {
   if (values.preferH264 !== "default") options.prefer_h264 = values.preferH264 === "yes";
   if (values.sponsorblock) options.sponsorblock_mode = values.sponsorblock;
   if (values.comments !== "default") options.comments = values.comments === "yes";
+  if (values.audioOnly) options.audio_only = true;
   return {
     enabled: values.enabled,
     check_interval_minutes: Number(values.interval),
@@ -118,6 +125,8 @@ export function toSettings(values: FormValues): SubscriptionSettings {
     min_duration_s: minutesToSeconds(values.minMinutes),
     max_duration_s: minutesToSeconds(values.maxMinutes),
     date_after: values.dateAfter || null,
+    title_include: values.titleInclude.trim() || null,
+    title_exclude: values.titleExclude.trim() || null,
     keep_days: positiveInt(values.keepDays),
     keep_last: positiveInt(values.keepLast),
     download_options: options,
@@ -138,6 +147,9 @@ export function fromSubscription(sub: Subscription): FormValues {
     minMinutes: secondsToMinutes(sub.min_duration_s),
     maxMinutes: secondsToMinutes(sub.max_duration_s),
     dateAfter: sub.date_after ?? "",
+    titleInclude: sub.title_include ?? "",
+    titleExclude: sub.title_exclude ?? "",
+    audioOnly: Boolean(options.audio_only),
     maxHeight: options.max_height ? String(options.max_height) : "",
     container: options.container ?? "default",
     preferH264: options.prefer_h264 == null ? "default" : options.prefer_h264 ? "yes" : "no",

@@ -346,6 +346,8 @@ export interface SubscriptionDownloadOptions {
   prefer_h264?: boolean | null;
   sponsorblock_mode?: SponsorBlockMode | null;
   comments?: boolean | null;
+  /** Only the sound track (M4A) – for podcasts, music, audio books. */
+  audio_only?: boolean | null;
 }
 
 export interface SubscriptionSettings {
@@ -359,6 +361,9 @@ export interface SubscriptionSettings {
   min_duration_s: number | null;
   max_duration_s: number | null;
   date_after: string | null;
+  /** Comma-separated words: one must appear in the title / none may. */
+  title_include: string | null;
+  title_exclude: string | null;
   keep_days: number | null;
   keep_last: number | null;
   download_options: SubscriptionDownloadOptions;

@@ -24,6 +24,7 @@ log = logging.getLogger(__name__)
 ytdlp_log = logging.getLogger("yt_dlp")
 
 VIDEO_EXTENSIONS = (".mp4", ".mkv", ".webm", ".m4v", ".mov")
+AUDIO_EXTENSION = ".m4a"  # "Nur Ton" (DownloadOptions.audio_only)
 IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp")
 
 
@@ -138,7 +139,10 @@ def build_format(options: DownloadOptions) -> tuple[str, list[str]]:
     if nothing fits. H.264/AAC is only preferred between formats of that resolution: YouTube
     offers H.264 up to 1080p, above that only VP9/AV1 – and those are taken then, instead
     of dropping to 1080p. Nothing is re-encoded; the streams are only put into one file.
+    Sound only: the best audio stream, AAC (M4A) preferred, so it needn't be converted.
     """
+    if options.audio_only:
+        return "ba[ext=m4a]/ba/b", []
     sort = [f"res:{options.max_height}" if options.max_height else "res"]
     if options.prefer_h264:
         sort.append("+codec:avc:m4a")
@@ -458,7 +462,8 @@ class YtDlpDownloader:
         opts = self._base_options(login) | {
             "format": selector,
             "format_sort": sort,
-            "merge_output_format": options.container,
+            # Sound only: one stream, nothing to merge.
+            "merge_output_format": None if options.audio_only else options.container,
             "paths": {"home": str(media_dir), "temp": str(temp_dir)},
             "outtmpl": {
                 "default": f"{base}.%(ext)s",
@@ -526,7 +531,10 @@ class YtDlpDownloader:
             )
         postprocessors += [
             {"key": "FFmpegThumbnailsConvertor", "format": "jpg", "when": "before_dl"},
-            {"key": "FFmpegVideoRemuxer", "preferedformat": options.container},
+            # Sound only: M4A – copied when YouTube has AAC, converted from Opus otherwise.
+            {"key": "FFmpegExtractAudio", "preferredcodec": "m4a"}
+            if options.audio_only
+            else {"key": "FFmpegVideoRemuxer", "preferedformat": options.container},
         ]
         if cut:
             postprocessors.append({"key": "ModifyChapters", "remove_sponsor_segments": categories})
@@ -595,7 +603,7 @@ class YtDlpDownloader:
             if path and Path(path).exists():
                 return Path(path)
         target_dir = media_dir / relative_base.parent
-        for ext in VIDEO_EXTENSIONS:
+        for ext in (*VIDEO_EXTENSIONS, AUDIO_EXTENSION):
             candidate = target_dir / f"{relative_base.name}{ext}"
             if candidate.exists():
                 return candidate
