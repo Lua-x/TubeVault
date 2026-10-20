@@ -164,6 +164,25 @@ test("the video file is only read once play is pressed", async ({ page }) => {
   await expect.poll(() => fileRequests.some((url) => url.endsWith("/playback"))).toBe(true);
 });
 
+test("the library recommends a video, and shuffle is a switch away", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/library");
+  const card = page.getByRole("region", { name: "Empfohlen" });
+  await expect(card).toBeVisible();
+  await card.getByRole("link").first().click();
+  await expect(page.getByRole("switch", { name: "Autoplay" })).toBeVisible();
+
+  const shuffle = page.getByRole("button", { name: "Zufällige Reihenfolge" });
+  const before = await shuffle.getAttribute("aria-pressed");
+  const after = before === "true" ? "false" : "true";
+  await shuffle.click();
+  await expect(shuffle).toHaveAttribute("aria-pressed", after);
+  await page.reload(); // saved for the account
+  await expect(shuffle).toHaveAttribute("aria-pressed", after);
+  await shuffle.click(); // back as it was
+  await expect(shuffle).toHaveAttribute("aria-pressed", before ?? "false");
+});
+
 test("the player remembers the volume", async ({ page }) => {
   await signIn(page);
   await page.goto("/search?q=Pasta");

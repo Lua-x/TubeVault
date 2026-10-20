@@ -162,6 +162,10 @@ ticks the folders it belongs in; a video can be in several, and taking it out of
 
 ## Watch later and history
 
+The library starts with a recommendation – **Empfohlen** (recommended): a video you haven't
+started yet, preferably from the channels you watch most. It changes now and then, and after you
+watched it.
+
 - **Später ansehen** (watch later) remembers videos with one tap on the video page. The list is
   a playlist like any other – sortable, playable in one go, can be saved to a device and
   listened to as a podcast. Watched videos disappear by themselves (can be turned off under

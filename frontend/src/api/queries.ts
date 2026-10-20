@@ -927,6 +927,21 @@ export function useDeleteToken() {
 
 const COMMENTS_PAGE = 20;
 
+/** The library's feature card; stays the same while browsing, a new one later. */
+export function useRecommendedVideo() {
+  return useQuery({
+    queryKey: ["videos", "recommended"],
+    queryFn: () => api.get<VideoSummary | null>("videos/recommended"),
+    staleTime: 30 * 60_000,
+  });
+}
+
+/** Shuffle: a random video, not one of `exclude`; null when there is none. */
+export function fetchRandomVideo(exclude: number[]): Promise<VideoSummary | null> {
+  const query = exclude.map((id) => `exclude=${id}`).join("&");
+  return api.get<VideoSummary | null>(`videos/random${query ? `?${query}` : ""}`);
+}
+
 export function useSimilarVideos(videoId: number) {
   return useQuery({
     queryKey: ["videos", "similar", videoId],

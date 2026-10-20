@@ -25,9 +25,12 @@ Remuxed and transcoded copies are kept in `media/.tubevault/cache` and cleaned u
 automatically (size adjustable under **Einstellungen → Umwandlung**, settings → transcoding).
 The originals are never changed.
 
-The player also has chapters, subtitles, keyboard shortcuts, picture-in-picture and – for
-playlists – "up next" with autoplay after 5 seconds (a per-user setting under
-**Einstellungen → Wiedergabe**). Videos resume where you stopped and count as watched shortly
+The player also has chapters, subtitles, keyboard shortcuts and picture-in-picture.
+**Autoplay** starts the next video 5 seconds after one ends ("up next", can be cancelled): in a
+playlist the next one of the list, otherwise the first similar video not watched yet. With
+**Zufällige Reihenfolge** (shuffle) it picks at random instead – from the playlist, or from the
+whole library, unwatched videos first, none twice in a row. Both are switches next to "Ähnliche
+Videos" on the video page and under **Einstellungen → Wiedergabe**, per account. Videos resume where you stopped and count as watched shortly
 before the end. The volume (and mute) you set stays for the next videos – remembered per device,
 so the phone and the TV keep their own.
 

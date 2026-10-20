@@ -76,7 +76,9 @@ class Preferences(BaseModel):
 
     theme: Literal["system", "dark", "light"] | None = None
     sponsorblock_skip: bool | None = None
+    # Autoplay: when a video ends, the next one starts (default on) – at random with shuffle.
     autoplay_next: bool | None = None
+    shuffle: bool | None = None
     # Keep videos in "Später ansehen" after watching them (default: they leave the list).
     watch_later_keep_watched: bool | None = None
     # Playback speed per channel ("12": 1.5); always sent as a whole, speed 1 is left out.

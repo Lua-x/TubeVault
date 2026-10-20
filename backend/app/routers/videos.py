@@ -149,6 +149,50 @@ def list_videos(
     return Page(items=video_summaries(db, user.id, videos), total=total)
 
 
+# Before "/{video_id}": these paths aren't video ids.
+FAVOURITE_CHANNELS = 5
+MAX_EXCLUDED = 200
+
+
+def _pick(db: DbSession, user: User, query: Select[Video]) -> VideoSummary | None:
+    video = db.scalar(query.options(selectinload(Video.channel)).order_by(func.random()).limit(1))
+    return video_summaries(db, user.id, [video])[0] if video else None
+
+
+@router.get("/recommended")
+def recommended_video(user: CurrentUser, db: DbSession) -> VideoSummary | None:
+    """For the library's feature card: something not started yet, preferably from one of the
+    channels watched most. Only the database is asked – the disks may sleep."""
+    ready = visible_videos(select(Video), user).where(Video.status == VideoStatus.READY)
+    started = select(WatchProgress.video_id).where(WatchProgress.user_id == user.id)
+    fresh = ready.where(Video.id.not_in(started))
+    favourites = (
+        select(Video.channel_id)
+        .join(WatchProgress, WatchProgress.video_id == Video.id)
+        .where(WatchProgress.user_id == user.id, Video.channel_id.is_not(None))
+        .group_by(Video.channel_id)
+        .order_by(func.count().desc())
+        .limit(FAVOURITE_CHANNELS)
+    )
+    return _pick(db, user, fresh.where(Video.channel_id.in_(favourites))) or _pick(db, user, fresh)
+
+
+@router.get("/random")
+def random_video(
+    user: CurrentUser,
+    db: DbSession,
+    exclude: list[int] = Query(default_factory=list, max_length=MAX_EXCLUDED),
+) -> VideoSummary | None:
+    """Shuffle: a video not watched yet, at random – any, once everything has been watched."""
+    ready = visible_videos(select(Video), user).where(
+        Video.status == VideoStatus.READY, Video.id.not_in(exclude)
+    )
+    watched = select(WatchProgress.video_id).where(
+        WatchProgress.user_id == user.id, WatchProgress.watched
+    )
+    return _pick(db, user, ready.where(Video.id.not_in(watched))) or _pick(db, user, ready)
+
+
 @router.get("/{video_id}")
 def get_video(video_id: int, user: CurrentUser, db: DbSession) -> VideoDetail:
     return video_detail(db, user.id, _get_video(db, video_id, user))

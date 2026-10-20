@@ -24,10 +24,12 @@ import {
   reportProgress,
   useCreateParty,
   useDeleteVideo,
+  fetchRandomVideo,
   useRedownloadVideo,
   usePlaylist,
   useSegments,
   useSetWatched,
+  useSimilarVideos,
   useSpeechState,
   useSpeechSubtitles,
   useToggleWatchLater,
@@ -44,6 +46,7 @@ import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageSpinner } from "@/components/ui/Spinner";
+import { AutoplayControls } from "@/components/video/AutoplayControls";
 import { PlayerOverlay, type PlayerNotice, type UpNext } from "@/components/video/PlayerOverlay";
 import { PlaybackStatus, QualityMenu } from "@/components/video/QualityMenu";
 import { SleepMenu } from "@/components/video/SleepMenu";
@@ -71,7 +74,8 @@ import {
   formatResolution,
 } from "@/lib/format";
 import { categoryLabel } from "@/lib/sponsorblock";
-import type { SponsorSegment, VideoDetail } from "@/lib/types";
+import { nextInOrder, rememberPlayed, shuffleFrom } from "@/lib/autoplay";
+import type { SponsorSegment, VideoDetail, VideoSummary } from "@/lib/types";
 
 const MIN_RESUME_S = 10;
 const UP_NEXT_SECONDS = 5;
@@ -177,6 +181,7 @@ function VideoView({ video, playlistId, autoplay }: VideoViewProps) {
   const index = playlist?.videos.findIndex((v) => v.id === video.id) ?? -1;
   const nextVideo = playlist && index >= 0 ? playlist.videos[index + 1] : undefined;
   const [upNext, setUpNext] = useState<UpNext | null>(null);
+  const { data: similar } = useSimilarVideos(video.id);
 
   const openInPlaylist = useCallback(
     (videoId: number, options?: { autoplay?: boolean }) => {
@@ -188,15 +193,32 @@ function VideoView({ video, playlistId, autoplay }: VideoViewProps) {
     },
     [navigate, playlistId],
   );
+  // Autoplay: on in a playlist, otherwise to the next video it chose.
+  const openNext = useCallback(
+    (videoId: number) => {
+      if (playlistId) openInPlaylist(videoId, { autoplay: true });
+      else navigate(`/videos/${videoId}`, { state: { autoplay: true } satisfies LocationState });
+    },
+    [navigate, openInPlaylist, playlistId],
+  );
+
+  /** What autoplay plays next: the playlist's next video, a similar one – or one at random. */
+  const pickNext = useCallback(async (): Promise<VideoSummary | null> => {
+    const played = rememberPlayed(video.id);
+    const shuffle = preferences.shuffle === true;
+    if (playlist) return shuffle ? shuffleFrom(playlist.videos, played) : (nextVideo ?? null);
+    if (shuffle) return fetchRandomVideo(played).catch(() => null);
+    return nextInOrder(similar ?? [], played);
+  }, [video.id, preferences.shuffle, playlist, nextVideo, similar]);
 
   useEffect(() => {
     if (!upNext) return;
     const timer = setTimeout(() => {
-      if (upNext.remaining <= 1) openInPlaylist(upNext.video.id, { autoplay: true });
+      if (upNext.remaining <= 1) openNext(upNext.video.id);
       else setUpNext({ ...upNext, remaining: upNext.remaining - 1 });
     }, 1000);
     return () => clearTimeout(timer);
-  }, [upNext, openInPlaylist]);
+  }, [upNext, openNext]);
 
   // Progress: saved by the player at sensible moments. After "mark as watched" we stop
   // saving until playback resumes, otherwise the next save would undo it.
@@ -230,10 +252,11 @@ function VideoView({ video, playlistId, autoplay }: VideoViewProps) {
       setNotice({ id: Date.now(), message: "Schlaf-Timer: Gute Nacht" });
       return; // no next video
     }
-    if (nextVideo && preferences.autoplay_next !== false) {
-      setUpNext({ video: nextVideo, remaining: UP_NEXT_SECONDS });
-    }
-  }, [nextVideo, preferences.autoplay_next]);
+    if (preferences.autoplay_next === false) return;
+    void pickNext().then((next) => {
+      if (next) setUpNext({ video: next, remaining: UP_NEXT_SECONDS });
+    });
+  }, [pickNext, preferences.autoplay_next]);
 
   // Sleep timer: when the time is up, the sound fades out and the video pauses. A timer that
   // ran out long ago (nobody was watching) is just dropped.
@@ -326,7 +349,7 @@ function VideoView({ video, playlistId, autoplay }: VideoViewProps) {
                 }
                 onSkip={() => currentSegment && player.current?.seek(currentSegment.end_s)}
                 upNext={upNext}
-                onPlayNext={() => upNext && openInPlaylist(upNext.video.id, { autoplay: true })}
+                onPlayNext={() => upNext && openNext(upNext.video.id)}
                 onCancelNext={() => setUpNext(null)}
               />
             </>
@@ -392,6 +415,7 @@ function VideoView({ video, playlistId, autoplay }: VideoViewProps) {
                 </ol>
               </section>
             )}
+            <AutoplayControls />
             <SimilarVideos videoId={video.id} />
             <FileInfo video={video} skipped={segments?.length ?? 0} />
           </aside>

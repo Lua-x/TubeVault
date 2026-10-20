@@ -9,8 +9,11 @@ import { thumbnailUrl } from "@/lib/media";
 
 import { Thumbnail } from "./Thumbnail";
 
-/** Big feature card for the newest video, with a blurred backdrop taken from its thumbnail. */
-export function Hero({ video }: { video: VideoSummary }) {
+/**
+ * Big feature card with a blurred backdrop taken from the thumbnail: the newest video on the
+ * start page, a recommendation in the library (`label`).
+ */
+export function Hero({ video, label }: { video: VideoSummary; label?: string }) {
   const resume =
     video.progress && !video.progress.watched && video.progress.position_s >= 10
       ? video.progress.position_s
@@ -27,7 +30,7 @@ export function Hero({ video }: { video: VideoSummary }) {
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
       className="relative mb-12 overflow-hidden rounded-3xl border border-separator"
-      aria-label="Neuestes Video"
+      aria-label={label ?? "Neuestes Video"}
     >
       {video.has_thumbnail && (
         <div
@@ -44,7 +47,7 @@ export function Hero({ video }: { video: VideoSummary }) {
       <div className="relative grid items-center gap-6 p-5 sm:p-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:gap-10 lg:p-10">
         <div className="order-2 min-w-0 lg:order-1">
           <p className="text-[13px] font-semibold tracking-wide text-accent uppercase">
-            {resume != null ? "Weiterschauen" : "Neu"}
+            {label ?? (resume != null ? "Weiterschauen" : "Neu")}
           </p>
           <h2 className="mt-2 line-clamp-3 text-[26px] leading-tight font-bold tracking-tight sm:text-[34px]">
             {video.title}

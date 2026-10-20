@@ -152,10 +152,18 @@ function PlaybackSection() {
     <Group title="Wiedergabe" footer="Gilt nur für dein Konto.">
       <Row>
         <Switch
-          label="Weiter mit nächstem Playlist-Video"
-          description="Nach dem Ende startet das nächste Video nach 5 Sekunden."
+          label="Autoplay"
+          description="Nach dem Ende startet nach 5 Sekunden das nächste Video – in einer Playlist das nächste der Liste, sonst ein ähnliches."
           checked={preferences.autoplay_next !== false}
           onChange={(autoplay_next) => void update({ autoplay_next })}
+        />
+      </Row>
+      <Row>
+        <Switch
+          label="Zufällige Reihenfolge"
+          description="Autoplay nimmt ein zufälliges, noch nicht gesehenes Video – aus der Playlist oder der ganzen Bibliothek."
+          checked={preferences.shuffle === true}
+          onChange={(shuffle) => void update({ shuffle })}
         />
       </Row>
       <Row>

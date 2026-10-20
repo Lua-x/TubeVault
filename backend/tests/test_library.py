@@ -306,3 +306,23 @@ def test_first_saves_racing_each_other(admin: TestClient) -> None:
         row = progress._update(db, uid, vid, change)
         assert row.position_s == 40.0
     assert admin.get(f"/api/videos/{vid}").json()["progress"]["position_s"] == 40.0
+
+
+def test_recommended_and_random(admin: TestClient) -> None:
+    """The library's feature card and shuffle: chosen from the database, by watch state."""
+    ids = [add_and_wait(admin, f"pickvideo0{n}")["video"]["id"] for n in range(3)]
+    started, watched, fresh = ids
+    admin.put(f"/api/videos/{started}/progress", json={"position_s": 42})
+    admin.put(f"/api/videos/{watched}/watched", json={"watched": True})
+
+    # Recommended: only what wasn't started yet.
+    for _ in range(5):
+        assert admin.get("/api/videos/recommended").json()["id"] == fresh
+
+    def random(*exclude: int) -> Any:
+        query = "&".join(f"exclude={i}" for i in exclude)
+        return admin.get(f"/api/videos/random?{query}").json()
+
+    assert random(fresh)["id"] == started  # not watched yet comes first
+    assert random(fresh, started)["id"] == watched  # then anything
+    assert random(*ids) is None

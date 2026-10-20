@@ -3,7 +3,10 @@ export type Theme = "system" | "dark" | "light";
 export interface Preferences {
   theme?: Theme;
   sponsorblock_skip?: boolean;
+  /** Autoplay: the next video starts when one ends (default on). */
   autoplay_next?: boolean;
+  /** Autoplay picks at random: in a playlist from it, otherwise from the library. */
+  shuffle?: boolean;
   watch_later_keep_watched?: boolean;
   /** Playback speed per channel id; speed 1 is left out. */
   channel_rates?: Record<string, number>;

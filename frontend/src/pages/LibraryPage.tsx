@@ -2,7 +2,12 @@ import { Clapperboard, Plus, Search } from "lucide-react";
 import { useCallback, useDeferredValue, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 
-import { useVideoPages, type VideoSort, type WatchedFilter } from "@/api/queries";
+import {
+  useRecommendedVideo,
+  useVideoPages,
+  type VideoSort,
+  type WatchedFilter,
+} from "@/api/queries";
 import { useOpenAddVideo } from "@/components/layout/addVideo";
 import { LibraryTabs } from "@/components/layout/LibraryTabs";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -11,6 +16,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { LoadMore } from "@/components/ui/LoadMore";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Select } from "@/components/ui/Select";
+import { Hero } from "@/components/video/Hero";
 import { VideoGrid, VideoGridSkeleton } from "@/components/video/VideoGrid";
 import { useAuth, useCanAdd, useYoutube } from "@/hooks/auth";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
@@ -66,6 +72,9 @@ export function LibraryPage() {
     setParams(next, { replace: true });
   };
 
+  // Something not started yet, preferably from the channels watched most.
+  const { data: recommended } = useRecommendedVideo();
+
   return (
     <>
       <PageHeader
@@ -106,6 +115,7 @@ export function LibraryPage() {
         }
       />
       <LibraryTabs />
+      {!deferredQuery && recommended && <Hero video={recommended} label="Empfohlen" />}
       <div className="no-scrollbar -mx-4 mb-6 overflow-x-auto px-4 sm:mx-0 sm:px-0">
         <SegmentedControl
           label="Gesehen-Filter"
