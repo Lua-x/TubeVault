@@ -6,15 +6,15 @@ readme = "../README.md"
 license = "AGPL-3.0-or-later"
 requires-python = ">=3.12"
 dependencies = [
-  "fastapi>=0.142",
+  "fastapi>=0.156.4",
   "uvicorn[standard]>=0.54",
-  "sqlalchemy>=2.1",
+  "sqlalchemy>=2.1.5",
   "alembic>=1.20",
-  "pydantic-settings>=2.15",
+  "pydantic-settings>=2.16.1",
   "argon2-cffi>=25.1",
   "yt-dlp[default,deno]>=2026.8.19",
   # Used to update yt-dlp at runtime without rebuilding the image.
-  "pip>=25",
+  "pip>=26.2.2",
   # Time zones (TZ) for subscription schedules, whether or not the system has them.
   "tzdata>=2025.2",
   # Small copies of thumbnails in /config, so browsing doesn't wake the media disks.
@@ -24,8 +24,8 @@ dependencies = [
 [dependency-groups]
 dev = [
   "pytest>=9.1",
-  "httpx2>=2.13",
-  "ruff>=0.16",
+  "httpx2>=2.15.1",
+  "ruff>=0.17.1",
   "mypy>=2.4",
 ]
 
